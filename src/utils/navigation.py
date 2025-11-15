@@ -80,73 +80,141 @@ class NavigationManager:
             )
         }
     
-    def get_dmaic_phase_progress(self, project_data: Dict) -> Dict[str, float]:
-        """Calcula o progresso de cada fase DMAIC"""
-        progress = {}
+    def render_top_navigation(self):
+        """Renderiza navegação no topo da página"""
+        current_page = st.session_state.get('current_page', 'dashboard')
+        current_project = st.session_state.get('current_project')
         
-        for phase in DMACPhase:
-            phase_data = project_data.get(phase.value, {})
-            total_steps = self._get_phase_total_steps(phase)
-            completed_steps = self._count_completed_steps(phase_data)
-            progress[phase.value] = (completed_steps / total_steps) * 100 if total_steps > 0 else 0
-        
-        return progress
-    
-    def _get_phase_total_steps(self, phase: DMACPhase) -> int:
-        """Retorna o número total de etapas por fase"""
-        steps_count = {
-            DMACPhase.DEFINE: 5,    # Charter, Stakeholders, VOC, SIPOC, Timeline
-            DMACPhase.MEASURE: 6,   # Plano coleta, Dados, MSA, Baseline, Capability, CTQ
-            DMACPhase.ANALYZE: 7,   # Ishikawa, 5 Porquês, Pareto, Hipóteses, Testes, Root Cause, Priorização
-            DMACPhase.IMPROVE: 5,   # Soluções, Plano Ação, Piloto, Implementação, Validação
-            DMACPhase.CONTROL: 4    # Controles, SPC, Documentação, Handover
-        }
-        return steps_count.get(phase, 1)
-    
-    def _count_completed_steps(self, phase_data: Dict) -> int:
-        """Conta etapas completadas em uma fase"""
-        completed = 0
-        for key, value in phase_data.items():
-            if isinstance(value, dict) and value.get('completed', False):
-                completed += 1
-            elif isinstance(value, (str, list)) and value:
-                completed += 1
-        return completed
+        # Container para navegação
+        with st.container():
+            # Breadcrumb navigation
+            breadcrumb_items = []
+            
+            if current_page == 'dashboard':
+                breadcrumb_items = ["🏠 Dashboard"]
+            elif current_page == 'projects':
+                breadcrumb_items = ["🏠 Dashboard", "📊 Projetos"]
+            elif current_page == 'dmaic':
+                if current_project:
+                    phase = st.session_state.get('current_dmaic_phase', 'define').title()
+                    breadcrumb_items = [
+                        "🏠 Dashboard", 
+                        "📊 Projetos", 
+                        f"📋 {current_project.get('name', 'Projeto')[:20]}", 
+                        f"{self.dmaic_phases[DMACPhase(st.session_state.get('current_dmaic_phase', 'define'))].icon} {phase}"
+                    ]
+                else:
+                    breadcrumb_items = ["🏠 Dashboard", "📊 Projetos", "📋 DMAIC"]
+            elif current_page == 'reports':
+                breadcrumb_items = ["🏠 Dashboard", "📋 Relatórios"]
+            elif current_page == 'help':
+                breadcrumb_items = ["🏠 Dashboard", "❓ Ajuda"]
+            
+            # Renderizar breadcrumb com links clicáveis
+            if len(breadcrumb_items) > 1:
+                cols = st.columns([1] * len(breadcrumb_items) + [3])  # Adicionar espaço extra
+                
+                for i, item in enumerate(breadcrumb_items):
+                    with cols[i]:
+                        if i == len(breadcrumb_items) - 1:
+                            # Item atual (não clicável)
+                            st.markdown(f"**{item}**")
+                        else:
+                            # Items anteriores (clicáveis)
+                            if st.button(item, key=f"breadcrumb_{i}", use_container_width=True):
+                                if i == 0:  # Dashboard
+                                    st.session_state.current_page = 'dashboard'
+                                    if 'current_project' in st.session_state:
+                                        del st.session_state.current_project
+                                elif i == 1 and "Projetos" in item:  # Projetos
+                                    st.session_state.current_page = 'dashboard'  # Voltar para dashboard que mostra projetos
+                                elif i == 2 and current_project:  # Projeto específico
+                                    st.session_state.current_page = 'dmaic'
+                                    st.session_state.current_dmaic_phase = 'define'
+                                st.rerun()
+                        
+                        if i < len(breadcrumb_items) - 1:
+                            st.markdown(" → ", unsafe_allow_html=True)
+            
+            st.divider()
     
     def render_sidebar_navigation(self, current_project: Optional[Dict] = None):
         """Renderiza navegação na sidebar"""
         with st.sidebar:
-            st.markdown("### 🧭 Navegação")
+            # Informações do usuário
+            user_data = st.session_state.get('user_data', {})
+            st.markdown(f"### 👤 {user_data.get('name', 'Usuário')}")
+            if user_data.get('company'):
+                st.caption(f"🏢 {user_data.get('company')}")
+            
+            st.divider()
             
             # Navegação principal
-            selected_page = st.selectbox(
-                "Página Principal",
-                options=list(self.main_pages.keys()),
-                format_func=lambda x: f"{self.main_pages[x].icon} {self.main_pages[x].title}",
-                index=0 if not st.session_state.get('current_page') else list(self.main_pages.keys()).index(st.session_state.get('current_page', 'dashboard'))
-            )
+            st.markdown("### 🧭 Navegação Principal")
             
-            st.session_state.current_page = selected_page
+            # Botões de navegação principal
+            nav_buttons = [
+                ("dashboard", "🏠 Dashboard", "Visão geral"),
+                ("projects", "📊 Projetos", "Gerenciar projetos"),
+                ("reports", "📋 Relatórios", "Gerar relatórios"),
+                ("help", "❓ Ajuda", "Tutoriais e ajuda")
+            ]
             
-            # Navegação DMAIC (apenas se projeto selecionado)
+            for page_key, button_text, help_text in nav_buttons:
+                if st.button(
+                    button_text, 
+                    key=f"nav_main_{page_key}",
+                    use_container_width=True,
+                    help=help_text,
+                    type="primary" if st.session_state.get('current_page') == page_key else "secondary"
+                ):
+                    st.session_state.current_page = page_key
+                    # Limpar projeto atual se não for página DMAIC
+                    if page_key != 'dmaic' and 'current_project' in st.session_state:
+                        del st.session_state.current_project
+                    st.rerun()
+            
+            st.divider()
+            
+            # Projeto atual
             if current_project:
+                st.markdown("### 📋 Projeto Atual")
+                st.info(f"**{current_project.get('name', 'Sem nome')[:25]}**")
+                
+                # Botão para fechar projeto
+                if st.button("❌ Fechar Projeto", use_container_width=True):
+                    if 'current_project' in st.session_state:
+                        del st.session_state.current_project
+                    if 'current_dmaic_phase' in st.session_state:
+                        del st.session_state.current_dmaic_phase
+                    st.session_state.current_page = 'dashboard'
+                    st.rerun()
+                
+                st.divider()
+                
+                # Navegação DMAIC
                 st.markdown("### 📋 Fases DMAIC")
                 
                 progress_data = self.get_dmaic_phase_progress(current_project)
+                current_dmaic_phase = st.session_state.get('current_dmaic_phase', 'define')
                 
                 for phase in DMACPhase:
                     phase_info = self.dmaic_phases[phase]
                     progress = progress_data.get(phase.value, 0)
                     
-                    # Botão da fase com progresso
-                    col1, col2 = st.columns([3, 1])
+                    # Estilo do botão baseado no status
+                    is_current = current_dmaic_phase == phase.value
+                    button_type = "primary" if is_current else "secondary"
+                    
+                    col1, col2 = st.columns([4, 1])
                     
                     with col1:
                         if st.button(
                             f"{phase_info.icon} {phase_info.title}",
-                            key=f"nav_{phase.value}",
+                            key=f"nav_dmaic_{phase.value}",
                             use_container_width=True,
-                            help=phase_info.description
+                            help=phase_info.description,
+                            type=button_type
                         ):
                             st.session_state.current_dmaic_phase = phase.value
                             st.session_state.current_page = "dmaic"
@@ -168,4 +236,51 @@ class NavigationManager:
                 st.caption(f"{overall_progress:.1f}% concluído")
             
             else:
-                st.info("Selecione um projeto para acessar as fases DMAIC")
+                st.markdown("### 📋 Projeto")
+                st.info("Nenhum projeto selecionado")
+                if st.button("➕ Criar Projeto", use_container_width=True):
+                    st.session_state.current_page = 'dashboard'
+                    st.session_state.show_create_project = True
+                    st.rerun()
+            
+            st.divider()
+            
+            # Botão de logout
+            if st.button("🚪 Logout", use_container_width=True, type="secondary"):
+                from src.auth.firebase_auth import FirebaseAuth
+                auth = FirebaseAuth()
+                auth.logout_user()
+                st.rerun()
+    
+    def get_dmaic_phase_progress(self, project_data: Dict) -> Dict[str, float]:
+        """Calcula o progresso de cada fase DMAIC"""
+        progress = {}
+        
+        for phase in DMACPhase:
+            phase_data = project_data.get(phase.value, {})
+            total_steps = self._get_phase_total_steps(phase)
+            completed_steps = self._count_completed_steps(phase_data)
+            progress[phase.value] = (completed_steps / total_steps) * 100 if total_steps > 0 else 0
+        
+        return progress
+    
+    def _get_phase_total_steps(self, phase: DMACPhase) -> int:
+        """Retorna o número total de etapas por fase"""
+        steps_count = {
+            DMACPhase.DEFINE: 5,
+            DMACPhase.MEASURE: 6,
+            DMACPhase.ANALYZE: 7,
+            DMACPhase.IMPROVE: 5,
+            DMACPhase.CONTROL: 4
+        }
+        return steps_count.get(phase, 1)
+    
+    def _count_completed_steps(self, phase_data: Dict) -> int:
+        """Conta etapas completadas em uma fase"""
+        completed = 0
+        for key, value in phase_data.items():
+            if isinstance(value, dict) and value.get('completed', False):
+                completed += 1
+            elif isinstance(value, (str, list)) and value:
+                completed += 1
+        return completed
