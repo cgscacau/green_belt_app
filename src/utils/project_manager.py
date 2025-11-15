@@ -8,10 +8,23 @@ from config.firebase_config import initialize_firebase
 class ProjectManager:
     def __init__(self):
         self.db = initialize_firebase()
+        if not self.db:
+            st.warning("⚠️ Firestore não inicializado. Algumas funcionalidades podem estar limitadas.")
     
     def create_project(self, user_uid: str, project_data: Dict) -> tuple[bool, str]:
         """Cria um novo projeto"""
         try:
+            # Verificar se Firestore está disponível
+            if not self.db:
+                return False, "Banco de dados não disponível. Verifique a configuração do Firebase."
+            
+            # Validar dados obrigatórios
+            if not project_data.get('name'):
+                return False, "Nome do projeto é obrigatório"
+            
+            if not user_uid:
+                return False, "Usuário não identificado"
+            
             project_id = str(uuid.uuid4())
             
             # Estrutura padrão do projeto
@@ -21,7 +34,7 @@ class ProjectManager:
                 'name': project_data['name'],
                 'description': project_data.get('description', ''),
                 'business_case': project_data.get('business_case', ''),
-                'expected_savings': project_data.get('expected_savings', 0),
+                'expected_savings': float(project_data.get('expected_savings', 0)),
                 'start_date': project_data.get('start_date', datetime.now().isoformat()),
                 'target_end_date': project_data.get('target_end_date', (datetime.now() + timedelta(days=120)).isoformat()),
                 'status': 'active',
@@ -69,37 +82,81 @@ class ProjectManager:
                 }
             }
             
+            # Debug: Log do projeto sendo criado
+            st.write("🔍 Debug: Criando projeto com dados:", {
+                'id': project_id,
+                'name': new_project['name'],
+                'user_uid': user_uid,
+                'firestore_available': bool(self.db)
+            })
+            
             # Salvar no Firestore
-            if self.db:
-                self.db.collection('projects').document(project_id).set(new_project)
-                
-                # Atualizar lista de projetos do usuário
+            self.db.collection('projects').document(project_id).set(new_project)
+            st.write("✅ Debug: Projeto salvo no Firestore")
+            
+            # Atualizar lista de projetos do usuário
+            try:
                 user_ref = self.db.collection('users').document(user_uid)
                 user_doc = user_ref.get()
                 
                 if user_doc.exists:
                     user_data = user_doc.to_dict()
                     projects = user_data.get('projects', [])
-                    projects.append(project_id)
-                    user_ref.update({'projects': projects})
+                    if project_id not in projects:  # Evitar duplicatas
+                        projects.append(project_id)
+                        user_ref.update({'projects': projects})
+                        st.write("✅ Debug: Lista de projetos do usuário atualizada")
+                else:
+                    # Criar documento do usuário se não existir
+                    user_ref.set({
+                        'projects': [project_id],
+                        'updated_at': datetime.now().isoformat()
+                    }, merge=True)
+                    st.write("✅ Debug: Documento do usuário criado")
+                    
+            except Exception as user_update_error:
+                st.warning(f"⚠️ Projeto criado, mas erro ao atualizar usuário: {str(user_update_error)}")
             
             return True, project_id
             
         except Exception as e:
-            return False, f"Erro ao criar projeto: {str(e)}"
+            error_msg = str(e)
+            st.error(f"❌ Debug: Erro detalhado ao criar projeto: {error_msg}")
+            
+            # Análise específica de erros
+            if "permission" in error_msg.lower():
+                return False, "Erro de permissão no Firebase. Verifique as regras de segurança."
+            elif "network" in error_msg.lower() or "connection" in error_msg.lower():
+                return False, "Erro de conexão. Verifique sua internet."
+            elif "quota" in error_msg.lower():
+                return False, "Quota do Firebase excedida. Tente novamente mais tarde."
+            else:
+                return False, f"Erro interno: {error_msg}"
     
     def get_user_projects(self, user_uid: str) -> List[Dict]:
         """Obtém todos os projetos do usuário"""
         try:
             if not self.db:
+                st.warning("⚠️ Banco de dados não disponível")
+                return []
+            
+            if not user_uid:
+                st.warning("⚠️ ID do usuário não fornecido")
                 return []
             
             projects = []
+            
+            # Debug: Log da busca
+            st.write(f"🔍 Debug: Buscando projetos para usuário: {user_uid}")
+            
             projects_query = self.db.collection('projects').where('user_uid', '==', user_uid).stream()
             
             for doc in projects_query:
                 project_data = doc.to_dict()
-                projects.append(project_data)
+                if project_data:  # Verificar se dados existem
+                    projects.append(project_data)
+            
+            st.write(f"✅ Debug: {len(projects)} projetos encontrados")
             
             # Ordenar por data de criação (mais recente primeiro)
             projects.sort(key=lambda x: x.get('created_at', ''), reverse=True)
@@ -107,13 +164,13 @@ class ProjectManager:
             return projects
             
         except Exception as e:
-            st.error(f"Erro ao carregar projetos: {str(e)}")
+            st.error(f"❌ Debug: Erro ao carregar projetos: {str(e)}")
             return []
     
     def get_project(self, project_id: str) -> Optional[Dict]:
         """Obtém um projeto específico"""
         try:
-            if not self.db:
+            if not self.db or not project_id:
                 return None
             
             doc = self.db.collection('projects').document(project_id).get()
@@ -130,7 +187,7 @@ class ProjectManager:
     def update_project(self, project_id: str, updates: Dict) -> bool:
         """Atualiza dados do projeto"""
         try:
-            if not self.db:
+            if not self.db or not project_id:
                 return False
             
             updates['updated_at'] = datetime.now().isoformat()
@@ -145,7 +202,7 @@ class ProjectManager:
     def delete_project(self, project_id: str, user_uid: str) -> bool:
         """Deleta um projeto"""
         try:
-            if not self.db:
+            if not self.db or not project_id:
                 return False
             
             # Remover da coleção de projetos
