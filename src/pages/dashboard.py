@@ -229,6 +229,11 @@ def show_projects_grid(projects, project_manager):
 
 def show_project_card(project, project_manager):
     """Exibe um card individual do projeto"""
+    import time
+    
+    # Gerar ID único para este card
+    card_id = f"{project['id']}_{int(time.time() * 1000) % 10000}"
+    
     # Calcular progresso
     progress = project_manager.calculate_project_progress(project)
     
@@ -257,31 +262,41 @@ def show_project_card(project, project_manager):
         st.progress(progress / 100)
         st.caption(f"Progresso: {progress:.1f}%")
         
-        # Botões de ação
+        # Botões de ação com chaves únicas
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("📂 Abrir", key=f"open_{project['id']}", use_container_width=True):
+            if st.button("📂 Abrir", key=f"open_{card_id}", use_container_width=True):
                 st.session_state.current_project = project
                 st.session_state.current_page = "dmaic"
                 st.session_state.current_dmaic_phase = project.get('current_phase', 'define')
                 st.rerun()
         
         with col2:
-            if st.button("✏️ Editar", key=f"edit_{project['id']}", use_container_width=True):
+            if st.button("✏️ Editar", key=f"edit_{card_id}", use_container_width=True):
                 st.session_state.edit_project = project
                 st.rerun()
         
         with col3:
-            if st.button("🗑️ Excluir", key=f"delete_{project['id']}", use_container_width=True):
-                if st.session_state.get(f"confirm_delete_{project['id']}"):
+            # Verificar se já foi clicado para confirmar
+            confirm_key = f"confirm_delete_{project['id']}"
+            if st.session_state.get(confirm_key):
+                if st.button("⚠️ Confirmar", key=f"confirm_delete_{card_id}", use_container_width=True, type="primary"):
                     success = project_manager.delete_project(project['id'], project['user_uid'])
                     if success:
                         st.success("Projeto excluído!")
+                        # Limpar estado de confirmação
+                        if confirm_key in st.session_state:
+                            del st.session_state[confirm_key]
+                        time.sleep(1)
                         st.rerun()
-                else:
-                    st.session_state[f"confirm_delete_{project['id']}"] = True
-                    st.warning("Clique novamente para confirmar")
+                    else:
+                        st.error("Erro ao excluir projeto")
+            else:
+                if st.button("🗑️ Excluir", key=f"delete_{card_id}", use_container_width=True):
+                    st.session_state[confirm_key] = True
+                    st.rerun()
+
 
 def show_projects_analytics(projects):
     """Exibe gráficos analíticos dos projetos"""
