@@ -2,6 +2,8 @@ import streamlit as st
 from enum import Enum
 from dataclasses import dataclass
 from typing import Dict, List, Optional
+import hashlib
+import time
 
 class DMACPhase(Enum):
     DEFINE = "define"
@@ -20,6 +22,9 @@ class NavigationItem:
 
 class NavigationManager:
     def __init__(self):
+        # Gerar timestamp único para evitar conflitos de chaves
+        self.session_id = hashlib.md5(str(time.time()).encode()).hexdigest()[:8]
+        
         self.dmaic_phases = {
             DMACPhase.DEFINE: NavigationItem(
                 key="define",
@@ -80,6 +85,16 @@ class NavigationManager:
             )
         }
     
+    def _generate_unique_key(self, base_key: str) -> str:
+        """Gera uma chave única para elementos Streamlit"""
+        return f"{base_key}_{self.session_id}_{st.session_state.get('nav_counter', 0)}"
+    
+    def _increment_counter(self):
+        """Incrementa contador para garantir chaves únicas"""
+        if 'nav_counter' not in st.session_state:
+            st.session_state.nav_counter = 0
+        st.session_state.nav_counter += 1
+    
     def render_top_navigation(self):
         """Renderiza navegação no topo da página"""
         current_page = st.session_state.get('current_page', 'dashboard')
@@ -89,52 +104,63 @@ class NavigationManager:
         with st.container():
             # Breadcrumb navigation
             breadcrumb_items = []
+            breadcrumb_actions = []
             
             if current_page == 'dashboard':
                 breadcrumb_items = ["🏠 Dashboard"]
+                breadcrumb_actions = [None]
             elif current_page == 'projects':
                 breadcrumb_items = ["🏠 Dashboard", "📊 Projetos"]
+                breadcrumb_actions = ['dashboard', None]
             elif current_page == 'dmaic':
                 if current_project:
                     phase = st.session_state.get('current_dmaic_phase', 'define').title()
+                    phase_icon = self.dmaic_phases[DMACPhase(st.session_state.get('current_dmaic_phase', 'define'))].icon
                     breadcrumb_items = [
                         "🏠 Dashboard", 
                         "📊 Projetos", 
                         f"📋 {current_project.get('name', 'Projeto')[:20]}", 
-                        f"{self.dmaic_phases[DMACPhase(st.session_state.get('current_dmaic_phase', 'define'))].icon} {phase}"
+                        f"{phase_icon} {phase}"
                     ]
+                    breadcrumb_actions = ['dashboard', 'dashboard', 'dmaic_project', None]
                 else:
                     breadcrumb_items = ["🏠 Dashboard", "📊 Projetos", "📋 DMAIC"]
+                    breadcrumb_actions = ['dashboard', 'dashboard', None]
             elif current_page == 'reports':
                 breadcrumb_items = ["🏠 Dashboard", "📋 Relatórios"]
+                breadcrumb_actions = ['dashboard', None]
             elif current_page == 'help':
                 breadcrumb_items = ["🏠 Dashboard", "❓ Ajuda"]
+                breadcrumb_actions = ['dashboard', None]
             
             # Renderizar breadcrumb com links clicáveis
             if len(breadcrumb_items) > 1:
-                cols = st.columns([1] * len(breadcrumb_items) + [3])  # Adicionar espaço extra
+                # Usar texto simples para breadcrumb para evitar conflitos de chaves
+                breadcrumb_text = " → ".join(breadcrumb_items)
+                st.markdown(f"**Navegação:** {breadcrumb_text}")
                 
-                for i, item in enumerate(breadcrumb_items):
-                    with cols[i]:
-                        if i == len(breadcrumb_items) - 1:
-                            # Item atual (não clicável)
-                            st.markdown(f"**{item}**")
-                        else:
-                            # Items anteriores (clicáveis)
-                            if st.button(item, key=f"breadcrumb_{i}", use_container_width=True):
-                                if i == 0:  # Dashboard
-                                    st.session_state.current_page = 'dashboard'
-                                    if 'current_project' in st.session_state:
-                                        del st.session_state.current_project
-                                elif i == 1 and "Projetos" in item:  # Projetos
-                                    st.session_state.current_page = 'dashboard'  # Voltar para dashboard que mostra projetos
-                                elif i == 2 and current_project:  # Projeto específico
-                                    st.session_state.current_page = 'dmaic'
-                                    st.session_state.current_dmaic_phase = 'define'
-                                st.rerun()
-                        
-                        if i < len(breadcrumb_items) - 1:
-                            st.markdown(" → ", unsafe_allow_html=True)
+                # Botões de navegação rápida
+                if len(breadcrumb_items) > 1:
+                    cols = st.columns(len(breadcrumb_items))
+                    
+                    for i, (item, action) in enumerate(zip(breadcrumb_items, breadcrumb_actions)):
+                        if action and i < len(breadcrumb_items) - 1:  # Não mostrar botão para item atual
+                            with cols[i]:
+                                self._increment_counter()
+                                if st.button(
+                                    item, 
+                                    key=self._generate_unique_key(f"breadcrumb_{i}_{action}"),
+                                    use_container_width=True,
+                                    help=f"Ir para {item}"
+                                ):
+                                    if action == 'dashboard':
+                                        st.session_state.current_page = 'dashboard'
+                                        if 'current_project' in st.session_state:
+                                            del st.session_state.current_project
+                                    elif action == 'dmaic_project':
+                                        st.session_state.current_page = 'dmaic'
+                                        st.session_state.current_dmaic_phase = 'define'
+                                    st.rerun()
             
             st.divider()
     
@@ -160,13 +186,18 @@ class NavigationManager:
                 ("help", "❓ Ajuda", "Tutoriais e ajuda")
             ]
             
+            current_page = st.session_state.get('current_page', 'dashboard')
+            
             for page_key, button_text, help_text in nav_buttons:
+                self._increment_counter()
+                button_type = "primary" if current_page == page_key else "secondary"
+                
                 if st.button(
                     button_text, 
-                    key=f"nav_main_{page_key}",
+                    key=self._generate_unique_key(f"nav_main_{page_key}"),
                     use_container_width=True,
                     help=help_text,
-                    type="primary" if st.session_state.get('current_page') == page_key else "secondary"
+                    type=button_type
                 ):
                     st.session_state.current_page = page_key
                     # Limpar projeto atual se não for página DMAIC
@@ -179,10 +210,16 @@ class NavigationManager:
             # Projeto atual
             if current_project:
                 st.markdown("### 📋 Projeto Atual")
-                st.info(f"**{current_project.get('name', 'Sem nome')[:25]}**")
+                project_name = current_project.get('name', 'Sem nome')
+                st.info(f"**{project_name[:25]}{'...' if len(project_name) > 25 else ''}**")
                 
                 # Botão para fechar projeto
-                if st.button("❌ Fechar Projeto", use_container_width=True):
+                self._increment_counter()
+                if st.button(
+                    "❌ Fechar Projeto", 
+                    key=self._generate_unique_key("close_project"),
+                    use_container_width=True
+                ):
                     if 'current_project' in st.session_state:
                         del st.session_state.current_project
                     if 'current_dmaic_phase' in st.session_state:
@@ -209,12 +246,14 @@ class NavigationManager:
                     col1, col2 = st.columns([4, 1])
                     
                     with col1:
+                        self._increment_counter()
                         if st.button(
                             f"{phase_info.icon} {phase_info.title}",
-                            key=f"nav_dmaic_{phase.value}",
+                            key=self._generate_unique_key(f"nav_dmaic_{phase.value}"),
                             use_container_width=True,
                             help=phase_info.description,
-                            type=button_type
+                            type=button_type,
+                            disabled=is_current
                         ):
                             st.session_state.current_dmaic_phase = phase.value
                             st.session_state.current_page = "dmaic"
@@ -238,7 +277,12 @@ class NavigationManager:
             else:
                 st.markdown("### 📋 Projeto")
                 st.info("Nenhum projeto selecionado")
-                if st.button("➕ Criar Projeto", use_container_width=True):
+                self._increment_counter()
+                if st.button(
+                    "➕ Criar Projeto", 
+                    key=self._generate_unique_key("create_project_sidebar"),
+                    use_container_width=True
+                ):
                     st.session_state.current_page = 'dashboard'
                     st.session_state.show_create_project = True
                     st.rerun()
@@ -246,7 +290,13 @@ class NavigationManager:
             st.divider()
             
             # Botão de logout
-            if st.button("🚪 Logout", use_container_width=True, type="secondary"):
+            self._increment_counter()
+            if st.button(
+                "🚪 Logout", 
+                key=self._generate_unique_key("logout_sidebar"),
+                use_container_width=True, 
+                type="secondary"
+            ):
                 from src.auth.firebase_auth import FirebaseAuth
                 auth = FirebaseAuth()
                 auth.logout_user()
