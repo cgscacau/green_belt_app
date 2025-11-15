@@ -46,6 +46,9 @@ def main():
     if 'current_page' not in st.session_state:
         st.session_state.current_page = 'dashboard'
     
+    # Limpar estados antigos que podem causar conflitos
+    cleanup_old_states()
+    
     # Verificar configuração do Firebase
     config_status = check_firebase_config()
     config_ok = all(config_status.values())
@@ -53,7 +56,7 @@ def main():
     # Sidebar para debug (apenas se não estiver logado)
     if not st.session_state.get('authentication_status'):
         with st.sidebar:
-            if st.button("🔧 Verificar Configuração"):
+            if st.button("🔧 Verificar Configuração", key="config_check_main"):
                 st.session_state.show_config = True
             
             if not config_ok:
@@ -62,7 +65,7 @@ def main():
     # Mostrar página de configuração se necessário
     if st.session_state.get('show_config') or not config_ok:
         show_config_check()
-        if st.button("🔙 Voltar"):
+        if st.button("🔙 Voltar", key="back_from_config"):
             st.session_state.show_config = False
             st.rerun()
         return
@@ -74,6 +77,19 @@ def main():
     else:
         # Usuário não logado - mostrar página de login
         show_login_page()
+
+def cleanup_old_states():
+    """Limpa estados antigos que podem causar conflitos"""
+    keys_to_clean = []
+    
+    # Encontrar chaves antigas de confirmação de delete
+    for key in st.session_state.keys():
+        if key.startswith('confirm_delete_') and len(key.split('_')) > 3:
+            keys_to_clean.append(key)
+    
+    # Remover chaves antigas
+    for key in keys_to_clean:
+        del st.session_state[key]
 
 if __name__ == "__main__":
     main()
