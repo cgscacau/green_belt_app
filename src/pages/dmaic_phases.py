@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 
 def show_dmaic_phase():
     """Página das fases DMAIC"""
@@ -6,17 +7,20 @@ def show_dmaic_phase():
     current_phase = st.session_state.get('current_dmaic_phase', 'define')
     current_project = st.session_state.get('current_project')
     
+    # Gerar timestamp único para chaves
+    timestamp = int(time.time() * 1000) % 10000
+    
     if not current_project:
         st.error("❌ Nenhum projeto selecionado!")
         
         col1, col2 = st.columns([1, 1])
         with col1:
-            if st.button("🏠 Voltar ao Dashboard", use_container_width=True, type="primary"):
+            if st.button("🏠 Voltar ao Dashboard", key=f"back_dashboard_{timestamp}", use_container_width=True, type="primary"):
                 st.session_state.current_page = 'dashboard'
                 st.rerun()
         
         with col2:
-            if st.button("📊 Ver Projetos", use_container_width=True):
+            if st.button("📊 Ver Projetos", key=f"view_projects_{timestamp}", use_container_width=True):
                 st.session_state.current_page = 'dashboard'
                 st.rerun()
         return
@@ -59,7 +63,7 @@ def show_dmaic_phase():
             
             if st.button(
                 f"{phase_icons[phase]} {phase.title()}", 
-                key=f"quick_nav_{phase}",
+                key=f"quick_nav_{phase}_{timestamp}",
                 use_container_width=True,
                 type=button_type,
                 disabled=is_current
@@ -175,6 +179,7 @@ def show_dmaic_phase():
     
     # Simular progresso (será implementado com dados reais)
     import random
+    random.seed(hash(current_project.get('id', '')) + hash(current_phase))  # Progresso consistente
     progress = random.randint(0, 100)
     st.progress(progress / 100)
     st.caption(f"Progresso: {progress}% concluído")
