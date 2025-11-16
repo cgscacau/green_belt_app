@@ -15,7 +15,7 @@ class DefineTools:
         self.define_data = project_data.get('define', {})
     
     def save_tool_data(self, tool_name: str, data: Dict, completed: bool = False):
-        """Salva dados de uma ferramenta no Firebase"""
+        """Salva dados de uma ferramenta no Firebase - VERSÃO MELHORADA"""
         try:
             # Preparar dados para atualização
             update_data = {
@@ -37,9 +37,13 @@ class DefineTools:
                 
                 self.project['define'][tool_name]['data'] = data
                 self.project['define'][tool_name]['completed'] = completed
+                self.project['define'][tool_name]['updated_at'] = datetime.now().isoformat()
                 
                 # Atualizar session_state
                 st.session_state.current_project = self.project
+                
+                # Atualizar dados locais da classe também
+                self.define_data = self.project.get('define', {})
                 
                 return True
             return False
@@ -47,14 +51,22 @@ class DefineTools:
         except Exception as e:
             st.error(f"Erro ao salvar dados: {str(e)}")
             return False
+
     
     def show_project_charter(self):
-        """Ferramenta Project Charter"""
+        """Ferramenta Project Charter - VERSÃO CORRIGIDA"""
         st.markdown("## 📋 Project Charter")
         st.markdown("O Project Charter é o documento oficial que autoriza e define o projeto.")
         
         # Dados existentes
         charter_data = self.define_data.get('charter', {}).get('data', {})
+        
+        # Mostrar status atual
+        is_completed = self.define_data.get('charter', {}).get('completed', False)
+        if is_completed:
+            st.success("✅ Charter finalizado")
+        else:
+            st.info("⏳ Charter em desenvolvimento")
         
         with st.form("charter_form"):
             st.markdown("### 📝 Informações do Charter")
@@ -131,20 +143,27 @@ class DefineTools:
                 # Cronograma
                 st.markdown("#### 📅 Cronograma")
                 
+                duration_options = ["3 meses", "4 meses", "5 meses", "6 meses", "Outro"]
+                current_duration = charter_data.get('project_duration', '4 meses')
+                
+                try:
+                    duration_index = duration_options.index(current_duration)
+                except ValueError:
+                    duration_index = 1  # Default para "4 meses"
+                
                 project_duration = st.selectbox(
                     "Duração Estimada",
-                    options=["3 meses", "4 meses", "5 meses", "6 meses", "Outro"],
-                    index=["3 meses", "4 meses", "5 meses", "6 meses", "Outro"].index(charter_data.get('project_duration', '4 meses'))
+                    options=duration_options,
+                    index=duration_index
                 )
                 
+                custom_duration = ""
                 if project_duration == "Outro":
                     custom_duration = st.text_input(
                         "Especificar duração",
                         value=charter_data.get('custom_duration', ''),
                         placeholder="Ex: 8 semanas, 120 dias..."
                     )
-                else:
-                    custom_duration = ""
             
             # Seção de equipe
             st.markdown("### 👥 Equipe do Projeto")
@@ -228,10 +247,10 @@ class DefineTools:
                     
                     if missing_fields:
                         st.error(f"❌ Campos obrigatórios não preenchidos: {', '.join(missing_fields)}")
-                        return
+                        st.stop()
                 
                 # Preparar dados para salvamento
-                charter_data = {
+                new_charter_data = {
                     'problem_statement': problem_statement,
                     'goal_statement': goal_statement,
                     'scope_included': scope_included,
@@ -247,33 +266,61 @@ class DefineTools:
                     'team_members': team_members,
                     'stakeholders': stakeholders,
                     'risks': risks,
-                    'assumptions': assumptions
+                    'assumptions': assumptions,
+                    'last_saved': datetime.now().isoformat()
                 }
                 
                 # Salvar dados
-                success = self.save_tool_data('charter', charter_data, completed=complete_charter)
+                with st.spinner("💾 Salvando..."):
+                    success = self.save_tool_data('charter', new_charter_data, completed=complete_charter)
                 
                 if success:
                     if complete_charter:
                         st.success("✅ Charter finalizado e salvo com sucesso!")
                         st.balloons()
+                        
+                        # Mostrar resumo após finalizar
+                        st.markdown("### 📊 Resumo do Charter Finalizado")
+                        
+                        col_summary1, col_summary2, col_summary3 = st.columns(3)
+                        
+                        with col_summary1:
+                            st.metric("Métrica Principal", primary_metric)
+                        
+                        with col_summary2:
+                            st.metric("Meta", f"{baseline_value} → {target_value}")
+                        
+                        with col_summary3:
+                            st.metric("Benefício Anual", f"R$ {financial_benefit:,.2f}")
+                        
+                        st.info("✨ Charter concluído! Você pode continuar com outras ferramentas da fase Define.")
+                        
                     else:
                         st.success("💾 Rascunho salvo com sucesso!")
+                        st.info("💡 Seus dados foram salvos. Você pode continuar editando ou finalizar quando estiver pronto.")
                     
-                    # Rerun para atualizar a interface
-                    st.rerun()
+                    # Atualizar dados locais para que os campos mantenham os valores
+                    self.define_data['charter'] = {
+                        'data': new_charter_data,
+                        'completed': complete_charter,
+                        'updated_at': datetime.now().isoformat()
+                    }
+                    
+                    # NÃO fazer st.rerun() aqui - isso causa o reset do formulário
+                    
                 else:
-                    st.error("❌ Erro ao salvar Charter")
+                    st.error("❌ Erro ao salvar Charter. Tente novamente.")
         
-        # Mostrar resumo se charter estiver completo
+        # Mostrar resumo se charter estiver completo (fora do formulário)
         if self.define_data.get('charter', {}).get('completed', False):
+            st.divider()
             self.show_charter_summary()
     
     def show_charter_summary(self):
-        """Exibe resumo do charter finalizado"""
+        """Exibe resumo do charter finalizado - VERSÃO CORRIGIDA"""
         charter_data = self.define_data.get('charter', {}).get('data', {})
         
-        st.markdown("### 📊 Resumo do Charter")
+        st.markdown("### 📊 Resumo do Charter Finalizado")
         
         col1, col2, col3 = st.columns(3)
         
@@ -289,10 +336,50 @@ class DefineTools:
             benefit = charter_data.get('financial_benefit', 0)
             st.metric("Benefício Anual", f"R$ {benefit:,.2f}")
         
-        # Botão para editar
-        if st.button("✏️ Editar Charter", key="edit_charter"):
-            # Reabrir para edição
-            st.rerun()
+        # Informações adicionais
+        with st.expander("📋 Detalhes do Charter"):
+            col_detail1, col_detail2 = st.columns(2)
+            
+            with col_detail1:
+                st.markdown("**Problema:**")
+                st.write(charter_data.get('problem_statement', 'N/A'))
+                
+                st.markdown("**Objetivo:**")
+                st.write(charter_data.get('goal_statement', 'N/A'))
+                
+                st.markdown("**Líder do Projeto:**")
+                st.write(charter_data.get('project_leader', 'N/A'))
+            
+            with col_detail2:
+                st.markdown("**Sponsor:**")
+                st.write(charter_data.get('sponsor', 'N/A'))
+                
+                st.markdown("**Duração:**")
+                duration = charter_data.get('project_duration', 'N/A')
+                if duration == "Outro":
+                    duration = charter_data.get('custom_duration', 'N/A')
+                st.write(duration)
+                
+                st.markdown("**Última atualização:**")
+                last_saved = charter_data.get('last_saved', 'N/A')
+                if last_saved != 'N/A':
+                    try:
+                        date_obj = datetime.fromisoformat(last_saved)
+                        st.write(date_obj.strftime('%d/%m/%Y às %H:%M'))
+                    except:
+                        st.write(last_saved)
+                else:
+                    st.write('N/A')
+        
+        # Botão para reabrir para edição
+        if st.button("✏️ Editar Charter", key="edit_charter_summary"):
+            # Marcar como não finalizado temporariamente para permitir edição
+            edit_data = charter_data.copy()
+            success = self.save_tool_data('charter', edit_data, completed=False)
+            if success:
+                st.info("📝 Charter reaberto para edição. Role para cima para editar.")
+                st.rerun()
+
     
     def show_stakeholder_mapping(self):
         """Ferramenta de Mapeamento de Stakeholders"""
