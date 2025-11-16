@@ -207,18 +207,26 @@ class NavigationManager:
             
             st.divider()
             
-            # Projeto atual
+            # Projeto atual (sem botão de criar)
             if current_project:
                 st.markdown("### 📋 Projeto Atual")
                 project_name = current_project.get('name', 'Sem nome')
                 st.info(f"**{project_name[:25]}{'...' if len(project_name) > 25 else ''}**")
+                
+                # Mostrar informações do projeto
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.caption(f"💰 R$ {current_project.get('expected_savings', 0):,.0f}")
+                with col2:
+                    st.caption(f"📅 {current_project.get('created_at', '')[:10]}")
                 
                 # Botão para fechar projeto
                 self._increment_counter()
                 if st.button(
                     "❌ Fechar Projeto", 
                     key=self._generate_unique_key("close_project"),
-                    use_container_width=True
+                    use_container_width=True,
+                    help="Voltar ao dashboard sem projeto selecionado"
                 ):
                     if 'current_project' in st.session_state:
                         del st.session_state.current_project
@@ -277,15 +285,14 @@ class NavigationManager:
             else:
                 st.markdown("### 📋 Projeto")
                 st.info("Nenhum projeto selecionado")
-                self._increment_counter()
-                if st.button(
-                    "➕ Criar Projeto", 
-                    key=self._generate_unique_key("create_project_sidebar"),
-                    use_container_width=True
-                ):
-                    st.session_state.current_page = 'dashboard'
-                    st.session_state.show_create_project = True
-                    st.rerun()
+                
+                # Instruções em vez de botão
+                st.markdown("""
+                **Para criar um projeto:**
+                1. Vá ao Dashboard
+                2. Clique em "➕ Novo Projeto"
+                3. Preencha as informações
+                """)
             
             st.divider()
             
@@ -301,6 +308,7 @@ class NavigationManager:
                 auth = FirebaseAuth()
                 auth.logout_user()
                 st.rerun()
+
     
     def get_dmaic_phase_progress(self, project_data: Dict) -> Dict[str, float]:
         """Calcula o progresso de cada fase DMAIC"""
