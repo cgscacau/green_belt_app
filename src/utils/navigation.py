@@ -321,24 +321,24 @@ class NavigationManager:
             progress[phase.value] = (completed_steps / total_steps) * 100 if total_steps > 0 else 0
         
         return progress
-    
+    #############################################################################################################################################
     def _get_phase_total_steps(self, phase: DMACPhase) -> int:
         """Retorna o número total de etapas por fase baseado nas ferramentas reais"""
-        # ✅ DEFINIR FERRAMENTAS REAIS DE CADA FASE
+        # ✅ DEFINIR FERRAMENTAS REAIS DE CADA FASE (iguais ao dmaic_phase.py)
         phase_tools = {
             DMACPhase.DEFINE: [
                 "project_charter",
                 "stakeholder_analysis", 
                 "voice_of_customer",
-                "sipoc_diagram",
+                "sipoc",  # ✅ Corrigido: era "sipoc_diagram" 
                 "problem_statement"
             ],  # 5 ferramentas
             
             DMACPhase.MEASURE: [
                 "data_collection_plan",
-                "measurement_system_analysis",
+                "measurement_system",  # ✅ Corrigido: era "measurement_system_analysis"
                 "process_mapping",
-                "baseline_measurement"
+                "baseline_analysis"  # ✅ Corrigido: era "baseline_measurement"
             ],  # 4 ferramentas
             
             DMACPhase.ANALYZE: [
@@ -357,8 +357,8 @@ class NavigationManager:
             
             DMACPhase.CONTROL: [
                 "control_plan",
-                "statistical_process_control",
-                "standard_work",
+                "monitoring_system",  # ✅ Corrigido: era "statistical_process_control"
+                "documentation",      # ✅ Corrigido: era "standard_work"
                 "sustainability_plan"
             ]  # 4 ferramentas
         }
@@ -378,8 +378,8 @@ class NavigationManager:
                 # Verificar se a ferramenta está marcada como concluída
                 if tool_data.get('completed', False):
                     completed += 1
-                # ✅ DEBUG: Mostrar status de cada ferramenta (remover depois)
-                # print(f"Tool {tool_key}: completed={tool_data.get('completed', False)}")
         
         return completed
 
+    
+###############################################################################################################################################################
