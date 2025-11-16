@@ -3715,7 +3715,7 @@ class FullScaleImplementationTool:
                         if st.button("🗑️", key=f"remove_event_{original_index}_{self.project_id}"):
                             schedule.pop(original_index)
                             st.rerun()
-    
+    ########################################################################################################################################################
     def _show_monitoring_system(self, implementation_data: Dict):
         """Sistema de monitoramento"""
         st.markdown("#### 📊 Sistema de Monitoramento")
@@ -3799,55 +3799,66 @@ class FullScaleImplementationTool:
                 else:
                     st.error("❌ Nome do KPI é obrigatório")
         
-        # Mostrar KPIs
+        # Mostrar KPIs existentes
         if kpis:
             st.markdown("##### 📊 Dashboard de KPIs")
             
-            for i, kpi in enumerate(kpis):
+            for kpi_index, kpi in enumerate(kpis):
                 with st.expander(f"📈 **{kpi['name']}** (Meta: {kpi.get('target', 0)} {kpi.get('unit', '')})"):
-                    col1, col2, col3 = st.columns([2, 2, 1])
                     
-                    with col1:
+                    # Informações do KPI
+                    col_info1, col_info2, col_info3 = st.columns([2, 2, 1])
+                    
+                    with col_info1:
                         st.write(f"**Descrição:** {kpi.get('description', 'N/A')}")
                         st.write(f"**Frequência:** {kpi.get('frequency', 'N/A')}")
                         st.write(f"**Responsável:** {kpi.get('responsible', 'Não definido')}")
                         st.write(f"**Limite de Alerta:** {kpi.get('threshold', 0)} {kpi.get('unit', '')}")
                     
-                    with col2:
-                        # Adicionar medição
-                        st.markdown("**Nova Medição:**")
+                    with col_info2:
+                        # Adicionar nova medição
+                        st.markdown("**➕ Nova Medição:**")
                         
                         measurement_date = st.date_input(
                             "Data:",
-                            key=f"measurement_date_{i}_{self.project_id}"
+                            key=f"kpi_measurement_date_{kpi_index}_{self.project_id}",
+                            value=datetime.now().date()
                         )
                         
                         measurement_value = st.number_input(
                             "Valor:",
-                            key=f"measurement_value_{i}_{self.project_id}"
+                            key=f"kpi_measurement_value_{kpi_index}_{self.project_id}",
+                            value=0.0,
+                            step=0.01
                         )
                         
-                        if st.button("➕ Adicionar", key=f"add_measurement_{i}_{self.project_id}"):
-                            kpis[i]['measurements'].append({
+                        if st.button("➕ Adicionar Medição", key=f"add_kpi_measurement_{kpi_index}_{self.project_id}"):
+                            if 'measurements' not in implementation_data['monitoring_system']['kpis'][kpi_index]:
+                                implementation_data['monitoring_system']['kpis'][kpi_index]['measurements'] = []
+                            
+                            implementation_data['monitoring_system']['kpis'][kpi_index]['measurements'].append({
                                 'date': measurement_date.isoformat(),
-                                'value': measurement_value,
+                                'value': float(measurement_value),
                                 'added_at': datetime.now().isoformat()
                             })
                             
                             st.success("✅ Medição adicionada!")
                             st.rerun()
-                        
-                        # Mostrar últimas medições
-                        measurements = kpi.get('measurements', [])
-                        if measurements:
-                            st.write("**Últimas medições:**")
-                            for measurement in measurements[-3:]:
-                                st.write(f"• {measurement['date']}: {measurement['value']} {kpi.get('unit', '')}")
                     
-                    with col3:
-                        if st.button("🗑️", key=f"remove_kpi_{i}_{self.project_id}"):
-                            kpis.pop(i)
-                            st.rerun()
+                    with col_info3:
+                        # Remover KPI inteiro
+                        if st.button("🗑️ Remover KPI", key=f"remove_kpi_{kpi_index}_{self.project_id}"):
+                            confirm_key = f"confirm_delete_kpi_{kpi_index}_{self.project_id}"
+                            
+                            if st.session_state.get(confirm_key, False):
+                                implementation_data['monitoring_system']['kpis'].pop(kpi_index)
+                                if confirm_key in st.session_state:
+                                    del st.session_state[confirm_key]
+                                st.success("✅ KPI removido!")
+                                st.rerun()
+                            else:
+                                st.session_state[confirm_key] = True
+                                st.warning("⚠️ Clique novamente para confirmar")
                         
                         # Status do KPI
                         measurements = kpi.get('measurements', [])
@@ -3865,6 +3876,158 @@ class FullScaleImplementationTool:
                                 st.error("⚠️ Abaixo do limite")
                             else:
                                 st.warning("📊 Em progresso")
+                    
+                    # ✅ SEÇÃO DE MEDIÇÕES COM EDIÇÃO/EXCLUSÃO
+                    measurements = kpi.get('measurements', [])
+                    if measurements:
+                        st.markdown("---")
+                        st.markdown("##### 📋 Medições do KPI")
+                        
+                        # Botão para atualizar
+                        if st.button("🔄 Atualizar Medições", key=f"refresh_kpi_{kpi_index}_{self.project_id}"):
+                            st.rerun()
+                        
+                        # Processar cada medição
+                        for measure_idx in range(len(measurements)):
+                            # Verificar se o índice ainda existe
+                            if measure_idx >= len(implementation_data['monitoring_system']['kpis'][kpi_index]['measurements']):
+                                continue
+                                
+                            measurement = implementation_data['monitoring_system']['kpis'][kpi_index]['measurements'][measure_idx]
+                            
+                            # Chave única para esta medição
+                            unique_id = f"kpi{kpi_index}_measure{measure_idx}_{len(measurements)}_{self.project_id}"
+                            edit_key = f"editing_{unique_id}"
+                            delete_confirm_key = f"delete_confirm_{unique_id}"
+                            
+                            measurement_date_str = datetime.fromisoformat(measurement['date']).strftime('%d/%m/%Y')
+                            
+                            # Container para cada medição
+                            with st.container():
+                                # Verificar se está em modo de edição
+                                is_editing = st.session_state.get(edit_key, False)
+                                
+                                if is_editing:
+                                    # ✅ MODO EDIÇÃO
+                                    st.markdown(f"**✏️ Editando medição de {measurement_date_str}:**")
+                                    
+                                    col_edit1, col_edit2, col_edit3 = st.columns([2, 2, 2])
+                                    
+                                    with col_edit1:
+                                        edited_date = st.date_input(
+                                            "Nova Data:",
+                                            value=datetime.fromisoformat(measurement['date']).date(),
+                                            key=f"edit_kpi_date_{unique_id}"
+                                        )
+                                    
+                                    with col_edit2:
+                                        edited_value = st.number_input(
+                                            f"Novo Valor ({kpi.get('unit', '')}):",
+                                            value=float(measurement['value']),
+                                            key=f"edit_kpi_value_{unique_id}",
+                                            step=0.01,
+                                            format="%.2f"
+                                        )
+                                    
+                                    with col_edit3:
+                                        col_save, col_cancel = st.columns(2)
+                                        
+                                        with col_save:
+                                            if st.button("💾", key=f"save_kpi_{unique_id}", help="Salvar"):
+                                                # Verificar se índice ainda é válido
+                                                if measure_idx < len(implementation_data['monitoring_system']['kpis'][kpi_index]['measurements']):
+                                                    implementation_data['monitoring_system']['kpis'][kpi_index]['measurements'][measure_idx] = {
+                                                        'date': edited_date.isoformat(),
+                                                        'value': float(edited_value),
+                                                        'added_at': measurement.get('added_at', datetime.now().isoformat()),
+                                                        'updated_at': datetime.now().isoformat()
+                                                    }
+                                                    
+                                                    # Limpar estado de edição
+                                                    if edit_key in st.session_state:
+                                                        del st.session_state[edit_key]
+                                                    
+                                                    st.success("✅ Medição atualizada!")
+                                                    st.rerun()
+                                        
+                                        with col_cancel:
+                                            if st.button("❌", key=f"cancel_kpi_{unique_id}", help="Cancelar"):
+                                                if edit_key in st.session_state:
+                                                    del st.session_state[edit_key]
+                                                st.rerun()
+                                
+                                else:
+                                    # ✅ MODO VISUALIZAÇÃO
+                                    col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
+                                    
+                                    with col1:
+                                        st.write(f"📅 **{measurement_date_str}**")
+                                    
+                                    with col2:
+                                        st.write(f"**{measurement['value']} {kpi.get('unit', '')}**")
+                                    
+                                    with col3:
+                                        if st.button("✏️", key=f"edit_kpi_{unique_id}", help="Editar"):
+                                            st.session_state[edit_key] = True
+                                            st.rerun()
+                                    
+                                    with col4:
+                                        # ✅ DELETE PARA MEDIÇÕES DO KPI
+                                        if st.button("🗑️", key=f"delete_kpi_{unique_id}", help="Excluir medição"):
+                                            if st.session_state.get(delete_confirm_key, False):
+                                                try:
+                                                    # Verificar se ainda existe
+                                                    if measure_idx < len(implementation_data['monitoring_system']['kpis'][kpi_index]['measurements']):
+                                                        # Remover diretamente pelo índice
+                                                        implementation_data['monitoring_system']['kpis'][kpi_index]['measurements'].pop(measure_idx)
+                                                        
+                                                        # Limpar estados relacionados
+                                                        keys_to_remove = []
+                                                        for key in st.session_state.keys():
+                                                            if (f"kpi{kpi_index}_measure" in key or 
+                                                                f"delete_confirm_kpi{kpi_index}" in key or
+                                                                f"editing_kpi{kpi_index}" in key):
+                                                                keys_to_remove.append(key)
+                                                        
+                                                        for key in keys_to_remove:
+                                                            try:
+                                                                del st.session_state[key]
+                                                            except:
+                                                                pass
+                                                        
+                                                        st.success(f"✅ Medição de {measurement_date_str} removida!")
+                                                        st.rerun()
+                                                    else:
+                                                        st.error("❌ Medição não encontrada")
+                                                except Exception as e:
+                                                    st.error(f"❌ Erro ao remover: {str(e)}")
+                                            else:
+                                                # Primeira vez - pedir confirmação
+                                                st.session_state[delete_confirm_key] = True
+                                                st.warning("⚠️ Clique novamente para confirmar exclusão")
+                                
+                                # Separador
+                                if measure_idx < len(measurements) - 1:
+                                    st.divider()
+                        
+                        # ✅ BOTÃO DE LIMPEZA DE EMERGÊNCIA
+                        if st.button("🧹 Limpar Estados", key=f"emergency_clear_kpi_{kpi_index}_{self.project_id}"):
+                            keys_to_remove = []
+                            for key in st.session_state.keys():
+                                if f"kpi{kpi_index}_" in key:
+                                    keys_to_remove.append(key)
+                            
+                            for key in keys_to_remove:
+                                try:
+                                    del st.session_state[key]
+                                except:
+                                    pass
+                            
+                            st.success("🧹 Estados limpos!")
+                            st.rerun()
+                    
+                    else:
+                        st.info("📝 Nenhuma medição registrada ainda.")
             
             # Gráfico consolidado dos KPIs
             if len(kpis) > 0:
@@ -3885,7 +4048,7 @@ class FullScaleImplementationTool:
                         
                         measurements = kpi['measurements']
                         dates = [m['date'] for m in measurements]
-                        values = [m['value'] for m in measurements]
+                        values = [float(m['value']) for m in measurements]
                         
                         fig.add_trace(
                             go.Scatter(
@@ -3941,7 +4104,9 @@ class FullScaleImplementationTool:
             placeholder="Como os problemas devem ser escalados?",
             height=80
         )
-    
+
+
+###############################################################################################################################################################    
     def _show_change_management(self, implementation_data: Dict):
         """Gestão da mudança"""
         st.markdown("#### 🔄 Gestão da Mudança")
