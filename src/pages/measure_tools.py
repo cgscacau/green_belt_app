@@ -10,51 +10,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 from src.utils.project_manager import ProjectManager
 from scipy import stats
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-class MeasureTools:
-    def __init__(self, project_data: Dict):
-        self.project = project_data
-        self.project_manager = ProjectManager()
-        self.project_id = project_data.get('id')
-        self.measure_data = project_data.get('measure', {})
-    
-    def save_tool_data(self, tool_name: str, data: Dict, completed: bool = False):
-        """Salva dados de uma ferramenta no Firebase"""
-        try:
-            # Preparar dados para atualização
-            update_data = {
-                f'measure.{tool_name}.data': data,
-                f'measure.{tool_name}.completed': completed,
-                f'measure.{tool_name}.updated_at': datetime.now().isoformat(),
-                'updated_at': datetime.now().isoformat()
-            }
-            
-            # Salvar no Firebase
-            success = self.project_manager.update_project(self.project_id, update_data)
-            
-            if success:
-                # Atualizar dados locais
-                if 'measure' not in self.project:
-                    self.project['measure'] = {}
-                if tool_name not in self.project['measure']:
-                    self.project['measure'][tool_name] = {}
-                
-                self.project['measure'][tool_name]['data'] = data
-                self.project['measure'][tool_name]['completed'] = completed
-                self.project['measure'][tool_name]['updated_at'] = datetime.now().isoformat()
-                
-                # Atualizar session_state
-                st.session_state.current_project = self.project
-                self.measure_data = self.project.get('measure', {})
-                
-                return True
-            return False
-            
-        except Exception as e:
-            st.error(f"Erro ao salvar dados: {str(e)}")
-            return False
+import warnings
+warnings.filterwarnings('ignore')
 
 def show_data_collection_plan(project_data: Dict):
     """Plano de Coleta de Dados"""
@@ -69,7 +26,7 @@ def show_data_collection_plan(project_data: Dict):
     plan_key = f"data_plan_{project_id}"
     if plan_key not in st.session_state:
         existing_data = project_data.get('measure', {}).get('data_collection_plan', {}).get('data', {})
-        st.session_state[plan_key] = existing_data
+        st.session_state[plan_key] = existing_data if existing_data else {}
     
     plan_data = st.session_state[plan_key]
     
@@ -95,32 +52,34 @@ def show_data_collection_plan(project_data: Dict):
     # Seção 2: Variáveis a Medir
     st.markdown("### 📏 Variáveis a Serem Medidas")
     
-    # Lista de variáveis existentes
-    variables = plan_data.get('variables', [])
+    # Inicializar lista de variáveis
+    if 'variables' not in plan_data or plan_data['variables'] is None:
+        plan_data['variables'] = []
+        st.session_state[plan_key] = plan_data
     
     # Adicionar nova variável
     with st.expander("➕ Adicionar Nova Variável"):
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            var_name = st.text_input("Nome da Variável *", placeholder="Ex: Tempo de Setup")
-            var_type = st.selectbox("Tipo de Dados", options=["Contínua", "Discreta", "Categórica", "Binária"])
+            var_name = st.text_input("Nome da Variável *", placeholder="Ex: Tempo de Setup", key=f"var_name_{project_id}")
+            var_type = st.selectbox("Tipo de Dados", options=["Contínua", "Discreta", "Categórica", "Binária"], key=f"var_type_{project_id}")
         
         with col2:
-            var_unit = st.text_input("Unidade de Medida", placeholder="Ex: minutos, peças, %")
-            var_target = st.text_input("Valor Alvo/Especificação", placeholder="Ex: < 30 min, 0 defeitos")
+            var_unit = st.text_input("Unidade de Medida", placeholder="Ex: minutos, peças, %", key=f"var_unit_{project_id}")
+            var_target = st.text_input("Valor Alvo/Especificação", placeholder="Ex: < 30 min, 0 defeitos", key=f"var_target_{project_id}")
         
         with col3:
-            var_importance = st.selectbox("Importância", options=["Alta", "Média", "Baixa"])
-            var_frequency = st.selectbox("Frequência de Coleta", options=["Contínua", "Horária", "Diária", "Semanal", "Por Lote"])
+            var_importance = st.selectbox("Importância", options=["Alta", "Média", "Baixa"], key=f"var_importance_{project_id}")
+            var_frequency = st.selectbox("Frequência de Coleta", options=["Contínua", "Horária", "Diária", "Semanal", "Por Lote"], key=f"var_frequency_{project_id}")
         
-        var_description = st.text_area("Descrição da Variável", placeholder="Como esta variável será medida?", height=60)
+        var_description = st.text_area("Descrição da Variável", placeholder="Como esta variável será medida?", height=60, key=f"var_description_{project_id}")
         
         if st.button("➕ Adicionar Variável", key=f"add_variable_{project_id}"):
-            if var_name:
+            if var_name.strip():
                 new_variable = {
-                    'id': len(variables) + 1,
-                    'name': var_name,
+                    'id': len(plan_data['variables']) + 1,
+                    'name': var_name.strip(),
                     'type': var_type,
                     'unit': var_unit,
                     'target': var_target,
@@ -130,32 +89,32 @@ def show_data_collection_plan(project_data: Dict):
                     'created_at': datetime.now().isoformat()
                 }
                 
-                variables.append(new_variable)
-                plan_data['variables'] = variables
+                plan_data['variables'].append(new_variable)
                 st.session_state[plan_key] = plan_data
                 st.success(f"✅ Variável '{var_name}' adicionada!")
                 st.rerun()
+            else:
+                st.error("❌ Nome da variável é obrigatório")
     
     # Mostrar variáveis cadastradas
-    if variables:
+    if plan_data['variables'] and len(plan_data['variables']) > 0:
         st.markdown("#### 📋 Variáveis Cadastradas")
         
-        for i, var in enumerate(variables):
+        for i, var in enumerate(plan_data['variables']):
             with st.expander(f"{var['name']} ({var['type']}) - Importância: {var['importance']}"):
                 col1, col2, col3 = st.columns([2, 2, 1])
                 
                 with col1:
-                    st.write(f"**Unidade:** {var['unit'] or 'N/A'}")
+                    st.write(f"**Unidade:** {var.get('unit', 'N/A')}")
                     st.write(f"**Frequência:** {var['frequency']}")
                 
                 with col2:
-                    st.write(f"**Alvo:** {var['target'] or 'N/A'}")
-                    st.write(f"**Descrição:** {var['description'] or 'N/A'}")
+                    st.write(f"**Alvo:** {var.get('target', 'N/A')}")
+                    st.write(f"**Descrição:** {var.get('description', 'N/A')}")
                 
                 with col3:
                     if st.button("🗑️ Remover", key=f"remove_var_{i}_{project_id}"):
-                        variables.pop(i)
-                        plan_data['variables'] = variables
+                        plan_data['variables'].pop(i)
                         st.session_state[plan_key] = plan_data
                         st.rerun()
     
@@ -165,10 +124,17 @@ def show_data_collection_plan(project_data: Dict):
     col1, col2 = st.columns(2)
     
     with col1:
+        collection_method_options = ["Medição Direta", "Observação", "Sistema Automatizado", "Formulário/Checklist", "Sensor/Equipamento", "Amostragem"]
+        current_method = plan_data.get('collection_method', 'Medição Direta')
+        try:
+            method_index = collection_method_options.index(current_method)
+        except ValueError:
+            method_index = 0
+            
         collection_method = st.selectbox(
             "Método Principal *",
-            options=["Medição Direta", "Observação", "Sistema Automatizado", "Formulário/Checklist", "Sensor/Equipamento", "Amostragem"],
-            index=["Medição Direta", "Observação", "Sistema Automatizado", "Formulário/Checklist", "Sensor/Equipamento", "Amostragem"].index(plan_data.get('collection_method', 'Medição Direta')),
+            options=collection_method_options,
+            index=method_index,
             key=f"collection_method_{project_id}"
         )
         
@@ -200,16 +166,26 @@ def show_data_collection_plan(project_data: Dict):
     col3, col4, col5 = st.columns(3)
     
     with col3:
+        try:
+            start_date_value = datetime.fromisoformat(plan_data.get('start_date', datetime.now().isoformat())).date()
+        except:
+            start_date_value = datetime.now().date()
+            
         start_date = st.date_input(
             "Data de Início *",
-            value=datetime.fromisoformat(plan_data.get('start_date', datetime.now().isoformat())).date() if plan_data.get('start_date') else datetime.now().date(),
+            value=start_date_value,
             key=f"start_date_{project_id}"
         )
     
     with col4:
+        try:
+            end_date_value = datetime.fromisoformat(plan_data.get('end_date', (datetime.now() + timedelta(days=30)).isoformat())).date()
+        except:
+            end_date_value = (datetime.now() + timedelta(days=30)).date()
+            
         end_date = st.date_input(
             "Data de Fim *",
-            value=datetime.fromisoformat(plan_data.get('end_date', (datetime.now() + timedelta(days=30)).isoformat())).date() if plan_data.get('end_date') else (datetime.now() + timedelta(days=30)).date(),
+            value=end_date_value,
             key=f"end_date_{project_id}"
         )
     
@@ -262,7 +238,7 @@ def show_data_collection_plan(project_data: Dict):
         # Coletar dados atuais
         current_data = {
             'collection_objective': st.session_state.get(f"collection_objective_{project_id}", ''),
-            'variables': variables,
+            'variables': plan_data.get('variables', []),
             'collection_method': st.session_state.get(f"collection_method_{project_id}", ''),
             'data_source': st.session_state.get(f"data_source_{project_id}", ''),
             'responsible_person': st.session_state.get(f"responsible_person_{project_id}", ''),
@@ -289,7 +265,7 @@ def show_data_collection_plan(project_data: Dict):
                 st.error(f"❌ Campos obrigatórios: {', '.join(missing_fields)}")
                 st.stop()
             
-            if not variables:
+            if not current_data['variables'] or len(current_data['variables']) == 0:
                 st.error("❌ Adicione pelo menos uma variável para medir")
                 st.stop()
         
@@ -328,11 +304,14 @@ def show_data_collection_plan(project_data: Dict):
                         col_sum1, col_sum2, col_sum3 = st.columns(3)
                         
                         with col_sum1:
-                            st.metric("Variáveis a Medir", len(variables))
+                            st.metric("Variáveis a Medir", len(current_data['variables']))
                         
                         with col_sum2:
-                            duration = (datetime.fromisoformat(current_data['end_date']) - datetime.fromisoformat(current_data['start_date'])).days
-                            st.metric("Duração", f"{duration} dias")
+                            try:
+                                duration = (datetime.fromisoformat(current_data['end_date']) - datetime.fromisoformat(current_data['start_date'])).days
+                                st.metric("Duração", f"{duration} dias")
+                            except:
+                                st.metric("Duração", "N/A")
                         
                         with col_sum3:
                             st.metric("Tamanho da Amostra", current_data['sample_size'])
@@ -345,6 +324,7 @@ def show_data_collection_plan(project_data: Dict):
                     
             except Exception as e:
                 st.error(f"❌ Erro ao salvar: {str(e)}")
+
 
 def show_file_upload_analysis(project_data: Dict):
     """Upload e Análise de Arquivos"""
@@ -489,22 +469,29 @@ def show_file_upload_analysis(project_data: Dict):
                     for col in selected_columns:
                         data_col = df[col].dropna()
                         
-                        additional_stats.append({
-                            'Coluna': col,
-                            'Mediana': data_col.median(),
-                            'Moda': data_col.mode().iloc[0] if not data_col.mode().empty else 'N/A',
-                            'Variância': data_col.var(),
-                            'Coef. Variação': (data_col.std() / data_col.mean() * 100) if data_col.mean() != 0 else 0,
-                            'Assimetria': stats.skew(data_col),
-                            'Curtose': stats.kurtosis(data_col)
-                        })
+                        if len(data_col) > 0:
+                            try:
+                                additional_stats.append({
+                                    'Coluna': col,
+                                    'Mediana': data_col.median(),
+                                    'Moda': data_col.mode().iloc[0] if not data_col.mode().empty else 'N/A',
+                                    'Variância': data_col.var(),
+                                    'Coef. Variação': (data_col.std() / data_col.mean() * 100) if data_col.mean() != 0 else 0,
+                                    'Assimetria': stats.skew(data_col) if len(data_col) > 1 else 0,
+                                    'Curtose': stats.kurtosis(data_col) if len(data_col) > 1 else 0
+                                })
+                            except Exception as e:
+                                st.warning(f"⚠️ Erro ao calcular estatísticas para {col}: {str(e)}")
                     
-                    st.dataframe(pd.DataFrame(additional_stats), use_container_width=True)
+                    if additional_stats:
+                        st.dataframe(pd.DataFrame(additional_stats), use_container_width=True)
             else:
                 st.warning("⚠️ Nenhuma coluna numérica encontrada no arquivo")
         
         with tab3:
             st.markdown("#### 📊 Visualizações")
+            
+            numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
             
             if numeric_columns:
                 # Seletor de tipo de gráfico
@@ -514,58 +501,66 @@ def show_file_upload_analysis(project_data: Dict):
                     key=f"chart_type_{project_id}"
                 )
                 
-                if chart_type == "Histograma":
-                    col_to_plot = st.selectbox("Coluna:", numeric_columns, key=f"hist_col_{project_id}")
-                    
-                    fig = px.histogram(df, x=col_to_plot, nbins=30, title=f"Histograma - {col_to_plot}")
-                    fig.update_layout(height=400)
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                elif chart_type == "Box Plot":
-                    cols_to_plot = st.multiselect("Colunas:", numeric_columns, default=numeric_columns[:3], key=f"box_cols_{project_id}")
-                    
-                    if cols_to_plot:
-                        fig = go.Figure()
-                        for col in cols_to_plot:
-                            fig.add_trace(go.Box(y=df[col], name=col))
+                try:
+                    if chart_type == "Histograma":
+                        col_to_plot = st.selectbox("Coluna:", numeric_columns, key=f"hist_col_{project_id}")
                         
-                        fig.update_layout(title="Box Plot - Comparação", height=400)
-                        st.plotly_chart(fig, use_container_width=True)
-                
-                elif chart_type == "Linha do Tempo":
-                    y_col = st.selectbox("Eixo Y:", numeric_columns, key=f"line_y_{project_id}")
-                    
-                    fig = px.line(df.reset_index(), x=df.reset_index().index, y=y_col, title=f"Série Temporal - {y_col}")
-                    fig.update_layout(height=400)
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                elif chart_type == "Scatter Plot":
-                    if len(numeric_columns) >= 2:
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            x_col = st.selectbox("Eixo X:", numeric_columns, key=f"scatter_x_{project_id}")
-                        with col2:
-                            y_col = st.selectbox("Eixo Y:", [col for col in numeric_columns if col != x_col], key=f"scatter_y_{project_id}")
-                        
-                        fig = px.scatter(df, x=x_col, y=y_col, title=f"Scatter Plot - {x_col} vs {y_col}")
+                        fig = px.histogram(df, x=col_to_plot, nbins=30, title=f"Histograma - {col_to_plot}")
                         fig.update_layout(height=400)
                         st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.warning("⚠️ Necessário pelo menos 2 colunas numéricas para scatter plot")
-                
-                elif chart_type == "Correlação":
-                    if len(numeric_columns) >= 2:
-                        corr_matrix = df[numeric_columns].corr()
+                    
+                    elif chart_type == "Box Plot":
+                        cols_to_plot = st.multiselect("Colunas:", numeric_columns, default=numeric_columns[:3], key=f"box_cols_{project_id}")
                         
-                        fig = px.imshow(corr_matrix, 
-                                      text_auto=True, 
-                                      aspect="auto",
-                                      title="Matriz de Correlação",
-                                      color_continuous_scale='RdBu_r')
+                        if cols_to_plot:
+                            fig = go.Figure()
+                            for col in cols_to_plot:
+                                fig.add_trace(go.Box(y=df[col], name=col))
+                            
+                            fig.update_layout(title="Box Plot - Comparação", height=400)
+                            st.plotly_chart(fig, use_container_width=True)
+                    
+                    elif chart_type == "Linha do Tempo":
+                        y_col = st.selectbox("Eixo Y:", numeric_columns, key=f"line_y_{project_id}")
+                        
+                        fig = px.line(df.reset_index(), x=df.reset_index().index, y=y_col, title=f"Série Temporal - {y_col}")
                         fig.update_layout(height=400)
                         st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.warning("⚠️ Necessário pelo menos 2 colunas numéricas para correlação")
+                    
+                    elif chart_type == "Scatter Plot":
+                        if len(numeric_columns) >= 2:
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                x_col = st.selectbox("Eixo X:", numeric_columns, key=f"scatter_x_{project_id}")
+                            with col2:
+                                available_y_cols = [col for col in numeric_columns if col != x_col]
+                                if available_y_cols:
+                                    y_col = st.selectbox("Eixo Y:", available_y_cols, key=f"scatter_y_{project_id}")
+                                    
+                                    fig = px.scatter(df, x=x_col, y=y_col, title=f"Scatter Plot - {x_col} vs {y_col}")
+                                    fig.update_layout(height=400)
+                                    st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning("⚠️ Necessário pelo menos 2 colunas numéricas para scatter plot")
+                    
+                    elif chart_type == "Correlação":
+                        if len(numeric_columns) >= 2:
+                            corr_matrix = df[numeric_columns].corr()
+                            
+                            fig = px.imshow(corr_matrix, 
+                                          text_auto=True, 
+                                          aspect="auto",
+                                          title="Matriz de Correlação",
+                                          color_continuous_scale='RdBu_r')
+                            fig.update_layout(height=400)
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning("⚠️ Necessário pelo menos 2 colunas numéricas para correlação")
+                            
+                except Exception as e:
+                    st.error(f"❌ Erro ao criar gráfico: {str(e)}")
+            else:
+                st.warning("⚠️ Nenhuma coluna numérica encontrada para visualização")
         
         with tab4:
             st.markdown("#### 🔍 Análise de Qualidade dos Dados")
@@ -587,68 +582,85 @@ def show_file_upload_analysis(project_data: Dict):
                 st.dataframe(missing_df, use_container_width=True)
                 
                 # Gráfico de valores faltantes
-                fig = px.bar(missing_df, x='Coluna', y='Percentual (%)', 
-                           title="Percentual de Valores Faltantes por Coluna")
-                st.plotly_chart(fig, use_container_width=True)
+                try:
+                    fig = px.bar(missing_df, x='Coluna', y='Percentual (%)', 
+                               title="Percentual de Valores Faltantes por Coluna")
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"⚠️ Erro ao criar gráfico de valores faltantes: {str(e)}")
             else:
                 st.success("✅ Nenhum valor faltante encontrado!")
             
             # Outliers (apenas para colunas numéricas)
+            numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
             if numeric_columns:
                 st.markdown("##### 🎯 Detecção de Outliers (Método IQR)")
                 
                 outlier_col = st.selectbox("Selecione coluna para análise de outliers:", numeric_columns, key=f"outlier_col_{project_id}")
                 
-                data_col = df[outlier_col].dropna()
-                Q1 = data_col.quantile(0.25)
-                Q3 = data_col.quantile(0.75)
-                IQR = Q3 - Q1
-                
-                lower_bound = Q1 - 1.5 * IQR
-                upper_bound = Q3 + 1.5 * IQR
-                
-                outliers = data_col[(data_col < lower_bound) | (data_col > upper_bound)]
-                
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.metric("Total de Outliers", len(outliers))
-                
-                with col2:
-                    st.metric("Limite Inferior", f"{lower_bound:.2f}")
-                
-                with col3:
-                    st.metric("Limite Superior", f"{upper_bound:.2f}")
-                
-                if len(outliers) > 0:
-                    st.warning(f"⚠️ {len(outliers)} outliers detectados na coluna '{outlier_col}'")
+                try:
+                    data_col = df[outlier_col].dropna()
                     
-                    # Box plot com outliers destacados
-                    fig = go.Figure()
-                    fig.add_trace(go.Box(y=data_col, name=outlier_col, boxpoints='outliers'))
-                    fig.update_layout(title=f"Box Plot com Outliers - {outlier_col}", height=300)
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.success("✅ Nenhum outlier detectado!")
+                    if len(data_col) > 0:
+                        Q1 = data_col.quantile(0.25)
+                        Q3 = data_col.quantile(0.75)
+                        IQR = Q3 - Q1
+                        
+                        lower_bound = Q1 - 1.5 * IQR
+                        upper_bound = Q3 + 1.5 * IQR
+                        
+                        outliers = data_col[(data_col < lower_bound) | (data_col > upper_bound)]
+                        
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.metric("Total de Outliers", len(outliers))
+                        
+                        with col2:
+                            st.metric("Limite Inferior", f"{lower_bound:.2f}")
+                        
+                        with col3:
+                            st.metric("Limite Superior", f"{upper_bound:.2f}")
+                        
+                        if len(outliers) > 0:
+                            st.warning(f"⚠️ {len(outliers)} outliers detectados na coluna '{outlier_col}'")
+                            
+                            # Box plot com outliers destacados
+                            try:
+                                fig = go.Figure()
+                                fig.add_trace(go.Box(y=data_col, name=outlier_col, boxpoints='outliers'))
+                                fig.update_layout(title=f"Box Plot com Outliers - {outlier_col}", height=300)
+                                st.plotly_chart(fig, use_container_width=True)
+                            except Exception as e:
+                                st.warning(f"⚠️ Erro ao criar box plot: {str(e)}")
+                        else:
+                            st.success("✅ Nenhum outlier detectado!")
+                    else:
+                        st.warning("⚠️ Coluna selecionada não possui dados válidos")
+                        
+                except Exception as e:
+                    st.error(f"❌ Erro na análise de outliers: {str(e)}")
         
         # Botão para salvar análise
         st.divider()
         
         if st.button("💾 Salvar Análise de Dados", key=f"save_analysis_{project_id}", use_container_width=True):
             # Preparar resumo da análise
+            numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+            
             analysis_summary = {
                 'file_name': file_name,
                 'upload_date': datetime.now().isoformat(),
-                'rows': df.shape[0],
-                'columns': df.shape[1],
+                'rows': int(df.shape[0]),
+                'columns': int(df.shape[1]),
                 'numeric_columns': len(numeric_columns),
-                'missing_values': df.isnull().sum().sum(),
+                'missing_values': int(df.isnull().sum().sum()),
                 'column_info': [
                     {
                         'name': col,
                         'type': str(df[col].dtype),
-                        'unique_values': df[col].nunique(),
-                        'null_values': df[col].isnull().sum()
+                        'unique_values': int(df[col].nunique()),
+                        'null_values': int(df[col].isnull().sum())
                     }
                     for col in df.columns
                 ]
@@ -676,6 +688,7 @@ def show_file_upload_analysis(project_data: Dict):
                         
                 except Exception as e:
                     st.error(f"❌ Erro ao salvar: {str(e)}")
+
 
 def show_process_capability(project_data: Dict):
     """Análise de Capacidade do Processo"""
@@ -719,265 +732,297 @@ def show_process_capability(project_data: Dict):
     # Configurar limites de especificação
     st.markdown("### 📏 Limites de Especificação")
     
-    data_col = df[selected_column].dropna()
-    data_min, data_max = data_col.min(), data_col.max()
-    data_mean = data_col.mean()
-    data_std = data_col.std()
-    
-    col3, col4, col5 = st.columns(3)
-    
-    with col3:
-        if analysis_type in ["Bilateral (LSL e USL)", "Unilateral Inferior (LSL)"]:
-            lsl = st.number_input(
-                "LSL (Limite Superior de Especificação Inferior)",
-                value=float(data_min - data_std),
-                key=f"lsl_{project_id}",
-                help="Valor mínimo aceitável"
-            )
-        else:
-            lsl = None
-    
-    with col4:
-        if analysis_type in ["Bilateral (LSL e USL)", "Unilateral Superior (USL)"]:
-            usl = st.number_input(
-                "USL (Limite Superior de Especificação Superior)",
-                value=float(data_max + data_std),
-                key=f"usl_{project_id}",
-                help="Valor máximo aceitável"
-            )
-        else:
-            usl = None
-    
-    with col5:
-        target = st.number_input(
-            "Valor Alvo (Target)",
-            value=float(data_mean),
-            key=f"target_{project_id}",
-            help="Valor ideal do processo"
-        )
-    
-    # Realizar análise de capacidade
-    if st.button("🔍 Realizar Análise de Capacidade", key=f"run_capability_{project_id}"):
+    try:
+        data_col = df[selected_column].dropna()
         
-        # Calcular índices de capacidade
-        results = calculate_capability_indices(data_col, lsl, usl, target)
+        if len(data_col) == 0:
+            st.error("❌ A coluna selecionada não possui dados válidos")
+            return
+            
+        data_min, data_max = data_col.min(), data_col.max()
+        data_mean = data_col.mean()
+        data_std = data_col.std()
         
-        # Mostrar resultados
-        st.markdown("### 📊 Resultados da Análise")
+        col3, col4, col5 = st.columns(3)
         
-        # Métricas principais
-        col6, col7, col8, col9 = st.columns(4)
-        
-        with col6:
-            st.metric("Cp", f"{results['Cp']:.3f}" if results['Cp'] is not None else "N/A")
-        
-        with col7:
-            st.metric("Cpk", f"{results['Cpk']:.3f}" if results['Cpk'] is not None else "N/A")
-        
-        with col8:
-            st.metric("Pp", f"{results['Pp']:.3f}" if results['Pp'] is not None else "N/A")
-        
-        with col9:
-            st.metric("Ppk", f"{results['Ppk']:.3f}" if results['Ppk'] is not None else "N/A")
-        
-        # Interpretação
-        st.markdown("### 🎯 Interpretação dos Resultados")
-        
-        if results['Cpk'] is not None:
-            if results['Cpk'] >= 1.33:
-                st.success("✅ **Processo Capaz** - Cpk ≥ 1.33")
-                interpretation = "Excelente"
-            elif results['Cpk'] >= 1.0:
-                st.warning("⚠️ **Processo Marginalmente Capaz** - 1.0 ≤ Cpk < 1.33")
-                interpretation = "Aceitável"
+        with col3:
+            if analysis_type in ["Bilateral (LSL e USL)", "Unilateral Inferior (LSL)"]:
+                lsl = st.number_input(
+                    "LSL (Limite Inferior de Especificação)",
+                    value=float(data_min - data_std),
+                    key=f"lsl_{project_id}",
+                    help="Valor mínimo aceitável"
+                )
             else:
-                st.error("❌ **Processo Não Capaz** - Cpk < 1.0")
-                interpretation = "Inadequado"
+                lsl = None
         
-        # Gráfico de capacidade
-        st.markdown("### 📈 Gráfico de Capacidade")
+        with col4:
+            if analysis_type in ["Bilateral (LSL e USL)", "Unilateral Superior (USL)"]:
+                usl = st.number_input(
+                    "USL (Limite Superior de Especificação)",
+                    value=float(data_max + data_std),
+                    key=f"usl_{project_id}",
+                    help="Valor máximo aceitável"
+                )
+            else:
+                usl = None
         
-        fig = create_capability_chart(data_col, lsl, usl, target, results)
-        st.plotly_chart(fig, use_container_width=True)
+        with col5:
+            target = st.number_input(
+                "Valor Alvo (Target)",
+                value=float(data_mean),
+                key=f"target_{project_id}",
+                help="Valor ideal do processo"
+            )
         
-        # Estatísticas detalhadas
-        st.markdown("### 📋 Estatísticas Detalhadas")
-        
-        detailed_stats = pd.DataFrame({
-            'Estatística': ['Média', 'Desvio Padrão', 'Mínimo', 'Máximo', 'Mediana', 'Q1', 'Q3'],
-            'Valor': [
-                f"{data_mean:.4f}",
-                f"{data_std:.4f}",
-                f"{data_min:.4f}",
-                f"{data_max:.4f}",
-                f"{data_col.median():.4f}",
-                f"{data_col.quantile(0.25):.4f}",
-                f"{data_col.quantile(0.75):.4f}"
-            ]
-        })
-        
-        col10, col11 = st.columns(2)
-        
-        with col10:
-            st.dataframe(detailed_stats, use_container_width=True)
-        
-        with col11:
-            # Percentual dentro das especificações
-            if lsl is not None and usl is not None:
-                within_spec = ((data_col >= lsl) & (data_col <= usl)).sum()
-                within_spec_pct = (within_spec / len(data_col)) * 100
+        # Realizar análise de capacidade
+        if st.button("🔍 Realizar Análise de Capacidade", key=f"run_capability_{project_id}"):
+            
+            # Calcular índices de capacidade
+            results = calculate_capability_indices(data_col, lsl, usl, target)
+            
+            # Mostrar resultados
+            st.markdown("### 📊 Resultados da Análise")
+            
+            # Métricas principais
+            col6, col7, col8, col9 = st.columns(4)
+            
+            with col6:
+                cp_value = results['Cp']
+                st.metric("Cp", f"{cp_value:.3f}" if cp_value is not None else "N/A")
+            
+            with col7:
+                cpk_value = results['Cpk']
+                st.metric("Cpk", f"{cpk_value:.3f}" if cpk_value is not None else "N/A")
+            
+            with col8:
+                pp_value = results['Pp']
+                st.metric("Pp", f"{pp_value:.3f}" if pp_value is not None else "N/A")
+            
+            with col9:
+                ppk_value = results['Ppk']
+                st.metric("Ppk", f"{ppk_value:.3f}" if ppk_value is not None else "N/A")
+            
+            # Interpretação
+            st.markdown("### 🎯 Interpretação dos Resultados")
+            
+            interpretation = "N/A"
+            if cpk_value is not None:
+                if cpk_value >= 1.33:
+                    st.success("✅ **Processo Capaz** - Cpk ≥ 1.33")
+                    interpretation = "Excelente"
+                elif cpk_value >= 1.0:
+                    st.warning("⚠️ **Processo Marginalmente Capaz** - 1.0 ≤ Cpk < 1.33")
+                    interpretation = "Aceitável"
+                else:
+                    st.error("❌ **Processo Não Capaz** - Cpk < 1.0")
+                    interpretation = "Inadequado"
+            
+            # Gráfico de capacidade
+            st.markdown("### 📈 Gráfico de Capacidade")
+            
+            try:
+                fig = create_capability_chart(data_col, lsl, usl, target, results)
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.error(f"❌ Erro ao criar gráfico: {str(e)}")
+            
+            # Estatísticas detalhadas
+            st.markdown("### 📋 Estatísticas Detalhadas")
+            
+            detailed_stats = pd.DataFrame({
+                'Estatística': ['Média', 'Desvio Padrão', 'Mínimo', 'Máximo', 'Mediana', 'Q1', 'Q3'],
+                'Valor': [
+                    f"{data_mean:.4f}",
+                    f"{data_std:.4f}",
+                    f"{data_min:.4f}",
+                    f"{data_max:.4f}",
+                    f"{data_col.median():.4f}",
+                    f"{data_col.quantile(0.25):.4f}",
+                    f"{data_col.quantile(0.75):.4f}"
+                ]
+            })
+            
+            col10, col11 = st.columns(2)
+            
+            with col10:
+                st.dataframe(detailed_stats, use_container_width=True)
+            
+            with col11:
+                # Percentual dentro das especificações
+                within_spec_pct = None
                 
-                st.metric("Dentro das Especificações", f"{within_spec_pct:.1f}%")
-                st.metric("Fora das Especificações", f"{100 - within_spec_pct:.1f}%")
+                if lsl is not None and usl is not None:
+                    within_spec = ((data_col >= lsl) & (data_col <= usl)).sum()
+                    within_spec_pct = (within_spec / len(data_col)) * 100
+                    
+                    st.metric("Dentro das Especificações", f"{within_spec_pct:.1f}%")
+                    st.metric("Fora das Especificações", f"{100 - within_spec_pct:.1f}%")
+                
+                elif lsl is not None:
+                    above_lsl = (data_col >= lsl).sum()
+                    above_lsl_pct = (above_lsl / len(data_col)) * 100
+                    st.metric("Acima do LSL", f"{above_lsl_pct:.1f}%")
+                
+                elif usl is not None:
+                    below_usl = (data_col <= usl).sum()
+                    below_usl_pct = (below_usl / len(data_col)) * 100
+                    st.metric("Abaixo do USL", f"{below_usl_pct:.1f}%")
             
-            elif lsl is not None:
-                above_lsl = (data_col >= lsl).sum()
-                above_lsl_pct = (above_lsl / len(data_col)) * 100
-                st.metric("Acima do LSL", f"{above_lsl_pct:.1f}%")
-            
-            elif usl is not None:
-                below_usl = (data_col <= usl).sum()
-                below_usl_pct = (below_usl / len(data_col)) * 100
-                st.metric("Abaixo do USL", f"{below_usl_pct:.1f}%")
-        
-        # Salvar resultados
-        capability_results = {
-            'variable': selected_column,
-            'analysis_type': analysis_type,
-            'lsl': lsl,
-            'usl': usl,
-            'target': target,
-            'sample_size': len(data_col),
-            'mean': data_mean,
-            'std': data_std,
-            'cp': results['Cp'],
-            'cpk': results['Cpk'],
-            'pp': results['Pp'],
-            'ppk': results['Ppk'],
-            'interpretation': interpretation if 'interpretation' in locals() else 'N/A',
-            'within_spec_pct': within_spec_pct if 'within_spec_pct' in locals() else None,
-            'analysis_date': datetime.now().isoformat()
-        }
-        
-        # Salvar no session_state
-        st.session_state[f'capability_results_{project_id}'] = capability_results
-        
-        if st.button("💾 Salvar Análise de Capacidade", key=f"save_capability_{project_id}"):
-            # Salvar no Firebase
-            update_data = {
-                f'measure.process_capability.data': capability_results,
-                f'measure.process_capability.completed': True,
-                f'measure.process_capability.updated_at': datetime.now().isoformat(),
-                'updated_at': datetime.now().isoformat()
+            # Salvar resultados
+            capability_results = {
+                'variable': selected_column,
+                'analysis_type': analysis_type,
+                'lsl': float(lsl) if lsl is not None else None,
+                'usl': float(usl) if usl is not None else None,
+                'target': float(target),
+                'sample_size': len(data_col),
+                'mean': float(data_mean),
+                'std': float(data_std),
+                'cp': float(cp_value) if cp_value is not None else None,
+                'cpk': float(cpk_value) if cpk_value is not None else None,
+                'pp': float(pp_value) if pp_value is not None else None,
+                'ppk': float(ppk_value) if ppk_value is not None else None,
+                'interpretation': interpretation,
+                'within_spec_pct': float(within_spec_pct) if within_spec_pct is not None else None,
+                'analysis_date': datetime.now().isoformat()
             }
             
-            project_manager = ProjectManager()
+            # Salvar no session_state
+            st.session_state[f'capability_results_{project_id}'] = capability_results
             
-            with st.spinner("💾 Salvando..."):
-                try:
-                    success = project_manager.update_project(project_id, update_data)
-                    
-                    if success:
-                        st.success("✅ Análise de capacidade salva!")
-                        st.balloons()
-                    else:
-                        st.error("❌ Erro ao salvar")
+            if st.button("💾 Salvar Análise de Capacidade", key=f"save_capability_{project_id}"):
+                # Salvar no Firebase
+                update_data = {
+                    f'measure.process_capability.data': capability_results,
+                    f'measure.process_capability.completed': True,
+                    f'measure.process_capability.updated_at': datetime.now().isoformat(),
+                    'updated_at': datetime.now().isoformat()
+                }
+                
+                project_manager = ProjectManager()
+                
+                with st.spinner("💾 Salvando..."):
+                    try:
+                        success = project_manager.update_project(project_id, update_data)
                         
-                except Exception as e:
-                    st.error(f"❌ Erro: {str(e)}")
+                        if success:
+                            st.success("✅ Análise de capacidade salva!")
+                            st.balloons()
+                        else:
+                            st.error("❌ Erro ao salvar")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Erro: {str(e)}")
+                        
+    except Exception as e:
+        st.error(f"❌ Erro na análise: {str(e)}")
+
 
 def calculate_capability_indices(data, lsl=None, usl=None, target=None):
     """Calcula índices de capacidade do processo"""
     
-    mean = data.mean()
-    std = data.std()
-    
-    results = {
-        'Cp': None,
-        'Cpk': None, 
-        'Pp': None,
-        'Ppk': None
-    }
-    
-    # Cp e Pp (capacidade potencial)
-    if lsl is not None and usl is not None:
-        results['Cp'] = (usl - lsl) / (6 * std)
-        results['Pp'] = results['Cp']  # Para este caso simplificado
-    
-    # Cpk e Ppk (capacidade real)
-    if lsl is not None and usl is not None:
-        cpu = (usl - mean) / (3 * std)
-        cpl = (mean - lsl) / (3 * std)
-        results['Cpk'] = min(cpu, cpl)
-        results['Ppk'] = results['Cpk']  # Para este caso simplificado
-    
-    elif usl is not None:
-        results['Cpk'] = (usl - mean) / (3 * std)
-        results['Ppk'] = results['Cpk']
-    
-    elif lsl is not None:
-        results['Cpk'] = (mean - lsl) / (3 * std)
-        results['Ppk'] = results['Cpk']
-    
-    return results
+    try:
+        mean = data.mean()
+        std = data.std()
+        
+        results = {
+            'Cp': None,
+            'Cpk': None, 
+            'Pp': None,
+            'Ppk': None
+        }
+        
+        # Cp e Pp (capacidade potencial)
+        if lsl is not None and usl is not None and std > 0:
+            results['Cp'] = (usl - lsl) / (6 * std)
+            results['Pp'] = results['Cp']  # Para este caso simplificado
+        
+        # Cpk e Ppk (capacidade real)
+        if std > 0:
+            if lsl is not None and usl is not None:
+                cpu = (usl - mean) / (3 * std)
+                cpl = (mean - lsl) / (3 * std)
+                results['Cpk'] = min(cpu, cpl)
+                results['Ppk'] = results['Cpk']  # Para este caso simplificado
+            
+            elif usl is not None:
+                results['Cpk'] = (usl - mean) / (3 * std)
+                results['Ppk'] = results['Cpk']
+            
+            elif lsl is not None:
+                results['Cpk'] = (mean - lsl) / (3 * std)
+                results['Ppk'] = results['Cpk']
+        
+        return results
+        
+    except Exception as e:
+        st.error(f"❌ Erro no cálculo dos índices: {str(e)}")
+        return {'Cp': None, 'Cpk': None, 'Pp': None, 'Ppk': None}
+
 
 def create_capability_chart(data, lsl=None, usl=None, target=None, results=None):
     """Cria gráfico de capacidade do processo"""
     
-    fig = make_subplots(
-        rows=2, cols=1,
-        subplot_titles=('Histograma com Especificações', 'Gráfico de Controle Individual'),
-        vertical_spacing=0.1
-    )
-    
-    # Histograma
-    fig.add_trace(
-        go.Histogram(x=data, nbinsx=30, name='Dados', opacity=0.7),
-        row=1, col=1
-    )
-    
-    # Linhas de especificação
-    y_max = len(data) * 0.1  # Estimativa da altura máxima
-    
-    if lsl is not None:
-        fig.add_vline(x=lsl, line_dash="dash", line_color="red", 
-                     annotation_text="LSL", row=1, col=1)
-    
-    if usl is not None:
-        fig.add_vline(x=usl, line_dash="dash", line_color="red", 
-                     annotation_text="USL", row=1, col=1)
-    
-    if target is not None:
-        fig.add_vline(x=target, line_dash="dot", line_color="green", 
-                     annotation_text="Target", row=1, col=1)
-    
-    # Gráfico de controle individual
-    fig.add_trace(
-        go.Scatter(x=list(range(len(data))), y=data, mode='lines+markers', 
-                  name='Valores Individuais', line=dict(color='blue')),
-        row=2, col=1
-    )
-    
-    # Linha da média
-    mean_line = data.mean()
-    fig.add_hline(y=mean_line, line_dash="solid", line_color="green", 
-                 annotation_text="Média", row=2, col=1)
-    
-    # Limites de controle (±3σ)
-    ucl = mean_line + 3 * data.std()
-    lcl = mean_line - 3 * data.std()
-    
-    fig.add_hline(y=ucl, line_dash="dash", line_color="orange", 
-                 annotation_text="UCL", row=2, col=1)
-    fig.add_hline(y=lcl, line_dash="dash", line_color="orange", 
-                 annotation_text="LCL", row=2, col=1)
-    
-    fig.update_layout(height=600, title_text="Análise de Capacidade do Processo")
-    
-    return fig
+    try:
+        fig = make_subplots(
+            rows=2, cols=1,
+            subplot_titles=('Histograma com Especificações', 'Gráfico de Controle Individual'),
+            vertical_spacing=0.1
+        )
+        
+        # Histograma
+        fig.add_trace(
+            go.Histogram(x=data, nbinsx=30, name='Dados', opacity=0.7),
+            row=1, col=1
+        )
+        
+        # Linhas de especificação
+        if lsl is not None:
+            fig.add_vline(x=lsl, line_dash="dash", line_color="red", 
+                         annotation_text="LSL", row=1, col=1)
+        
+        if usl is not None:
+            fig.add_vline(x=usl, line_dash="dash", line_color="red", 
+                         annotation_text="USL", row=1, col=1)
+        
+        if target is not None:
+            fig.add_vline(x=target, line_dash="dot", line_color="green", 
+                         annotation_text="Target", row=1, col=1)
+        
+        # Gráfico de controle individual
+        fig.add_trace(
+            go.Scatter(x=list(range(len(data))), y=data, mode='lines+markers', 
+                      name='Valores Individuais', line=dict(color='blue')),
+            row=2, col=1
+        )
+        
+        # Linha da média
+        mean_line = data.mean()
+        fig.add_hline(y=mean_line, line_dash="solid", line_color="green", 
+                     annotation_text="Média", row=2, col=1)
+        
+        # Limites de controle (±3σ)
+        if data.std() > 0:
+            ucl = mean_line + 3 * data.std()
+            lcl = mean_line - 3 * data.std()
+            
+            fig.add_hline(y=ucl, line_dash="dash", line_color="orange", 
+                         annotation_text="UCL", row=2, col=1)
+            fig.add_hline(y=lcl, line_dash="dash", line_color="orange", 
+                         annotation_text="LCL", row=2, col=1)
+        
+        fig.update_layout(height=600, title_text="Análise de Capacidade do Processo")
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"❌ Erro ao criar gráfico: {str(e)}")
+        return go.Figure()
+
 
 def show_msa_analysis(project_data: Dict):
-    """Análise do Sistema de Medição (MSA)"""
+    """Análise do Sistema de Medição (MSA) - Versão Simplificada"""
     
     project_id = project_data.get('id')
     
@@ -1112,233 +1157,288 @@ def show_msa_analysis(project_data: Dict):
             # Realizar análise MSA
             st.markdown("### 📊 Análise MSA")
             
-            msa_results = perform_msa_analysis(msa_df)
-            
-            # Mostrar resultados
-            col4, col5, col6 = st.columns(3)
-            
-            with col4:
-                st.metric("R&R (%)", f"{msa_results['rr_percent']:.1f}%")
+            try:
+                msa_results = perform_msa_analysis(msa_df)
                 
-                if msa_results['rr_percent'] < 10:
-                    st.success("✅ Excelente")
-                elif msa_results['rr_percent'] < 30:
-                    st.warning("⚠️ Aceitável")
+                # Mostrar resultados
+                col4, col5, col6 = st.columns(3)
+                
+                with col4:
+                    rr_pct = msa_results['rr_percent']
+                    st.metric("R&R (%)", f"{rr_pct:.1f}%")
+                    
+                    if rr_pct < 10:
+                        st.success("✅ Excelente")
+                    elif rr_pct < 30:
+                        st.warning("⚠️ Aceitável")
+                    else:
+                        st.error("❌ Inadequado")
+                
+                with col5:
+                    st.metric("Repetibilidade (%)", f"{msa_results['repeatability_percent']:.1f}%")
+                
+                with col6:
+                    st.metric("Reprodutibilidade (%)", f"{msa_results['reproducibility_percent']:.1f}%")
+                
+                # Gráficos MSA
+                st.markdown("### 📈 Gráficos MSA")
+                
+                try:
+                    fig_rr = create_msa_charts(msa_df, msa_results)
+                    st.plotly_chart(fig_rr, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"⚠️ Erro ao criar gráficos: {str(e)}")
+                
+                # Tabela ANOVA
+                st.markdown("### 📋 Análise de Variância (ANOVA)")
+                
+                anova_df = pd.DataFrame({
+                    'Fonte de Variação': ['Repetibilidade', 'Reprodutibilidade', 'R&R', 'Peças', 'Total'],
+                    'Variância': [
+                        msa_results['repeatability_var'],
+                        msa_results['reproducibility_var'],
+                        msa_results['rr_var'],
+                        msa_results['part_var'],
+                        msa_results['total_var']
+                    ],
+                    'Desvio Padrão': [
+                        np.sqrt(max(0, msa_results['repeatability_var'])),
+                        np.sqrt(max(0, msa_results['reproducibility_var'])),
+                        np.sqrt(max(0, msa_results['rr_var'])),
+                        np.sqrt(max(0, msa_results['part_var'])),
+                        np.sqrt(max(0, msa_results['total_var']))
+                    ],
+                    '% Contribuição': [
+                        msa_results['repeatability_percent'],
+                        msa_results['reproducibility_percent'],
+                        msa_results['rr_percent'],
+                        msa_results['part_percent'],
+                        100.0
+                    ]
+                })
+                
+                st.dataframe(anova_df, use_container_width=True)
+                
+                # Interpretação e recomendações
+                st.markdown("### 🎯 Interpretação e Recomendações")
+                
+                interpretation = "N/A"
+                if rr_pct < 10:
+                    st.success("""
+                    ✅ **Sistema de Medição Excelente**
+                    
+                    O sistema de medição é adequado para o processo. A variabilidade R&R é baixa e não compromete a análise do processo.
+                    """)
+                    interpretation = "Excelente"
+                
+                elif rr_pct < 30:
+                    st.warning("""
+                    ⚠️ **Sistema de Medição Aceitável**
+                    
+                    O sistema pode ser usado, mas considere melhorias:
+                    - Treinamento adicional dos operadores
+                    - Calibração mais frequente dos equipamentos
+                    - Revisão dos procedimentos de medição
+                    """)
+                    interpretation = "Aceitável"
+                
                 else:
-                    st.error("❌ Inadequado")
-            
-            with col5:
-                st.metric("Repetibilidade (%)", f"{msa_results['repeatability_percent']:.1f}%")
-            
-            with col6:
-                st.metric("Reprodutibilidade (%)", f"{msa_results['reproducibility_percent']:.1f}%")
-            
-            # Gráficos MSA
-            st.markdown("### 📈 Gráficos MSA")
-            
-            # Gráfico de R&R por operador
-            fig_rr = create_msa_charts(msa_df, msa_results)
-            st.plotly_chart(fig_rr, use_container_width=True)
-            
-            # Tabela ANOVA
-            st.markdown("### 📋 Análise de Variância (ANOVA)")
-            
-            anova_df = pd.DataFrame({
-                'Fonte de Variação': ['Repetibilidade', 'Reprodutibilidade', 'R&R', 'Peças', 'Total'],
-                'Variância': [
-                    msa_results['repeatability_var'],
-                    msa_results['reproducibility_var'],
-                    msa_results['rr_var'],
-                    msa_results['part_var'],
-                    msa_results['total_var']
-                ],
-                'Desvio Padrão': [
-                    np.sqrt(msa_results['repeatability_var']),
-                    np.sqrt(msa_results['reproducibility_var']),
-                    np.sqrt(msa_results['rr_var']),
-                    np.sqrt(msa_results['part_var']),
-                    np.sqrt(msa_results['total_var'])
-                ],
-                '% Contribuição': [
-                    msa_results['repeatability_percent'],
-                    msa_results['reproducibility_percent'],
-                    msa_results['rr_percent'],
-                    msa_results['part_percent'],
-                    100.0
-                ]
-            })
-            
-            st.dataframe(anova_df, use_container_width=True)
-            
-            # Interpretação e recomendações
-            st.markdown("### 🎯 Interpretação e Recomendações")
-            
-            if msa_results['rr_percent'] < 10:
-                st.success("""
-                ✅ **Sistema de Medição Excelente**
+                    st.error("""
+                    ❌ **Sistema de Medição Inadequado**
+                    
+                    O sistema precisa de melhorias significativas:
+                    - Revisar completamente o procedimento de medição
+                    - Substituir ou reparar equipamentos de medição
+                    - Retreinar operadores
+                    - Considerar automação da medição
+                    """)
+                    interpretation = "Inadequado"
                 
-                O sistema de medição é adequado para o processo. A variabilidade R&R é baixa e não compromete a análise do processo.
-                """)
-            
-            elif msa_results['rr_percent'] < 30:
-                st.warning("""
-                ⚠️ **Sistema de Medição Aceitável**
-                
-                O sistema pode ser usado, mas considere melhorias:
-                - Treinamento adicional dos operadores
-                - Calibração mais frequente dos equipamentos
-                - Revisão dos procedimentos de medição
-                """)
-            
-            else:
-                st.error("""
-                ❌ **Sistema de Medição Inadequado**
-                
-                O sistema precisa de melhorias significativas:
-                - Revisar completamente o procedimento de medição
-                - Substituir ou reparar equipamentos de medição
-                - Retreinar operadores
-                - Considerar automação da medição
-                """)
-            
-            # Salvar resultados MSA
-            if st.button("💾 Salvar Análise MSA", key=f"save_msa_{project_id}"):
-                msa_summary = {
-                    'analysis_date': datetime.now().isoformat(),
-                    'num_operators': num_operators,
-                    'num_parts': num_parts,
-                    'num_trials': num_trials,
-                    'total_measurements': len(msa_df),
-                    'rr_percent': msa_results['rr_percent'],
-                    'repeatability_percent': msa_results['repeatability_percent'],
-                    'reproducibility_percent': msa_results['reproducibility_percent'],
-                    'part_percent': msa_results['part_percent'],
-                    'interpretation': 'Excelente' if msa_results['rr_percent'] < 10 else ('Aceitável' if msa_results['rr_percent'] < 30 else 'Inadequado')
-                }
-                
-                # Salvar no Firebase
-                update_data = {
-                    f'measure.msa.data': msa_summary,
-                    f'measure.msa.completed': True,
-                    f'measure.msa.updated_at': datetime.now().isoformat(),
-                    'updated_at': datetime.now().isoformat()
-                }
-                
-                project_manager = ProjectManager()
-                
-                with st.spinner("💾 Salvando..."):
-                    try:
-                        success = project_manager.update_project(project_id, update_data)
-                        
-                        if success:
-                            st.success("✅ Análise MSA salva!")
-                            st.balloons()
-                        else:
-                            st.error("❌ Erro ao salvar")
+                # Salvar resultados MSA
+                if st.button("💾 Salvar Análise MSA", key=f"save_msa_{project_id}"):
+                    msa_summary = {
+                        'analysis_date': datetime.now().isoformat(),
+                        'num_operators': int(num_operators),
+                        'num_parts': int(num_parts),
+                        'num_trials': int(num_trials),
+                        'total_measurements': len(msa_df),
+                        'rr_percent': float(msa_results['rr_percent']),
+                        'repeatability_percent': float(msa_results['repeatability_percent']),
+                        'reproducibility_percent': float(msa_results['reproducibility_percent']),
+                        'part_percent': float(msa_results['part_percent']),
+                        'interpretation': interpretation
+                    }
+                    
+                    # Salvar no Firebase
+                    update_data = {
+                        f'measure.msa.data': msa_summary,
+                        f'measure.msa.completed': True,
+                        f'measure.msa.updated_at': datetime.now().isoformat(),
+                        'updated_at': datetime.now().isoformat()
+                    }
+                    
+                    project_manager = ProjectManager()
+                    
+                    with st.spinner("💾 Salvando..."):
+                        try:
+                            success = project_manager.update_project(project_id, update_data)
                             
-                    except Exception as e:
-                        st.error(f"❌ Erro: {str(e)}")
+                            if success:
+                                st.success("✅ Análise MSA salva!")
+                                st.balloons()
+                            else:
+                                st.error("❌ Erro ao salvar")
+                                
+                        except Exception as e:
+                            st.error(f"❌ Erro: {str(e)}")
+                            
+            except Exception as e:
+                st.error(f"❌ Erro na análise MSA: {str(e)}")
                         
         except Exception as e:
             st.error(f"❌ Erro ao processar arquivo: {str(e)}")
 
+
 def perform_msa_analysis(df):
     """Realiza análise MSA nos dados"""
     
-    # Calcular médias por operador e peça
-    operator_means = df.groupby(['Operador', 'Peça'])['Medição'].mean().reset_index()
-    part_means = df.groupby('Peça')['Medição'].mean()
-    grand_mean = df['Medição'].mean()
-    
-    # Calcular variâncias
-    # Repetibilidade (dentro do operador)
-    repeatability_var = df.groupby(['Operador', 'Peça'])['Medição'].var().mean()
-    
-    # Reprodutibilidade (entre operadores)
-    operator_part_means = df.groupby(['Operador', 'Peça'])['Medição'].mean().reset_index()
-    reproducibility_var = operator_part_means.groupby('Peça')['Medição'].var().mean()
-    
-    # Variância das peças
-    part_var = part_means.var()
-    
-    # R&R
-    rr_var = repeatability_var + reproducibility_var
-    
-    # Variância total
-    total_var = df['Medição'].var()
-    
-    # Converter para percentuais
-    repeatability_percent = (repeatability_var / total_var) * 100
-    reproducibility_percent = (reproducibility_var / total_var) * 100
-    rr_percent = (rr_var / total_var) * 100
-    part_percent = (part_var / total_var) * 100
-    
-    return {
-        'repeatability_var': repeatability_var,
-        'reproducibility_var': reproducibility_var,
-        'rr_var': rr_var,
-        'part_var': part_var,
-        'total_var': total_var,
-        'repeatability_percent': repeatability_percent,
-        'reproducibility_percent': reproducibility_percent,
-        'rr_percent': rr_percent,
-        'part_percent': part_percent
-    }
+    try:
+        # Calcular médias por operador e peça
+        part_means = df.groupby('Peça')['Medição'].mean()
+        grand_mean = df['Medição'].mean()
+        
+        # Calcular variâncias com verificação de valores válidos
+        # Repetibilidade (dentro do operador)
+        repeatability_vars = df.groupby(['Operador', 'Peça'])['Medição'].var().dropna()
+        repeatability_var = repeatability_vars.mean() if len(repeatability_vars) > 0 else 0
+        
+        # Reprodutibilidade (entre operadores)
+        operator_part_means = df.groupby(['Operador', 'Peça'])['Medição'].mean().reset_index()
+        reproducibility_vars = operator_part_means.groupby('Peça')['Medição'].var().dropna()
+        reproducibility_var = reproducibility_vars.mean() if len(reproducibility_vars) > 0 else 0
+        
+        # Variância das peças
+        part_var = part_means.var() if len(part_means) > 1 else 0
+        
+        # R&R
+        rr_var = repeatability_var + reproducibility_var
+        
+        # Variância total
+        total_var = df['Medição'].var()
+        
+        # Evitar divisão por zero
+        if total_var <= 0:
+            total_var = 1e-10
+        
+        # Converter para percentuais
+        repeatability_percent = max(0, (repeatability_var / total_var) * 100)
+        reproducibility_percent = max(0, (reproducibility_var / total_var) * 100)
+        rr_percent = max(0, (rr_var / total_var) * 100)
+        part_percent = max(0, (part_var / total_var) * 100)
+        
+        # Garantir que os percentuais não excedam 100%
+        total_percent = repeatability_percent + reproducibility_percent + part_percent
+        if total_percent > 100:
+            factor = 100 / total_percent
+            repeatability_percent *= factor
+            reproducibility_percent *= factor
+            part_percent *= factor
+            rr_percent = repeatability_percent + reproducibility_percent
+        
+        return {
+            'repeatability_var': max(0, repeatability_var),
+            'reproducibility_var': max(0, reproducibility_var),
+            'rr_var': max(0, rr_var),
+            'part_var': max(0, part_var),
+            'total_var': max(0, total_var),
+            'repeatability_percent': repeatability_percent,
+            'reproducibility_percent': reproducibility_percent,
+            'rr_percent': rr_percent,
+            'part_percent': part_percent
+        }
+        
+    except Exception as e:
+        st.error(f"❌ Erro na análise MSA: {str(e)}")
+        # Retornar valores padrão em caso de erro
+        return {
+            'repeatability_var': 0,
+            'reproducibility_var': 0,
+            'rr_var': 0,
+            'part_var': 0,
+            'total_var': 1,
+            'repeatability_percent': 0,
+            'reproducibility_percent': 0,
+            'rr_percent': 0,
+            'part_percent': 100
+        }
+
 
 def create_msa_charts(df, results):
     """Cria gráficos para análise MSA"""
     
-    # Gráfico de médias por operador e peça
-    fig = make_subplots(
-        rows=2, cols=2,
-        subplot_titles=('Médias por Operador e Peça', 'Ranges por Operador', 
-                       'Distribuição R&R', 'Contribuição da Variância'),
-        specs=[[{"secondary_y": False}, {"secondary_y": False}],
-               [{"secondary_y": False}, {"type": "pie"}]]
-    )
-    
-    # Gráfico 1: Médias por operador e peça
-    for operator in df['Operador'].unique():
-        operator_data = df[df['Operador'] == operator]
-        means_by_part = operator_data.groupby('Peça')['Medição'].mean()
-        
-        fig.add_trace(
-            go.Scatter(x=means_by_part.index, y=means_by_part.values, 
-                      mode='lines+markers', name=operator),
-            row=1, col=1
+    try:
+        # Gráfico de médias por operador e peça
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=('Médias por Operador e Peça', 'Ranges por Operador', 
+                           'Distribuição dos Dados', 'Contribuição da Variância'),
+            specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                   [{"secondary_y": False}, {"type": "pie"}]]
         )
-    
-    # Gráfico 2: Ranges por operador
-    ranges_by_operator = df.groupby(['Operador', 'Peça'])['Medição'].apply(lambda x: x.max() - x.min()).reset_index()
-    
-    for operator in ranges_by_operator['Operador'].unique():
-        operator_ranges = ranges_by_operator[ranges_by_operator['Operador'] == operator]
         
+        # Gráfico 1: Médias por operador e peça
+        for operator in df['Operador'].unique():
+            operator_data = df[df['Operador'] == operator]
+            means_by_part = operator_data.groupby('Peça')['Medição'].mean()
+            
+            fig.add_trace(
+                go.Scatter(x=means_by_part.index, y=means_by_part.values, 
+                          mode='lines+markers', name=str(operator)),
+                row=1, col=1
+            )
+        
+        # Gráfico 2: Ranges por operador
+        ranges_by_operator = df.groupby(['Operador', 'Peça'])['Medição'].apply(lambda x: x.max() - x.min()).reset_index()
+        
+        for operator in ranges_by_operator['Operador'].unique():
+            operator_ranges = ranges_by_operator[ranges_by_operator['Operador'] == operator]
+            
+            fig.add_trace(
+                go.Scatter(x=operator_ranges['Peça'], y=operator_ranges['Medição'], 
+                          mode='lines+markers', name=f"{operator} Range", showlegend=False),
+                row=1, col=2
+            )
+        
+        # Gráfico 3: Distribuição dos dados
         fig.add_trace(
-            go.Scatter(x=operator_ranges['Peça'], y=operator_ranges['Medição'], 
-                      mode='lines+markers', name=f"{operator} Range", showlegend=False),
-            row=1, col=2
+            go.Histogram(x=df['Medição'], nbinsx=20, name='Distribuição', showlegend=False),
+            row=2, col=1
         )
-    
-    # Gráfico 3: Distribuição dos dados
-    fig.add_trace(
-        go.Histogram(x=df['Medição'], nbinsx=20, name='Distribuição', showlegend=False),
-        row=2, col=1
-    )
-    
-    # Gráfico 4: Pizza da contribuição da variância
-    fig.add_trace(
-        go.Pie(labels=['Repetibilidade', 'Reprodutibilidade', 'Peças'],
-               values=[results['repeatability_percent'], 
-                      results['reproducibility_percent'],
-                      results['part_percent']],
-               name="Variância", showlegend=False),
-        row=2, col=2
-    )
-    
-    fig.update_layout(height=600, title_text="Análise MSA - Gráficos de Diagnóstico")
-    
-    return fig
+        
+        # Gráfico 4: Pizza da contribuição da variância
+        labels = ['Repetibilidade', 'Reprodutibilidade', 'Peças']
+        values = [results['repeatability_percent'], 
+                  results['reproducibility_percent'],
+                  results['part_percent']]
+        
+        # Filtrar valores válidos
+        valid_data = [(l, v) for l, v in zip(labels, values) if v > 0]
+        if valid_data:
+            valid_labels, valid_values = zip(*valid_data)
+            
+            fig.add_trace(
+                go.Pie(labels=valid_labels, values=valid_values, name="Variância", showlegend=False),
+                row=2, col=2
+            )
+        
+        fig.update_layout(height=600, title_text="Análise MSA - Gráficos de Diagnóstico")
+        
+        return fig
+        
+    except Exception as e:
+        st.warning(f"⚠️ Erro ao criar gráficos MSA: {str(e)}")
+        return go.Figure()
+
 
 def show_measure_tools(project_data: Dict):
     """Função principal para mostrar as ferramentas da fase Measure"""
