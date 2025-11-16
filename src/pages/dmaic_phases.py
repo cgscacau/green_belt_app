@@ -31,43 +31,94 @@ def show_dmaic_phase():
     # Navegação entre fases DMAIC
     st.markdown("## 🧭 Navegação entre Fases DMAIC")
     
-    # Definir as fases
-    phases = {
-        "define": {"name": "Define", "icon": "🎯", "description": "Definir problema, objetivos e escopo"},
-        "measure": {"name": "Measure", "icon": "📏", "description": "Medir e coletar dados do estado atual"},
-        "analyze": {"name": "Analyze", "icon": "🔍", "description": "Analisar dados e identificar causas raiz"},
-        "improve": {"name": "Improve", "icon": "⚡", "description": "Desenvolver e implementar soluções"},
-        "control": {"name": "Control", "icon": "🎮", "description": "Controlar e sustentar melhorias"}
+    # ✅ DEFINIR NÚMERO CORRETO DE FERRAMENTAS POR FASE
+    phases_config = {
+        "define": {
+            "name": "Define", 
+            "icon": "🎯", 
+            "description": "Definir problema, objetivos e escopo",
+            "tools": ["project_charter", "stakeholder_analysis", "voice_of_customer", "sipoc", "problem_statement"]  # 5 ferramentas
+        },
+        "measure": {
+            "name": "Measure", 
+            "icon": "📏", 
+            "description": "Medir e coletar dados do estado atual",
+            "tools": ["data_collection_plan", "measurement_system", "process_mapping", "baseline_analysis"]  # 4 ferramentas
+        },
+        "analyze": {
+            "name": "Analyze", 
+            "icon": "🔍", 
+            "description": "Analisar dados e identificar causas raiz",
+            "tools": ["statistical_analysis", "root_cause_analysis", "hypothesis_testing", "process_analysis"]  # 4 ferramentas
+        },
+        "improve": {
+            "name": "Improve", 
+            "icon": "⚡", 
+            "description": "Desenvolver e implementar soluções",
+            "tools": ["solution_development", "action_plan", "pilot_implementation", "full_implementation"]  # 4 ferramentas
+        },
+        "control": {
+            "name": "Control", 
+            "icon": "🎮", 
+            "description": "Controlar e sustentar melhorias",
+            "tools": ["control_plan", "monitoring_system", "documentation", "sustainability_plan"]  # 4 ferramentas (futuro)
+        }
     }
     
-    # Verificar progresso de cada fase
+    # ✅ CALCULAR PROGRESSO CORRETO PARA CADA FASE
     phase_progress = {}
-    for phase_key in phases.keys():
+    for phase_key, phase_config in phases_config.items():
         phase_data = current_project.get(phase_key, {})
-        if isinstance(phase_data, dict):
-            completed_tools = sum(1 for tool_data in phase_data.values() 
-                                if isinstance(tool_data, dict) and tool_data.get('completed', False))
-            total_tools = len(phase_data) if phase_data else 5  # Assumir 5 ferramentas por fase
+        
+        if isinstance(phase_data, dict) and phase_data:
+            # Contar ferramentas concluídas
+            completed_tools = 0
+            total_tools = len(phase_config["tools"])
+            
+            for tool_name in phase_config["tools"]:
+                tool_data = phase_data.get(tool_name, {})
+                if isinstance(tool_data, dict) and tool_data.get('completed', False):
+                    completed_tools += 1
+            
+            # Calcular progresso
             progress = (completed_tools / total_tools * 100) if total_tools > 0 else 0
         else:
             progress = 0
         
         phase_progress[phase_key] = progress
+        
+        # ✅ DEBUG - MOSTRAR DETALHES (REMOVER APÓS TESTE)
+        if phase_key == "improve":  # Debug apenas para improve
+            st.write(f"**Debug {phase_key}:**")
+            st.write(f"- Ferramentas esperadas: {phase_config['tools']}")
+            st.write(f"- Dados da fase: {list(phase_data.keys()) if isinstance(phase_data, dict) else 'Não é dict'}")
+            
+            if isinstance(phase_data, dict):
+                for tool_name in phase_config["tools"]:
+                    tool_data = phase_data.get(tool_name, {})
+                    completed = tool_data.get('completed', False) if isinstance(tool_data, dict) else False
+                    st.write(f"- {tool_name}: {'✅ Concluído' if completed else '❌ Não concluído'}")
+            
+            st.write(f"- Progresso calculado: {progress:.1f}%")
+            st.divider()
     
     # Mostrar cards das fases
     cols = st.columns(5)
     
-    for i, (phase_key, phase_info) in enumerate(phases.items()):
+    for i, (phase_key, phase_config) in enumerate(phases_config.items()):
         with cols[i]:
             progress = phase_progress[phase_key]
             
             # Determinar cor baseada no progresso
             if progress == 100:
                 color = "🟢"
+                bg_color = "#e8f5e8"
             elif progress > 0:
                 color = "🟡"
+                bg_color = "#fff3cd"
             else:
                 color = "🔴"
+                bg_color = "#f8d7da"
             
             # Card da fase
             st.markdown(f"""
@@ -77,23 +128,23 @@ def show_dmaic_phase():
                 padding: 10px;
                 text-align: center;
                 margin: 5px;
-                background-color: {'#e8f5e8' if progress == 100 else '#fff3cd' if progress > 0 else '#f8d7da'};
+                background-color: {bg_color};
             ">
-                <h3>{phase_info['icon']} {phase_info['name']}</h3>
-                <p style="font-size: 12px; margin: 5px 0;">{phase_info['description']}</p>
+                <h3>{phase_config['icon']} {phase_config['name']}</h3>
+                <p style="font-size: 12px; margin: 5px 0;">{phase_config['description']}</p>
                 <p style="font-size: 14px; font-weight: bold;">{color} {progress:.0f}%</p>
             </div>
             """, unsafe_allow_html=True)
             
             # Botão para navegar para a fase
-            if st.button(f"Ir para {phase_info['name']}", key=f"goto_{phase_key}", use_container_width=True):
+            if st.button(f"Ir para {phase_config['name']}", key=f"goto_{phase_key}", use_container_width=True):
                 st.session_state['current_phase'] = phase_key
                 st.rerun()
     
     # Mostrar progresso geral do projeto
     st.divider()
     
-    overall_progress = sum(phase_progress.values()) / len(phases)
+    overall_progress = sum(phase_progress.values()) / len(phases_config)
     
     col1, col2 = st.columns([3, 1])
     
