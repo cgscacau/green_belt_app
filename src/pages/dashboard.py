@@ -56,6 +56,33 @@ def show_dashboard():
     else:
         show_projects_overview(projects, project_manager, user_data)
 
+# Adicione esta função temporária no dashboard.py para debug:
+
+def debug_navigation():
+    """Debug temporário para verificar navegação"""
+    st.markdown("### 🔍 Debug - Estado Atual")
+    
+    st.write("**Session State atual:**")
+    st.write({
+        'current_page': st.session_state.get('current_page'),
+        'current_project': bool(st.session_state.get('current_project')),
+        'current_dmaic_phase': st.session_state.get('current_dmaic_phase'),
+        'authentication_status': st.session_state.get('authentication_status')
+    })
+    
+    if st.session_state.get('current_project'):
+        project = st.session_state.current_project
+        st.write("**Projeto carregado:**")
+        st.write({
+            'id': project.get('id'),
+            'name': project.get('name'),
+            'current_phase': project.get('current_phase', 'define')
+        })
+
+# Adicione esta linha temporariamente no final da função show_dashboard():
+# debug_navigation()
+
+
 def show_dashboard_metrics(projects):
     """Exibe métricas principais do dashboard"""
     # Calcular métricas
