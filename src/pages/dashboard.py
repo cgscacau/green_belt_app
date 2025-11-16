@@ -521,11 +521,7 @@ def show_projects_grid(projects, project_manager):
 
 def show_project_card(project, project_manager):
     """Exibe um card individual do projeto - VERSÃO CORRIGIDA"""
-    
-    # Debug: Verificar dados do projeto
-    st.write(f"🔍 Debug Card: Projeto = {project.get('name', 'SEM NOME')}")
-    st.write(f"🔍 Debug Card: ID = {project.get('id', 'SEM ID')}")
-    
+
     # Gerar ID único mais simples
     project_id = project.get('id', 'unknown')
     card_id = f"card_{project_id[:8]}"  # Usar apenas primeiros 8 caracteres
@@ -570,8 +566,7 @@ def show_project_card(project, project_manager):
         st.progress(progress / 100)
         st.caption(f"Progresso: {progress:.1f}%")
         
-        # Debug: Mostrar dados antes dos botões
-        st.write(f"🔍 Debug: Preparando botões para projeto ID: {project_id}")
+
         
         # Botões de ação - VERSÃO SIMPLIFICADA
         col1, col2, col3 = st.columns(3)
@@ -579,26 +574,21 @@ def show_project_card(project, project_manager):
         with col1:
             # Botão Abrir DMAIC - VERSÃO CORRIGIDA
             button_key = f"dmaic_{project_id[:8]}"
-            st.write(f"🔍 Debug: Chave do botão = {button_key}")
+
             
             if st.button("🎯 Abrir DMAIC", key=button_key, use_container_width=True, type="primary"):
-                st.write("🔍 Debug: Botão DMAIC clicado!")
+
                 
                 # Definir dados no session_state
                 st.session_state.current_project = project
                 st.session_state.current_page = "dmaic"
                 st.session_state.current_dmaic_phase = "define"
                 
-                # Debug: Verificar se foi salvo
-                st.write(f"🔍 Debug: Projeto salvo no session_state: {st.session_state.current_project.get('name')}")
-                st.write(f"🔍 Debug: Página definida como: {st.session_state.current_page}")
-                st.write(f"🔍 Debug: Fase definida como: {st.session_state.current_dmaic_phase}")
                 
                 # Mostrar mensagem de sucesso
                 st.success(f"✅ Abrindo projeto: {project.get('name')}")
                 
                 # Forçar rerun
-                st.write("🔍 Debug: Executando st.rerun()...")
                 time.sleep(2)  # Dar tempo para ver as mensagens
                 st.rerun()
         
@@ -715,31 +705,4 @@ def show_projects_analytics(projects):
                 delta=f"≈ {avg_days//30} meses" if avg_days > 0 else "N/A"
             )
 
-# Adicione também esta função de teste no final do dashboard.py:
-def test_navigation_button():
-    """Função de teste para navegação"""
-    st.markdown("### 🧪 Teste de Navegação")
-    
-    if st.button("🧪 Teste: Ir para DMAIC", key="test_dmaic_nav"):
-        st.write("🔍 Teste: Botão clicado!")
-        
-        # Criar projeto fictício para teste
-        test_project = {
-            'id': 'test123',
-            'name': 'Projeto de Teste',
-            'description': 'Projeto para testar navegação',
-            'status': 'active',
-            'expected_savings': 10000
-        }
-        
-        st.session_state.current_project = test_project
-        st.session_state.current_page = "dmaic"
-        st.session_state.current_dmaic_phase = "define"
-        
-        st.write("🔍 Teste: Dados definidos, executando rerun...")
-        st.success("✅ Navegando para DMAIC...")
-        time.sleep(1)
-        st.rerun()
 
-# E adicione esta linha no final da função show_dashboard():
-# test_navigation_button()  # REMOVER DEPOIS DO TESTE
