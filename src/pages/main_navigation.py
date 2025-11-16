@@ -267,9 +267,9 @@ def _calculate_phases_progress(project_data: Dict) -> Dict:
         
         progress['measure'] = (measure_completed / len(measure_tools)) * 100
         
-        # ANALYZE - Ferramentas da fase Analyze
+        # ANALYZE - CORREÇÃO: Apenas as ferramentas que realmente existem
         analyze_data = project_data.get('analyze', {})
-        analyze_tools = ['statistical_analysis', 'root_cause_analysis', 'hypothesis_testing', 'process_analysis']
+        analyze_tools = ['statistical_analysis', 'root_cause_analysis']  # ← CORRIGIDO: apenas 2 ferramentas
         analyze_completed = 0
         
         for tool in analyze_tools:
@@ -277,9 +277,9 @@ def _calculate_phases_progress(project_data: Dict) -> Dict:
             if isinstance(tool_data, dict) and tool_data.get('completed', False):
                 analyze_completed += 1
         
-        progress['analyze'] = (analyze_completed / len(analyze_tools)) * 100 if analyze_tools else 0
+        progress['analyze'] = (analyze_completed / len(analyze_tools)) * 100
         
-        # IMPROVE - Ferramentas da fase Improve
+        # IMPROVE - Ferramentas da fase Improve (ainda não implementadas)
         improve_data = project_data.get('improve', {})
         improve_tools = ['solutions', 'action_plan', 'pilot_results', 'implementation', 'validation']
         improve_completed = 0
@@ -291,7 +291,7 @@ def _calculate_phases_progress(project_data: Dict) -> Dict:
         
         progress['improve'] = (improve_completed / len(improve_tools)) * 100
         
-        # CONTROL - Ferramentas da fase Control
+        # CONTROL - Ferramentas da fase Control (ainda não implementadas)
         control_data = project_data.get('control', {})
         control_tools = ['control_plan', 'spc_charts', 'documentation', 'handover']
         control_completed = 0
@@ -302,6 +302,8 @@ def _calculate_phases_progress(project_data: Dict) -> Dict:
                 control_completed += 1
         
         progress['control'] = (control_completed / len(control_tools)) * 100
+        
+
         
     except Exception as e:
         # Em caso de erro, retornar valores padrão
