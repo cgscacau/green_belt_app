@@ -82,17 +82,11 @@ class ProjectManager:
                 }
             }
             
-            # Debug: Log do projeto sendo criado
-            st.write("🔍 Debug: Criando projeto com dados:", {
-                'id': project_id,
-                'name': new_project['name'],
-                'user_uid': user_uid,
-                'firestore_available': bool(self.db)
-            })
+
             
             # Salvar no Firestore
             self.db.collection('projects').document(project_id).set(new_project)
-            st.write("✅ Debug: Projeto salvo no Firestore")
+           
             
             # Atualizar lista de projetos do usuário
             try:
@@ -105,14 +99,14 @@ class ProjectManager:
                     if project_id not in projects:  # Evitar duplicatas
                         projects.append(project_id)
                         user_ref.update({'projects': projects})
-                        st.write("✅ Debug: Lista de projetos do usuário atualizada")
+                        
                 else:
                     # Criar documento do usuário se não existir
                     user_ref.set({
                         'projects': [project_id],
                         'updated_at': datetime.now().isoformat()
                     }, merge=True)
-                    st.write("✅ Debug: Documento do usuário criado")
+                    
                     
             except Exception as user_update_error:
                 st.warning(f"⚠️ Projeto criado, mas erro ao atualizar usuário: {str(user_update_error)}")
@@ -146,8 +140,7 @@ class ProjectManager:
             
             projects = []
             
-            # Debug: Log da busca
-            st.write(f"🔍 Debug: Buscando projetos para usuário: {user_uid}")
+
             
             projects_query = self.db.collection('projects').where('user_uid', '==', user_uid).stream()
             
@@ -156,7 +149,7 @@ class ProjectManager:
                 if project_data:  # Verificar se dados existem
                     projects.append(project_data)
             
-            st.write(f"✅ Debug: {len(projects)} projetos encontrados")
+           
             
             # Ordenar por data de criação (mais recente primeiro)
             projects.sort(key=lambda x: x.get('created_at', ''), reverse=True)
@@ -182,10 +175,10 @@ class ProjectManager:
             
             if doc.exists:
                 project_data = doc.to_dict()
-                st.write(f"✅ Debug: Projeto {project_id} carregado com sucesso")
+                
                 return project_data
-            else:
-                st.write(f"❌ Debug: Projeto {project_id} não encontrado")
+           
+               
                 return None
             
         except Exception as e:
