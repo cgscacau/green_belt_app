@@ -1,4 +1,5 @@
 import streamlit as st
+import typing import Dict
 from src.pages.dashboard import show_dashboard
 from src.pages.dmaic_phases import show_dmaic_phase
 from src.pages.projects import show_projects_page
