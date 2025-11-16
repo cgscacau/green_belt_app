@@ -20,26 +20,22 @@ firebase_config = {
 
 def get_project_id():
     """Obtém o Project ID de diferentes fontes"""
-    # Ordem de prioridade para obter Project ID
     project_id = None
     
     # 1. Streamlit Secrets
     if hasattr(st, 'secrets'):
         project_id = st.secrets.get("FIREBASE_PROJECT_ID")
         if project_id:
-            st.write(f"🔧 Debug: Project ID obtido dos Streamlit Secrets: {project_id}")
             return project_id
     
     # 2. Variáveis de ambiente
     project_id = os.getenv("FIREBASE_PROJECT_ID")
     if project_id:
-        st.write(f"🔧 Debug: Project ID obtido da variável de ambiente: {project_id}")
         return project_id
     
-    # 3. Google Cloud Project (ambiente Google Cloud)
+    # 3. Google Cloud Project
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
     if project_id:
-        st.write(f"🔧 Debug: Project ID obtido do Google Cloud: {project_id}")
         return project_id
     
     # 4. Do service account nos secrets
@@ -48,10 +44,9 @@ def get_project_id():
             service_account = st.secrets["FIREBASE_SERVICE_ACCOUNT"]
             project_id = service_account.get("project_id")
             if project_id:
-                st.write(f"🔧 Debug: Project ID obtido do Service Account: {project_id}")
                 return project_id
-        except Exception as e:
-            st.write(f"❌ Debug: Erro ao obter Project ID do Service Account: {str(e)}")
+        except:
+            pass
     
     # 5. Do arquivo local serviceAccountKey.json
     if os.path.exists("serviceAccountKey.json"):
@@ -60,57 +55,45 @@ def get_project_id():
                 service_account = json.load(f)
                 project_id = service_account.get("project_id")
                 if project_id:
-                    st.write(f"🔧 Debug: Project ID obtido do arquivo local: {project_id}")
                     return project_id
-        except Exception as e:
-            st.write(f"❌ Debug: Erro ao ler arquivo local: {str(e)}")
+        except:
+            pass
     
-    st.write("❌ Debug: Project ID não encontrado em nenhuma fonte")
     return None
 
 def initialize_firebase():
-    """Inicializa o Firebase Admin SDK com Project ID obrigatório"""
+    """Inicializa o Firebase Admin SDK"""
     try:
-        # Verificar se já foi inicializado
+        # Verificar se já foi inicializado - SEM DEBUG
         if firebase_admin._apps:
-            st.write("✅ Debug: Firebase já inicializado, retornando cliente existente")
             return firestore.client()
         
-        # Obter Project ID primeiro (obrigatório)
+        # Obter Project ID primeiro
         project_id = get_project_id()
         if not project_id:
-            st.error("❌ Project ID não encontrado. Configure FIREBASE_PROJECT_ID nos secrets ou variáveis de ambiente.")
             return None
         
-        # Definir variável de ambiente para Google Cloud (backup)
+        # Definir variável de ambiente para Google Cloud
         os.environ["GOOGLE_CLOUD_PROJECT"] = project_id
         
         cred = None
-        init_method = "unknown"
         
         # Método 1: Streamlit Secrets (Service Account)
         if hasattr(st, 'secrets') and 'FIREBASE_SERVICE_ACCOUNT' in st.secrets:
             try:
                 service_account_info = dict(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
                 
-                # Garantir que o project_id está no service account
                 if "project_id" not in service_account_info:
                     service_account_info["project_id"] = project_id
                 
-                # Validar campos obrigatórios
                 required_fields = ['type', 'project_id', 'private_key', 'client_email']
                 missing_fields = [field for field in required_fields if not service_account_info.get(field)]
                 
-                if missing_fields:
-                    st.write(f"❌ Debug: Campos obrigatórios ausentes no Service Account: {missing_fields}")
-                    raise ValueError(f"Campos obrigatórios ausentes: {missing_fields}")
+                if not missing_fields:
+                    cred = credentials.Certificate(service_account_info)
                 
-                cred = credentials.Certificate(service_account_info)
-                init_method = "streamlit_secrets"
-                st.write(f"✅ Debug: Credenciais obtidas dos Streamlit Secrets")
-                
-            except Exception as e:
-                st.write(f"❌ Debug: Erro ao usar Streamlit Secrets: {str(e)}")
+            except:
+                pass
         
         # Método 2: Variável de ambiente com JSON
         if not cred and os.getenv("FIREBASE_SERVICE_ACCOUNT"):
@@ -120,84 +103,46 @@ def initialize_firebase():
                     service_account_info["project_id"] = project_id
                 
                 cred = credentials.Certificate(service_account_info)
-                init_method = "env_json"
-                st.write(f"✅ Debug: Credenciais obtidas da variável de ambiente JSON")
-            except Exception as e:
-                st.write(f"❌ Debug: Erro ao usar ENV JSON: {str(e)}")
+            except:
+                pass
         
         # Método 3: Arquivo local
         if not cred and os.path.exists("serviceAccountKey.json"):
             try:
                 cred = credentials.Certificate("serviceAccountKey.json")
-                init_method = "local_file"
-                st.write(f"✅ Debug: Credenciais obtidas do arquivo local")
-            except Exception as e:
-                st.write(f"❌ Debug: Erro ao usar arquivo local: {str(e)}")
+            except:
+                pass
         
-        # Método 4: Application Default Credentials (com project_id)
+        # Método 4: Application Default Credentials
         if not cred:
             try:
                 cred = credentials.ApplicationDefault()
-                init_method = "application_default"
-                st.write(f"✅ Debug: Usando Application Default Credentials")
-            except Exception as e:
-                st.write(f"❌ Debug: Erro ao usar Application Default: {str(e)}")
+            except:
+                pass
         
-        # Se não conseguiu credenciais, tentar inicializar só com Project ID
-        if not cred:
-            try:
-                st.write(f"🔧 Debug: Tentando inicializar apenas com Project ID: {project_id}")
-                
-                # Criar credenciais mínimas
-                app_options = {
-                    'projectId': project_id
-                }
-                
-                app = firebase_admin.initialize_app(options=app_options)
-                init_method = "project_id_only"
-                st.write(f"✅ Debug: Inicializado apenas com Project ID")
-                
-                # Tentar retornar cliente Firestore
-                return firestore.client()
-                
-            except Exception as e:
-                st.write(f"❌ Debug: Erro ao inicializar com Project ID apenas: {str(e)}")
-                return None
-        
-        # Inicializar com credenciais + project_id
+        # Inicializar com credenciais
         if cred:
             try:
-                app_options = {
-                    'projectId': project_id
-                }
-                
-                app = firebase_admin.initialize_app(cred, options=app_options)
-                st.write(f"✅ Debug: Firebase Admin inicializado com sucesso ({init_method})")
-                
-                # Testar conexão Firestore
-                db = firestore.client()
-                
-                # Teste simples de conectividade
-                try:
-                    # Apenas verificar se consegue acessar o cliente
-                    st.write(f"✅ Debug: Cliente Firestore criado com sucesso")
-                    return db
-                    
-                except Exception as test_error:
-                    st.write(f"⚠️ Debug: Cliente criado mas erro no teste: {str(test_error)}")
-                    return db  # Retornar mesmo assim
-            
-            except Exception as init_error:
-                st.write(f"❌ Debug: Erro na inicialização final: {str(init_error)}")
-                return None
+                app_options = {'projectId': project_id}
+                firebase_admin.initialize_app(cred, options=app_options)
+                return firestore.client()
+            except:
+                pass
         
-        st.error("❌ Não foi possível obter credenciais válidas")
+        # Fallback: apenas com Project ID
+        try:
+            app_options = {'projectId': project_id}
+            firebase_admin.initialize_app(options=app_options)
+            return firestore.client()
+        except:
+            pass
+        
         return None
         
     except Exception as e:
-        st.error(f"❌ Erro crítico ao inicializar Firebase: {str(e)}")
-        st.write(f"🔧 Debug: Tipo do erro: {type(e).__name__}")
-        st.write(f"🔧 Debug: Detalhes: {str(e)}")
+        # Apenas mostrar erro se for crítico
+        if "already exists" not in str(e).lower():
+            st.error(f"❌ Erro ao inicializar Firebase: {str(e)}")
         return None
 
 def test_firebase_connection():
@@ -207,7 +152,6 @@ def test_firebase_connection():
         if not db:
             return False, "Firebase não inicializado"
         
-        # Teste mais simples - apenas verificar se o cliente existe
         project_id = get_project_id()
         if project_id:
             return True, f"Conexão estabelecida com projeto: {project_id}"
@@ -217,7 +161,6 @@ def test_firebase_connection():
     except Exception as e:
         return False, f"Erro no teste: {str(e)}"
 
-# Resto das classes permanecem iguais...
 class FirebaseRestAuth:
     """Classe para autenticação usando Firebase REST API diretamente"""
     
