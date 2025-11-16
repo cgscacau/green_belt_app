@@ -167,22 +167,31 @@ class ProjectManager:
             st.error(f"❌ Debug: Erro ao carregar projetos: {str(e)}")
             return []
     
+    # Adicionar no arquivo src/utils/project_manager.py:
+    
     def get_project(self, project_id: str) -> Optional[Dict]:
         """Obtém um projeto específico"""
         try:
+            if self.use_offline:
+                return st.session_state.offline_projects.get(project_id)
+            
             if not self.db or not project_id:
                 return None
             
             doc = self.db.collection('projects').document(project_id).get()
             
             if doc.exists:
-                return doc.to_dict()
-            
-            return None
+                project_data = doc.to_dict()
+                st.write(f"✅ Debug: Projeto {project_id} carregado com sucesso")
+                return project_data
+            else:
+                st.write(f"❌ Debug: Projeto {project_id} não encontrado")
+                return None
             
         except Exception as e:
             st.error(f"Erro ao carregar projeto: {str(e)}")
             return None
+
     
     def update_project(self, project_id: str, updates: Dict) -> bool:
         """Atualiza dados do projeto"""
