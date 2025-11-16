@@ -31,41 +31,41 @@ def show_dmaic_phase():
     # Navegação entre fases DMAIC
     st.markdown("## 🧭 Navegação entre Fases DMAIC")
     
-    # ✅ DEFINIR NÚMERO CORRETO DE FERRAMENTAS POR FASE
+    # Definir configuração das fases com ferramentas corretas
     phases_config = {
         "define": {
             "name": "Define", 
             "icon": "🎯", 
             "description": "Definir problema, objetivos e escopo",
-            "tools": ["project_charter", "stakeholder_analysis", "voice_of_customer", "sipoc", "problem_statement"]  # 5 ferramentas
+            "tools": ["project_charter", "stakeholder_analysis", "voice_of_customer", "sipoc", "problem_statement"]
         },
         "measure": {
             "name": "Measure", 
             "icon": "📏", 
             "description": "Medir e coletar dados do estado atual",
-            "tools": ["data_collection_plan", "measurement_system", "process_mapping", "baseline_analysis"]  # 4 ferramentas
+            "tools": ["data_collection_plan", "measurement_system", "process_mapping", "baseline_analysis"]
         },
         "analyze": {
             "name": "Analyze", 
             "icon": "🔍", 
             "description": "Analisar dados e identificar causas raiz",
-            "tools": ["statistical_analysis", "root_cause_analysis", "hypothesis_testing", "process_analysis"]  # 4 ferramentas
+            "tools": ["statistical_analysis", "root_cause_analysis", "hypothesis_testing", "process_analysis"]
         },
         "improve": {
             "name": "Improve", 
             "icon": "⚡", 
             "description": "Desenvolver e implementar soluções",
-            "tools": ["solution_development", "action_plan", "pilot_implementation", "full_implementation"]  # 4 ferramentas
+            "tools": ["solution_development", "action_plan", "pilot_implementation", "full_implementation"]
         },
         "control": {
             "name": "Control", 
             "icon": "🎮", 
             "description": "Controlar e sustentar melhorias",
-            "tools": ["control_plan", "monitoring_system", "documentation", "sustainability_plan"]  # 4 ferramentas (futuro)
+            "tools": ["control_plan", "monitoring_system", "documentation", "sustainability_plan"]
         }
     }
     
-    # ✅ CALCULAR PROGRESSO CORRETO PARA CADA FASE
+    # Calcular progresso de cada fase
     phase_progress = {}
     for phase_key, phase_config in phases_config.items():
         phase_data = current_project.get(phase_key, {})
@@ -86,16 +86,6 @@ def show_dmaic_phase():
             progress = 0
         
         phase_progress[phase_key] = progress
-        
-            
-            if isinstance(phase_data, dict):
-                for tool_name in phase_config["tools"]:
-                    tool_data = phase_data.get(tool_name, {})
-                    completed = tool_data.get('completed', False) if isinstance(tool_data, dict) else False
-                    st.write(f"- {tool_name}: {'✅ Concluído' if completed else '❌ Não concluído'}")
-            
-            st.write(f"- Progresso calculado: {progress:.1f}%")
-            st.divider()
     
     # Mostrar cards das fases
     cols = st.columns(5)
