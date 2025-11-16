@@ -1359,8 +1359,15 @@ class ActionPlanTool:
         # Recursos humanos
         st.markdown("##### 👤 Recursos Humanos")
         
+        # ✅ INICIALIZAÇÃO SEGURA
         if 'resources' not in action_data:
-            action_data['resources'] = {'human': [], 'material': [], 'financial': {}}
+            action_data['resources'] = {}
+        
+        if 'human' not in action_data['resources']:
+            action_data['resources']['human'] = []
+        
+        if 'material' not in action_data['resources']:
+            action_data['resources']['material'] = []
         
         # Adicionar recurso humano
         with st.expander("➕ Adicionar Recurso Humano"):
@@ -1406,8 +1413,8 @@ class ActionPlanTool:
                     st.success(f"✅ {person_name} adicionado!")
                     st.rerun()
         
-        # Mostrar recursos humanos
-        if action_data['resources']['human']:
+        # ✅ VERIFICAÇÃO SEGURA ANTES DE MOSTRAR RECURSOS
+        if action_data['resources'].get('human'):
             for i, person in enumerate(action_data['resources']['human']):
                 with st.expander(f"👤 {person['name']} - {person['role']}"):
                     col1, col2, col3 = st.columns([2, 2, 1])
@@ -1469,8 +1476,8 @@ class ActionPlanTool:
                     st.success(f"✅ {material_name} adicionado!")
                     st.rerun()
         
-        # Mostrar recursos materiais
-        if action_data['resources']['material']:
+        # ✅ VERIFICAÇÃO SEGURA PARA MATERIAIS
+        if action_data['resources'].get('material'):
             material_total = sum(item['total_cost'] for item in action_data['resources']['material'])
             st.write(f"**Custo Total de Materiais:** R$ {material_total:,.2f}")
             
@@ -1491,6 +1498,7 @@ class ActionPlanTool:
                     if st.button("🗑️", key=f"remove_material_{i}_{self.project_id}"):
                         action_data['resources']['material'].pop(i)
                         st.rerun()
+
     
     def _show_risks(self, action_data: Dict):
         """Análise de riscos"""
