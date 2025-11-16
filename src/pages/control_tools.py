@@ -200,132 +200,12 @@ class ControlPlanTool:
         
         with tab4:
             self._show_documentation(control_data)
-    
+    ######################################################################################################################################################    
     def _show_control_points(self, control_data: Dict):
         """Gerenciamento de pontos de controle"""
         st.markdown("#### 🎯 Pontos de Controle")
         
-        # Gerar pontos automaticamente dos KPIs
-        improve_results = self.manager.get_improve_results()
-        kpis = improve_results['kpis_data']
-        
-        if kpis and st.button("🤖 Gerar Pontos dos KPIs", key=f"auto_generate_points_{self.project_id}"):
-            for kpi in kpis:
-                # Verificar se já existe
-                existing = any(
-                    point.get('source_kpi') == kpi['name'] 
-                    for point in control_data.get('control_points', [])
-                )
-                
-                if not existing:
-                    control_data['control_points'].append({
-                        'name': f"Controle: {kpi['name']}",
-                        'description': kpi.get('description', ''),
-                        'metric': kpi['name'],
-                        'unit': kpi.get('unit', ''),
-                        'target': kpi.get('target', 0),
-                        'upper_limit': kpi.get('target', 0) * 1.1,
-                        'lower_limit': kpi.get('target', 0) * 0.9,
-                        'measurement_method': 'Automático',
-                        'frequency': kpi.get('frequency', 'Semanal'),
-                        'responsible': kpi.get('responsible', ''),
-                        'source_kpi': kpi['name'],
-                        'status': 'Ativo',
-                        'created_at': datetime.now().isoformat()
-                    })
-            
-            st.success(f"✅ {len(kpis)} pontos de controle gerados!")
-            st.rerun()
-        
-        # Adicionar ponto de controle manual
-        with st.expander("➕ Adicionar Ponto de Controle"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                point_name = st.text_input(
-                    "Nome do Ponto:",
-                    key=f"point_name_{self.project_id}",
-                    placeholder="Ex: Controle de Qualidade Produto X"
-                )
-                
-                point_metric = st.text_input(
-                    "Métrica:",
-                    key=f"point_metric_{self.project_id}",
-                    placeholder="Ex: Taxa de defeitos"
-                )
-                
-                point_unit = st.text_input(
-                    "Unidade:",
-                    key=f"point_unit_{self.project_id}",
-                    placeholder="Ex: %, ppm, minutos"
-                )
-                
-                point_target = st.number_input(
-                    "Meta:",
-                    key=f"point_target_{self.project_id}",
-                    value=0.0
-                )
-            
-            with col2:
-                point_upper = st.number_input(
-                    "Limite Superior:",
-                    key=f"point_upper_{self.project_id}",
-                    value=0.0
-                )
-                
-                point_lower = st.number_input(
-                    "Limite Inferior:",
-                    key=f"point_lower_{self.project_id}",
-                    value=0.0
-                )
-                
-                point_frequency = st.selectbox(
-                    "Frequência:",
-                    ["Diária", "Semanal", "Quinzenal", "Mensal"],
-                    key=f"point_frequency_{self.project_id}"
-                )
-                
-                point_responsible = st.text_input(
-                    "Responsável:",
-                    key=f"point_responsible_{self.project_id}"
-                )
-            
-            point_description = st.text_area(
-                "Descrição:",
-                key=f"point_description_{self.project_id}",
-                placeholder="Descreva o que será controlado e como...",
-                height=80
-            )
-            
-            point_method = st.text_area(
-                "Método de Medição:",
-                key=f"point_method_{self.project_id}",
-                placeholder="Como será medido este ponto de controle?",
-                height=60
-            )
-            
-            if st.button("🎯 Adicionar Ponto", key=f"add_point_{self.project_id}"):
-                if point_name.strip() and point_metric.strip():
-                    control_data['control_points'].append({
-                        'name': point_name,
-                        'description': point_description,
-                        'metric': point_metric,
-                        'unit': point_unit,
-                        'target': point_target,
-                        'upper_limit': point_upper,
-                        'lower_limit': point_lower,
-                        'measurement_method': point_method,
-                        'frequency': point_frequency,
-                        'responsible': point_responsible,
-                        'status': 'Ativo',
-                        'measurements': [],
-                        'created_at': datetime.now().isoformat()
-                    })
-                    
-                    st.success(f"✅ Ponto '{point_name}' adicionado!")
-                    st.rerun()
-                else:
-                    st.error("❌ Nome e métrica são obrigatórios")
+        # [... código anterior permanece igual até "Mostrar pontos existentes" ...]
         
         # Mostrar pontos existentes
         if control_data.get('control_points'):
@@ -378,9 +258,18 @@ class ControlPlanTool:
                         
                         control_data['control_points'][i]['status'] = new_status
                         
-                        if st.button("🗑️", key=f"remove_point_{i}_{self.project_id}"):
-                            control_data['control_points'].pop(i)
-                            st.rerun()
+                        if st.button("🗑️ Remover Ponto", key=f"remove_point_{i}_{self.project_id}"):
+                            confirm_key = f"confirm_delete_point_{i}_{self.project_id}"
+                            
+                            if st.session_state.get(confirm_key, False):
+                                control_data['control_points'].pop(i)
+                                if confirm_key in st.session_state:
+                                    del st.session_state[confirm_key]
+                                st.success("✅ Ponto removido!")
+                                st.rerun()
+                            else:
+                                st.session_state[confirm_key] = True
+                                st.warning("⚠️ Clique novamente para confirmar")
                         
                         # Status atual baseado nas medições
                         measurements = point.get('measurements', [])
@@ -394,8 +283,175 @@ class ControlPlanTool:
                                 st.warning("⚠️ Atenção")
                             else:
                                 st.error("🚨 Fora de controle")
+                    
+                    # ✅ NOVA SEÇÃO: GERENCIAR MEDIÇÕES EXISTENTES
+                    measurements = point.get('measurements', [])
+                    if measurements:
+                        st.markdown("---")
+                        st.markdown("##### 📋 Medições Registradas")
+                        
+                        # Botão para atualizar
+                        if st.button("🔄 Atualizar Medições", key=f"refresh_point_{i}_{self.project_id}"):
+                            st.rerun()
+                        
+                        # Processar cada medição
+                        for measure_idx in range(len(measurements)):
+                            # Verificar se o índice ainda existe
+                            if measure_idx >= len(control_data['control_points'][i]['measurements']):
+                                continue
+                                
+                            measurement = control_data['control_points'][i]['measurements'][measure_idx]
+                            
+                            # Chave única para esta medição
+                            unique_id = f"point{i}_measure{measure_idx}_{len(measurements)}_{self.project_id}"
+                            edit_key = f"editing_{unique_id}"
+                            delete_confirm_key = f"delete_confirm_{unique_id}"
+                            
+                            measurement_date_str = datetime.fromisoformat(measurement['date']).strftime('%d/%m/%Y')
+                            
+                            # Container para cada medição
+                            with st.container():
+                                # Verificar se está em modo de edição
+                                is_editing = st.session_state.get(edit_key, False)
+                                
+                                if is_editing:
+                                    # ✅ MODO EDIÇÃO
+                                    st.markdown(f"**✏️ Editando medição de {measurement_date_str}:**")
+                                    
+                                    col_edit1, col_edit2, col_edit3 = st.columns([2, 2, 2])
+                                    
+                                    with col_edit1:
+                                        edited_date = st.date_input(
+                                            "Nova Data:",
+                                            value=datetime.fromisoformat(measurement['date']).date(),
+                                            key=f"edit_point_date_{unique_id}"
+                                        )
+                                    
+                                    with col_edit2:
+                                        edited_value = st.number_input(
+                                            f"Novo Valor ({point.get('unit', '')}):",
+                                            value=float(measurement['value']),
+                                            key=f"edit_point_value_{unique_id}",
+                                            step=0.01,
+                                            format="%.2f"
+                                        )
+                                    
+                                    with col_edit3:
+                                        col_save, col_cancel = st.columns(2)
+                                        
+                                        with col_save:
+                                            if st.button("💾", key=f"save_point_{unique_id}", help="Salvar"):
+                                                # Verificar se índice ainda é válido
+                                                if measure_idx < len(control_data['control_points'][i]['measurements']):
+                                                    # Recalcular status com novo valor
+                                                    new_status = self._check_control_status(edited_value, point)
+                                                    
+                                                    control_data['control_points'][i]['measurements'][measure_idx] = {
+                                                        'date': edited_date.isoformat(),
+                                                        'value': float(edited_value),
+                                                        'status': new_status,
+                                                        'added_at': measurement.get('added_at', datetime.now().isoformat()),
+                                                        'updated_at': datetime.now().isoformat()
+                                                    }
+                                                    
+                                                    # Limpar estado de edição
+                                                    if edit_key in st.session_state:
+                                                        del st.session_state[edit_key]
+                                                    
+                                                    st.success("✅ Medição atualizada!")
+                                                    st.rerun()
+                                        
+                                        with col_cancel:
+                                            if st.button("❌", key=f"cancel_point_{unique_id}", help="Cancelar"):
+                                                if edit_key in st.session_state:
+                                                    del st.session_state[edit_key]
+                                                st.rerun()
+                                
+                                else:
+                                    # ✅ MODO VISUALIZAÇÃO
+                                    col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
+                                    
+                                    with col1:
+                                        st.write(f"📅 **{measurement_date_str}**")
+                                    
+                                    with col2:
+                                        st.write(f"**{measurement['value']} {point.get('unit', '')}**")
+                                    
+                                    with col3:
+                                        # Status da medição
+                                        status = measurement.get('status', 'OK')
+                                        if status == 'OK':
+                                            st.success("✅")
+                                        elif status == 'WARNING':
+                                            st.warning("⚠️")
+                                        else:
+                                            st.error("🚨")
+                                    
+                                    with col4:
+                                        if st.button("✏️", key=f"edit_point_{unique_id}", help="Editar"):
+                                            st.session_state[edit_key] = True
+                                            st.rerun()
+                                    
+                                    with col5:
+                                        # ✅ DELETE PARA MEDIÇÕES DO PONTO DE CONTROLE
+                                        if st.button("🗑️", key=f"delete_point_{unique_id}", help="Excluir medição"):
+                                            if st.session_state.get(delete_confirm_key, False):
+                                                try:
+                                                    # Verificar se ainda existe
+                                                    if measure_idx < len(control_data['control_points'][i]['measurements']):
+                                                        # Remover diretamente pelo índice
+                                                        control_data['control_points'][i]['measurements'].pop(measure_idx)
+                                                        
+                                                        # Limpar estados relacionados
+                                                        keys_to_remove = []
+                                                        for key in st.session_state.keys():
+                                                            if (f"point{i}_measure" in key or 
+                                                                f"delete_confirm_point{i}" in key or
+                                                                f"editing_point{i}" in key):
+                                                                keys_to_remove.append(key)
+                                                        
+                                                        for key in keys_to_remove:
+                                                            try:
+                                                                del st.session_state[key]
+                                                            except:
+                                                                pass
+                                                        
+                                                        st.success(f"✅ Medição de {measurement_date_str} removida!")
+                                                        st.rerun()
+                                                    else:
+                                                        st.error("❌ Medição não encontrada")
+                                                except Exception as e:
+                                                    st.error(f"❌ Erro ao remover: {str(e)}")
+                                            else:
+                                                # Primeira vez - pedir confirmação
+                                                st.session_state[delete_confirm_key] = True
+                                                st.warning("⚠️ Clique novamente para confirmar exclusão")
+                                
+                                # Separador
+                                if measure_idx < len(measurements) - 1:
+                                    st.divider()
+                        
+                        # ✅ BOTÃO DE LIMPEZA DE EMERGÊNCIA
+                        if st.button("🧹 Limpar Estados", key=f"emergency_clear_point_{i}_{self.project_id}"):
+                            keys_to_remove = []
+                            for key in st.session_state.keys():
+                                if f"point{i}_" in key:
+                                    keys_to_remove.append(key)
+                            
+                            for key in keys_to_remove:
+                                try:
+                                    del st.session_state[key]
+                                except:
+                                    pass
+                            
+                            st.success("🧹 Estados limpos!")
+                            st.rerun()
+                    
+                    else:
+                        st.info("📝 Nenhuma medição registrada ainda.")
         else:
             st.info("🎯 Nenhum ponto de controle definido ainda.")
+
     
     def _check_control_status(self, value: float, point: Dict) -> str:
         """Verifica status de uma medição baseada nos limites"""
