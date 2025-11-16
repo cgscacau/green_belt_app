@@ -377,31 +377,60 @@ def show_create_project_tab(project_manager, user_data, is_first_project=False):
             st.success("🎉 Projeto criado com sucesso!")
             st.balloons()
             
-            # Mostrar próximos passos
-            st.info("""
-            **Próximos passos:**
-            1. ✅ Projeto criado e salvo
-            2. 🎯 Comece pela fase Define
-            3. 📋 Preencha o Project Charter
-            4. 👥 Identifique os stakeholders
-            """)
+            # Buscar o projeto recém-criado
+            try:
+                new_project = project_manager.get_project(result)
+                if new_project:
+                    st.session_state.current_project = new_project
+                    st.info(f"✅ Projeto '{new_project.get('name')}' carregado e pronto para uso!")
+                else:
+                    st.warning("⚠️ Projeto criado mas não foi possível carregá-lo automaticamente.")
+            except Exception as e:
+                st.warning(f"⚠️ Projeto criado mas erro ao carregar: {str(e)}")
             
-            # Limpar formulário após sucesso
-            time.sleep(2)
-            st.session_state.show_create_project = False
+            # Opções de navegação após criação
+            st.markdown("### 🚀 O que fazer agora?")
             
-            # Limpar todos os campos
-            fields_to_clear = [
-                'project_name_input', 'project_description_input', 'project_business_case_input',
-                'project_savings_input', 'project_start_date_input', 'project_end_date_input',
-                'project_problem_input', 'project_success_input'
-            ]
+            nav_col1, nav_col2, nav_col3 = st.columns(3)
             
-            for field in fields_to_clear:
-                if field in st.session_state:
-                    del st.session_state[field]
+            with nav_col1:
+                if st.button("🎯 Começar no DMAIC", use_container_width=True, type="primary", key="start_dmaic"):
+                    # Navegar para a fase Define do projeto
+                    if new_project:
+                        st.session_state.current_project = new_project
+                    st.session_state.current_page = "dmaic"
+                    st.session_state.current_dmaic_phase = "define"
+                    st.session_state.show_create_project = False
+                    st.success("🎯 Iniciando fase Define...")
+                    time.sleep(1)
+                    st.rerun()
             
-            st.rerun()
+            with nav_col2:
+                if st.button("📊 Ver Dashboard", use_container_width=True, key="go_dashboard"):
+                    # Voltar ao dashboard
+                    st.session_state.show_create_project = False
+                    st.success("📊 Voltando ao Dashboard...")
+                    time.sleep(1)
+                    st.rerun()
+            
+            with nav_col3:
+                if st.button("➕ Criar Outro", use_container_width=True, key="create_another"):
+                    # Limpar formulário para criar outro projeto
+                    fields_to_clear = [
+                        'project_name_input', 'project_description_input', 'project_business_case_input',
+                        'project_savings_input', 'project_start_date_input', 'project_end_date_input',
+                        'project_problem_input', 'project_success_input'
+                    ]
+                    
+                    for field in fields_to_clear:
+                        if field in st.session_state:
+                            del st.session_state[field]
+                    
+                    st.success("🔄 Formulário limpo para novo projeto!")
+                    st.rerun()
+            
+            # Não fazer rerun automático - deixar usuário escolher
+            return
         
         else:
             st.error(f"❌ Erro ao criar projeto: {result}")
@@ -433,6 +462,7 @@ def show_create_project_tab(project_manager, user_data, is_first_project=False):
         
         st.success("🔄 Formulário limpo!")
         st.rerun()
+
 
 def filter_projects(projects, search_term, status_filter):
     """Filtra projetos baseado nos critérios"""
