@@ -1,5 +1,5 @@
 import streamlit as st
-import typing import Dict
+from typing import Dict  # ← ADICIONAR ESTE IMPORT
 from src.pages.dashboard import show_dashboard
 from src.pages.dmaic_phases import show_dmaic_phase
 from src.pages.projects import show_projects_page
@@ -13,7 +13,7 @@ def show_main_navigation():
         st.error("❌ Usuário não autenticado")
         return False
     
-    # Renderizar navegação no topo (breadcrumb) - VERSÃO SIMPLIFICADA
+    # Renderizar navegação no topo (breadcrumb)
     render_top_navigation()
     
     # Obter página atual
@@ -100,7 +100,7 @@ def render_top_navigation():
             else:
                 # Outros itens (apenas visual)
                 st.button(item, key=f"nav_item_{i}", disabled=True, use_container_width=True)
-##############################################################################################################################################################################
+
 def render_sidebar_navigation(current_project=None):
     """Renderiza a navegação na sidebar"""
     with st.sidebar:
@@ -315,28 +315,3 @@ def _calculate_phases_progress(project_data: Dict) -> Dict:
         }
     
     return progress
-
-
-def _get_phase_status_color(progress: float) -> str:
-    """Retorna cor baseada no progresso da fase"""
-    if progress == 100:
-        return "success"
-    elif progress >= 75:
-        return "warning"
-    elif progress >= 25:
-        return "info"
-    else:
-        return "secondary"
-
-
-def _get_phase_status_icon(progress: float) -> str:
-    """Retorna ícone baseado no progresso da fase"""
-    if progress == 100:
-        return "✅"
-    elif progress >= 50:
-        return "🔄"
-    elif progress > 0:
-        return "⏳"
-    else:
-        return "⭕"
-
