@@ -121,8 +121,8 @@ def show_phase_content(phase: str, project: Dict):
         show_measure_phase(project)
     elif phase == "analyze":
         show_analyze_phase(project)
-    elif phase == "improve":
-        show_improve_phase()
+    elif phase == "🚀 Improve":
+        show_improve_phase(project)
     elif phase == "control":
         st.info("🚧 Fase Control em desenvolvimento")
 
