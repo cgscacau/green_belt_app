@@ -1063,7 +1063,7 @@ class ActionPlanTool:
                         'solution_name': solution['name'],
                         'title': f"Implementar {solution['name']}",
                         'description': solution.get('description', ''),
-                        'responsible': '',
+                        'responsible': '',  # ✅ DEIXAR VAZIO PARA EDIÇÃO
                         'start_date': datetime.now().date().isoformat(),
                         'end_date': (datetime.now().date() + timedelta(days=solution.get('implementation_time', 30))).isoformat(),
                         'status': 'Não Iniciado',
@@ -1156,6 +1156,7 @@ class ActionPlanTool:
                 else:
                     st.error("❌ Preencha título e responsável")
         
+        # ✅ SUBSTITUIR ESTA PARTE INTEIRA:
         # Mostrar itens existentes
         if action_data.get('action_items'):
             st.markdown("#### 📊 Itens de Ação Cadastrados")
@@ -1180,7 +1181,7 @@ class ActionPlanTool:
             with col_f3:
                 responsible_filter = st.selectbox(
                     "Filtrar por Responsável:",
-                    ["Todos"] + list(set([item['responsible'] for item in action_data['action_items'] if item.get('responsible')])),
+                    ["Todos"] + list(set([item.get('responsible', '') for item in action_data['action_items'] if item.get('responsible')])),
                     key=f"responsible_filter_{self.project_id}"
                 )
             
@@ -1196,7 +1197,7 @@ class ActionPlanTool:
             if responsible_filter != "Todos":
                 filtered_items = [item for item in filtered_items if item.get('responsible') == responsible_filter]
             
-            # Mostrar itens
+            # ✅ NOVA INTERFACE COM EDIÇÃO
             for i, item in enumerate(filtered_items):
                 original_index = action_data['action_items'].index(item)
                 
@@ -1211,58 +1212,162 @@ class ActionPlanTool:
                 priority_icon = priority_colors.get(item.get('priority', 'Média'), '🟡')
                 
                 with st.expander(f"{priority_icon} **{item['title']}** - {item.get('status', 'Não Iniciado')} ({item.get('responsible', 'Sem responsável')})"):
-                    col1, col2, col3 = st.columns([2, 2, 1])
                     
-                    with col1:
-                        st.write(f"**Descrição:** {item.get('description', 'N/A')}")
-                        if item.get('solution_name'):
-                            st.write(f"**Solução:** {item['solution_name']}")
-                        
-                        # Deliverables
-                        if item.get('deliverables'):
-                            st.write("**Entregáveis:**")
-                            for deliverable in item['deliverables']:
-                                st.write(f"• {deliverable}")
+                    # ✅ CHECKBOX PARA MODO EDIÇÃO
+                    edit_mode = st.checkbox(
+                        "✏️ Modo Edição", 
+                        key=f"edit_action_mode_{original_index}_{self.project_id}",
+                        help="Ative para editar este item de ação"
+                    )
                     
-                    with col2:
-                        # Datas
-                        start_date = datetime.fromisoformat(item['start_date']).date()
-                        end_date = datetime.fromisoformat(item['end_date']).date()
+                    if edit_mode:
+                        # ✅ MODO EDIÇÃO ATIVADO
+                        st.markdown("##### ✏️ Editando Item de Ação")
                         
-                        st.write(f"**Início:** {start_date.strftime('%d/%m/%Y')}")
-                        st.write(f"**Fim:** {end_date.strftime('%d/%m/%Y')}")
-                        st.write(f"**Duração:** {(end_date - start_date).days + 1} dias")
+                        col_edit1, col_edit2 = st.columns(2)
                         
-                        # Status e progresso
-                        new_status = st.selectbox(
-                            "Status:",
-                            ["Não Iniciado", "Em Progresso", "Concluído", "Atrasado"],
-                            index=["Não Iniciado", "Em Progresso", "Concluído", "Atrasado"].index(item.get('status', 'Não Iniciado')),
-                            key=f"item_status_{original_index}_{self.project_id}"
+                        with col_edit1:
+                            # Campos editáveis
+                            new_title = st.text_input(
+                                "Título da Ação:",
+                                value=item['title'],
+                                key=f"edit_action_title_{original_index}_{self.project_id}"
+                            )
+                            
+                            new_responsible = st.text_input(
+                                "Responsável:",
+                                value=item.get('responsible', ''),
+                                key=f"edit_action_responsible_{original_index}_{self.project_id}",
+                                placeholder="Nome do responsável"
+                            )
+                            
+                            new_priority = st.selectbox(
+                                "Prioridade:",
+                                ["Baixa", "Média", "Alta", "Crítica"],
+                                index=["Baixa", "Média", "Alta", "Crítica"].index(item.get('priority', 'Média')),
+                                key=f"edit_action_priority_{original_index}_{self.project_id}"
+                            )
+                            
+                            new_status = st.selectbox(
+                                "Status:",
+                                ["Não Iniciado", "Em Progresso", "Concluído", "Atrasado"],
+                                index=["Não Iniciado", "Em Progresso", "Concluído", "Atrasado"].index(item.get('status', 'Não Iniciado')),
+                                key=f"edit_action_status_{original_index}_{self.project_id}"
+                            )
+                        
+                        with col_edit2:
+                            new_start_date = st.date_input(
+                                "Data de Início:",
+                                value=datetime.fromisoformat(item['start_date']).date(),
+                                key=f"edit_action_start_{original_index}_{self.project_id}"
+                            )
+                            
+                            new_end_date = st.date_input(
+                                "Data de Fim:",
+                                value=datetime.fromisoformat(item['end_date']).date(),
+                                key=f"edit_action_end_{original_index}_{self.project_id}"
+                            )
+                            
+                            new_progress = st.slider(
+                                "Progresso:",
+                                0, 100, item.get('progress', 0),
+                                key=f"edit_action_progress_{original_index}_{self.project_id}",
+                                format="%d%%"
+                            )
+                        
+                        new_description = st.text_area(
+                            "Descrição:",
+                            value=item.get('description', ''),
+                            key=f"edit_action_description_{original_index}_{self.project_id}",
+                            height=80
                         )
                         
-                        action_data['action_items'][original_index]['status'] = new_status
-                        
-                        # Progresso
-                        progress = st.slider(
-                            "Progresso:",
-                            0, 100, item.get('progress', 0),
-                            key=f"item_progress_{original_index}_{self.project_id}",
-                            format="%d%%"
+                        new_deliverables = st.text_area(
+                            "Entregáveis (um por linha):",
+                            value='\n'.join(item.get('deliverables', [])),
+                            key=f"edit_action_deliverables_{original_index}_{self.project_id}"
                         )
                         
-                        action_data['action_items'][original_index]['progress'] = progress
-                    
-                    with col3:
-                        if st.button("🗑️ Remover", key=f"remove_item_{original_index}_{self.project_id}"):
-                            action_data['action_items'].pop(original_index)
-                            st.rerun()
+                        # Botões de ação da edição
+                        col_action1, col_action2 = st.columns(2)
                         
-                        # Verificar atraso
-                        if end_date < datetime.now().date() and new_status != 'Concluído':
-                            st.error("⚠️ Atrasado")
+                        with col_action1:
+                            if st.button("💾 Salvar Alterações", key=f"save_action_edit_{original_index}_{self.project_id}"):
+                                if new_title.strip() and new_responsible.strip():
+                                    # Processar entregáveis
+                                    deliverables_list = [d.strip() for d in new_deliverables.split('\n') if d.strip()]
+                                    
+                                    # Atualizar o item
+                                    action_data['action_items'][original_index].update({
+                                        'title': new_title,
+                                        'responsible': new_responsible,
+                                        'priority': new_priority,
+                                        'status': new_status,
+                                        'start_date': new_start_date.isoformat(),
+                                        'end_date': new_end_date.isoformat(),
+                                        'progress': new_progress,
+                                        'description': new_description,
+                                        'deliverables': deliverables_list,
+                                        'updated_at': datetime.now().isoformat()
+                                    })
+                                    
+                                    st.success(f"✅ Item '{new_title}' atualizado!")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Título e responsável são obrigatórios")
+                        
+                        with col_action2:
+                            if st.button("❌ Cancelar Edição", key=f"cancel_action_edit_{original_index}_{self.project_id}"):
+                                st.info("Edição cancelada")
+                                st.rerun()
+                    
+                    else:
+                        # ✅ MODO VISUALIZAÇÃO NORMAL
+                        col1, col2, col3 = st.columns([2, 2, 1])
+                        
+                        with col1:
+                            st.write(f"**Descrição:** {item.get('description', 'N/A')}")
+                            if item.get('solution_name'):
+                                st.write(f"**Solução:** {item['solution_name']}")
+                            
+                            # Deliverables
+                            if item.get('deliverables'):
+                                st.write("**Entregáveis:**")
+                                for deliverable in item['deliverables']:
+                                    st.write(f"• {deliverable}")
+                        
+                        with col2:
+                            # Datas
+                            start_date = datetime.fromisoformat(item['start_date']).date()
+                            end_date = datetime.fromisoformat(item['end_date']).date()
+                            
+                            st.write(f"**Responsável:** {item.get('responsible', '❌ Não definido')}")
+                            st.write(f"**Início:** {start_date.strftime('%d/%m/%Y')}")
+                            st.write(f"**Fim:** {end_date.strftime('%d/%m/%Y')}")
+                            st.write(f"**Duração:** {(end_date - start_date).days + 1} dias")
+                            
+                            # Progresso
+                            progress = item.get('progress', 0)
+                            st.progress(progress / 100)
+                            st.caption(f"Progresso: {progress}%")
+                        
+                        with col3:
+                            if st.button("🗑️ Remover", key=f"remove_action_item_{original_index}_{self.project_id}"):
+                                if st.session_state.get(f"confirm_delete_action_{original_index}_{self.project_id}", False):
+                                    action_data['action_items'].pop(original_index)
+                                    st.success("✅ Item removido!")
+                                    st.rerun()
+                                else:
+                                    st.session_state[f"confirm_delete_action_{original_index}_{self.project_id}"] = True
+                                    st.warning("⚠️ Clique novamente para confirmar")
+                            
+                            # Verificar atraso
+                            end_date = datetime.fromisoformat(item['end_date']).date()
+                            if end_date < datetime.now().date() and item.get('status') != 'Concluído':
+                                st.error("⚠️ Atrasado")
         else:
             st.info("📝 Nenhum item de ação cadastrado. Use a geração automática ou adicione manualmente.")
+
     
     def _show_timeline(self, action_data: Dict):
         """Cronograma do projeto"""
