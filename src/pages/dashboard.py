@@ -9,6 +9,7 @@ from src.utils.navigation import NavigationManager
 from src.utils.project_manager import ProjectManager
 
 def show_dashboard():
+    """Dashboard principal do sistema"""
     if not st.session_state.get('authentication_status'):
         st.error("Acesso negado. Faça login primeiro.")
         return
@@ -27,6 +28,9 @@ def show_dashboard():
     
     with col2:
         if st.button("🔄 Atualizar", use_container_width=True, key="refresh_dashboard"):
+            # Limpar cache de projetos se necessário
+            if 'cached_projects' in st.session_state:
+                del st.session_state.cached_projects
             st.rerun()
     
     with col3:
@@ -50,7 +54,7 @@ def show_dashboard():
     if not projects:
         show_welcome_section(project_manager, user_data)
     else:
-        show_projects_overview(projects, project_manager)
+        show_projects_overview(projects, project_manager, user_data)
 
 def show_dashboard_metrics(projects):
     """Exibe métricas principais do dashboard"""
@@ -62,7 +66,11 @@ def show_dashboard_metrics(projects):
     
     # Média de progresso
     if projects:
-        avg_progress = sum([p.get('overall_progress', 0) for p in projects]) / len(projects)
+        project_manager = ProjectManager()
+        total_progress = 0
+        for project in projects:
+            total_progress += project_manager.calculate_project_progress(project)
+        avg_progress = total_progress / len(projects)
     else:
         avg_progress = 0
     
@@ -124,30 +132,30 @@ def show_welcome_section(project_manager, user_data):
         - 🎯 Acompanhar o progresso através das fases DMAIC
         - 🔧 Utilizar ferramentas de qualidade integradas
         
-        **Pronto para começar?** Use a aba "Criar Projeto" abaixo para começar!
+        **Pronto para começar?** Use a seção "Criar Projeto" abaixo para começar!
         """)
     
     with col2:
         st.markdown("### 🎯 Próximos Passos")
-        st.info("1. Clique na aba 'Criar Projeto' abaixo")
+        st.info("1. Role para baixo até 'Criar Projeto'")
         st.info("2. Preencha as informações básicas")
         st.info("3. Comece pela fase Define")
         
         st.markdown("### 📚 Recursos")
-        if st.button("📖 Tutorial DMAIC", use_container_width=True, key="tutorial_dmaic"):
+        if st.button("📖 Tutorial DMAIC", use_container_width=True, key="tutorial_dmaic_welcome"):
             st.session_state.current_page = "help"
             st.rerun()
         
-        if st.button("❓ Central de Ajuda", use_container_width=True, key="help_center"):
+        if st.button("❓ Central de Ajuda", use_container_width=True, key="help_center_welcome"):
             st.session_state.current_page = "help"
             st.rerun()
     
     st.divider()
     
-    # Tab para criar primeiro projeto
-    show_create_project_tab(project_manager, user_data, is_first_project=True)
+    # Seção para criar primeiro projeto
+    show_create_project_section(project_manager, user_data, is_first_project=True)
 
-def show_projects_overview(projects, project_manager):
+def show_projects_overview(projects, project_manager, user_data):
     """Visão geral dos projetos existentes"""
     st.markdown("## 📊 Seus Projetos Six Sigma")
     
@@ -155,7 +163,11 @@ def show_projects_overview(projects, project_manager):
     col1, col2, col3 = st.columns([2, 1, 1])
     
     with col1:
-        search_term = st.text_input("🔍 Buscar projetos", placeholder="Digite o nome do projeto...", key="search_projects")
+        search_term = st.text_input(
+            "🔍 Buscar projetos", 
+            placeholder="Digite o nome do projeto...", 
+            key="search_projects"
+        )
     
     with col2:
         status_filter = st.selectbox(
@@ -166,9 +178,13 @@ def show_projects_overview(projects, project_manager):
         )
     
     with col3:
-        # Botão para mostrar/ocultar aba de criação
-        if st.button("➕ Novo Projeto", use_container_width=True, type="primary", key="toggle_create_project"):
-            st.session_state.show_create_project = not st.session_state.get('show_create_project', False)
+        # Botão para mostrar/ocultar seção de criação
+        show_create = st.session_state.get('show_create_project', False)
+        button_text = "❌ Fechar Criação" if show_create else "➕ Novo Projeto"
+        button_type = "secondary" if show_create else "primary"
+        
+        if st.button(button_text, use_container_width=True, type=button_type, key="toggle_create_project"):
+            st.session_state.show_create_project = not show_create
             st.rerun()
     
     # Filtrar projetos
@@ -180,30 +196,24 @@ def show_projects_overview(projects, project_manager):
         
         # Gráficos de análise
         if len(filtered_projects) > 1:
+            st.divider()
             show_projects_analytics(filtered_projects)
     else:
         st.info("Nenhum projeto encontrado com os filtros aplicados.")
     
-    st.divider()
-    
-    # Tab para criar novo projeto (sempre visível quando solicitada)
+    # Seção para criar novo projeto (se solicitada)
     if st.session_state.get('show_create_project'):
-        show_create_project_tab(project_manager, st.session_state.user_data, is_first_project=False)
+        st.divider()
+        show_create_project_section(project_manager, user_data, is_first_project=False)
 
-def show_create_project_tab(project_manager, user_data, is_first_project=False):
-    """Tab para criação de projeto na parte inferior"""
+def show_create_project_section(project_manager, user_data, is_first_project=False):
+    """Seção para criação de projeto"""
     
     if is_first_project:
         st.markdown("## 🎯 Criar Seu Primeiro Projeto")
+        st.markdown("Preencha as informações abaixo para começar sua jornada Six Sigma:")
     else:
         st.markdown("## ➕ Criar Novo Projeto")
-        
-        # Botão para fechar
-        col_close1, col_close2 = st.columns([5, 1])
-        with col_close2:
-            if st.button("❌ Fechar", key="close_create_project"):
-                st.session_state.show_create_project = False
-                st.rerun()
     
     # Usar tabs para organizar as informações
     tab1, tab2, tab3 = st.tabs(["📋 Informações Básicas", "💼 Justificativa", "📅 Cronograma"])
@@ -357,112 +367,118 @@ def show_create_project_tab(project_manager, user_data, is_first_project=False):
             key="clear_project_form"
         )
     
-    # Processar ações
+    # Processar criação do projeto
     if create_button and project_name and date_valid:
-        with st.spinner("🔄 Criando projeto..."):
-            project_data = {
-                'name': project_name.strip(),
-                'description': description.strip(),
-                'business_case': business_case.strip(),
-                'problem_statement': problem_statement.strip() if 'problem_statement' in locals() else '',
-                'success_criteria': success_criteria.strip() if 'success_criteria' in locals() else '',
-                'expected_savings': expected_savings,
-                'start_date': start_date.isoformat(),
-                'target_end_date': target_end_date.isoformat()
-            }
-            
-            success, result = project_manager.create_project(user_data['uid'], project_data)
+        create_project_handler(project_manager, user_data, {
+            'name': project_name.strip(),
+            'description': description.strip(),
+            'business_case': business_case.strip(),
+            'problem_statement': problem_statement.strip() if 'problem_statement' in locals() else '',
+            'success_criteria': success_criteria.strip() if 'success_criteria' in locals() else '',
+            'expected_savings': expected_savings,
+            'start_date': start_date.isoformat(),
+            'target_end_date': target_end_date.isoformat()
+        })
+    
+    # Processar limpeza do formulário
+    if clear_button:
+        clear_project_form()
+
+def create_project_handler(project_manager, user_data, project_data):
+    """Manipula a criação do projeto e navegação"""
+    
+    with st.spinner("🔄 Criando projeto..."):
+        success, result = project_manager.create_project(user_data['uid'], project_data)
+    
+    if success:
+        st.success("🎉 Projeto criado com sucesso!")
+        st.balloons()
         
-        if success:
-            st.success("🎉 Projeto criado com sucesso!")
-            st.balloons()
-            
-            # Buscar o projeto recém-criado
-            try:
-                new_project = project_manager.get_project(result)
+        # Tentar carregar o projeto recém-criado
+        new_project = None
+        try:
+            new_project = project_manager.get_project(result)
+            if new_project:
+                st.info(f"✅ Projeto '{new_project.get('name')}' carregado e pronto para uso!")
+            else:
+                st.warning("⚠️ Projeto criado mas não foi possível carregá-lo automaticamente.")
+        except Exception as e:
+            st.warning(f"⚠️ Projeto criado mas erro ao carregar: {str(e)}")
+        
+        # Salvar projeto no session_state para uso posterior
+        if new_project:
+            st.session_state.newly_created_project = new_project
+        
+        # Opções de navegação após criação
+        st.markdown("### 🚀 O que fazer agora?")
+        
+        nav_col1, nav_col2, nav_col3 = st.columns(3)
+        
+        with nav_col1:
+            if st.button("🎯 Começar no DMAIC", use_container_width=True, type="primary", key="start_dmaic_new"):
+                # Navegar para a fase Define do projeto
                 if new_project:
                     st.session_state.current_project = new_project
-                    st.info(f"✅ Projeto '{new_project.get('name')}' carregado e pronto para uso!")
-                else:
-                    st.warning("⚠️ Projeto criado mas não foi possível carregá-lo automaticamente.")
-            except Exception as e:
-                st.warning(f"⚠️ Projeto criado mas erro ao carregar: {str(e)}")
-            
-            # Opções de navegação após criação
-            st.markdown("### 🚀 O que fazer agora?")
-            
-            nav_col1, nav_col2, nav_col3 = st.columns(3)
-            
-            with nav_col1:
-                if st.button("🎯 Começar no DMAIC", use_container_width=True, type="primary", key="start_dmaic"):
-                    # Navegar para a fase Define do projeto
-                    if new_project:
-                        st.session_state.current_project = new_project
-                    st.session_state.current_page = "dmaic"
-                    st.session_state.current_dmaic_phase = "define"
-                    st.session_state.show_create_project = False
-                    st.success("🎯 Iniciando fase Define...")
-                    time.sleep(1)
-                    st.rerun()
-            
-            with nav_col2:
-                if st.button("📊 Ver Dashboard", use_container_width=True, key="go_dashboard"):
-                    # Voltar ao dashboard
-                    st.session_state.show_create_project = False
-                    st.success("📊 Voltando ao Dashboard...")
-                    time.sleep(1)
-                    st.rerun()
-            
-            with nav_col3:
-                if st.button("➕ Criar Outro", use_container_width=True, key="create_another"):
-                    # Limpar formulário para criar outro projeto
-                    fields_to_clear = [
-                        'project_name_input', 'project_description_input', 'project_business_case_input',
-                        'project_savings_input', 'project_start_date_input', 'project_end_date_input',
-                        'project_problem_input', 'project_success_input'
-                    ]
-                    
-                    for field in fields_to_clear:
-                        if field in st.session_state:
-                            del st.session_state[field]
-                    
-                    st.success("🔄 Formulário limpo para novo projeto!")
-                    st.rerun()
-            
-            # Não fazer rerun automático - deixar usuário escolher
-            return
+                elif 'newly_created_project' in st.session_state:
+                    st.session_state.current_project = st.session_state.newly_created_project
+                
+                st.session_state.current_page = "dmaic"
+                st.session_state.current_dmaic_phase = "define"
+                st.session_state.show_create_project = False
+                
+                # Limpar formulário
+                clear_project_form()
+                
+                st.success("🎯 Iniciando fase Define...")
+                time.sleep(1)
+                st.rerun()
         
-        else:
-            st.error(f"❌ Erro ao criar projeto: {result}")
-            
-            # Detalhes do erro
-            with st.expander("🔍 Ver Detalhes do Erro"):
-                if "Firebase" in str(result):
-                    st.error("🔥 **Problema de Conectividade Firebase**")
-                    st.markdown("- Verifique sua conexão com a internet")
-                    st.markdown("- Teste a configuração na página de configuração")
-                elif "permission" in str(result).lower():
-                    st.error("🔒 **Problema de Permissão**")
-                    st.markdown("- Verifique as regras de segurança do Firestore")
-                    st.markdown("- Confirme se o usuário tem permissão de escrita")
-                else:
-                    st.error(f"📋 **Erro Técnico:** {result}")
+        with nav_col2:
+            if st.button("📊 Ver Dashboard", use_container_width=True, key="go_dashboard_new"):
+                # Voltar ao dashboard
+                st.session_state.show_create_project = False
+                
+                # Limpar formulário
+                clear_project_form()
+                
+                st.success("📊 Voltando ao Dashboard...")
+                time.sleep(1)
+                st.rerun()
+        
+        with nav_col3:
+            if st.button("➕ Criar Outro", use_container_width=True, key="create_another_new"):
+                # Limpar formulário para criar outro projeto
+                clear_project_form()
+                st.success("🔄 Formulário limpo para novo projeto!")
+                st.rerun()
     
-    if clear_button:
-        # Limpar todos os campos do formulário
-        fields_to_clear = [
-            'project_name_input', 'project_description_input', 'project_business_case_input',
-            'project_savings_input', 'project_start_date_input', 'project_end_date_input',
-            'project_problem_input', 'project_success_input'
-        ]
+    else:
+        st.error(f"❌ Erro ao criar projeto: {result}")
         
-        for field in fields_to_clear:
-            if field in st.session_state:
-                del st.session_state[field]
-        
-        st.success("🔄 Formulário limpo!")
-        st.rerun()
+        # Detalhes do erro
+        with st.expander("🔍 Ver Detalhes do Erro"):
+            if "Firebase" in str(result):
+                st.error("🔥 **Problema de Conectividade Firebase**")
+                st.markdown("- Verifique sua conexão com a internet")
+                st.markdown("- Teste a configuração na página de configuração")
+            elif "permission" in str(result).lower():
+                st.error("🔒 **Problema de Permissão**")
+                st.markdown("- Verifique as regras de segurança do Firestore")
+                st.markdown("- Confirme se o usuário tem permissão de escrita")
+            else:
+                st.error(f"📋 **Erro Técnico:** {result}")
 
+def clear_project_form():
+    """Limpa todos os campos do formulário de projeto"""
+    fields_to_clear = [
+        'project_name_input', 'project_description_input', 'project_business_case_input',
+        'project_savings_input', 'project_start_date_input', 'project_end_date_input',
+        'project_problem_input', 'project_success_input'
+    ]
+    
+    for field in fields_to_clear:
+        if field in st.session_state:
+            del st.session_state[field]
 
 def filter_projects(projects, search_term, status_filter):
     """Filtra projetos baseado nos critérios"""
@@ -504,8 +520,10 @@ def show_projects_grid(projects, project_manager):
 
 def show_project_card(project, project_manager):
     """Exibe um card individual do projeto"""
-    # Gerar ID único para este card
-    card_id = f"{project['id']}_{int(time.time() * 1000) % 10000}"
+    # Gerar ID único para este card baseado no projeto
+    project_id = project.get('id', 'unknown')
+    card_timestamp = int(time.time() * 1000) % 10000
+    card_id = f"{project_id}_{card_timestamp}"
     
     # Calcular progresso
     progress = project_manager.calculate_project_progress(project)
@@ -571,37 +589,46 @@ def show_project_card(project, project_manager):
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("📂 Abrir", key=f"open_{card_id}", use_container_width=True, type="primary"):
+            if st.button("🎯 Abrir DMAIC", key=f"open_dmaic_{card_id}", use_container_width=True, type="primary"):
                 st.session_state.current_project = project
                 st.session_state.current_page = "dmaic"
                 st.session_state.current_dmaic_phase = project.get('current_phase', 'define')
-                st.success(f"Abrindo projeto '{project.get('name')}'...")
+                st.success(f"🎯 Abrindo projeto '{project.get('name')}'...")
                 time.sleep(1)
                 st.rerun()
         
         with col2:
-            if st.button("✏️ Editar", key=f"edit_{card_id}", use_container_width=True):
-                st.info("Função de edição em desenvolvimento")
+            if st.button("📊 Selecionar", key=f"select_{card_id}", use_container_width=True):
+                st.session_state.current_project = project
+                st.success(f"📊 Projeto '{project.get('name')}' selecionado!")
+                st.info("Use a sidebar para navegar pelas fases DMAIC")
+                time.sleep(1)
+                st.rerun()
         
         with col3:
             # Sistema de confirmação para exclusão
-            confirm_key = f"confirm_delete_{project['id']}"
+            confirm_key = f"confirm_delete_{project_id}"
             if st.session_state.get(confirm_key):
                 if st.button("⚠️ Confirmar", key=f"confirm_delete_{card_id}", use_container_width=True, type="primary"):
-                    with st.spinner("Excluindo..."):
-                        success = project_manager.delete_project(project['id'], project['user_uid'])
+                    with st.spinner("Excluindo projeto..."):
+                        success = project_manager.delete_project(project_id, project['user_uid'])
                     
                     if success:
-                        st.success("Projeto excluído!")
+                        st.success("✅ Projeto excluído com sucesso!")
+                        # Limpar estado de confirmação
                         if confirm_key in st.session_state:
                             del st.session_state[confirm_key]
+                        # Limpar projeto atual se foi o excluído
+                        if st.session_state.get('current_project', {}).get('id') == project_id:
+                            del st.session_state.current_project
                         time.sleep(1)
                         st.rerun()
                     else:
-                        st.error("Erro ao excluir")
+                        st.error("❌ Erro ao excluir projeto")
             else:
                 if st.button("🗑️ Excluir", key=f"delete_{card_id}", use_container_width=True):
                     st.session_state[confirm_key] = True
+                    st.warning("⚠️ Clique em 'Confirmar' para excluir permanentemente")
                     st.rerun()
 
 def show_projects_analytics(projects):
@@ -613,29 +640,89 @@ def show_projects_analytics(projects):
     with col1:
         # Gráfico de status dos projetos
         status_counts = {}
+        status_labels = {'active': 'Ativo', 'completed': 'Concluído', 'paused': 'Pausado'}
+        
         for project in projects:
             status = project.get('status', 'active')
-            status_counts[status] = status_counts.get(status, 0) + 1
+            label = status_labels.get(status, status)
+            status_counts[label] = status_counts.get(label, 0) + 1
         
         if status_counts:
             fig_status = px.pie(
                 values=list(status_counts.values()),
                 names=list(status_counts.keys()),
-                title="Distribuição por Status"
+                title="Distribuição por Status",
+                color_discrete_map={
+                    'Ativo': '#28a745',
+                    'Concluído': '#007bff',
+                    'Pausado': '#ffc107'
+                }
             )
+            fig_status.update_layout(height=400)
             st.plotly_chart(fig_status, use_container_width=True)
     
     with col2:
         # Gráfico de progresso dos projetos
         project_names = [p.get('name', f"Projeto {i+1}")[:20] for i, p in enumerate(projects)]
-        progress_values = [p.get('overall_progress', 0) for p in projects]
+        project_manager = ProjectManager()
+        progress_values = [project_manager.calculate_project_progress(p) for p in projects]
         
         fig_progress = px.bar(
             x=progress_values,
             y=project_names,
             orientation='h',
             title="Progresso dos Projetos (%)",
-            labels={'x': 'Progresso (%)', 'y': 'Projetos'}
+            labels={'x': 'Progresso (%)', 'y': 'Projetos'},
+            color=progress_values,
+            color_continuous_scale='Viridis'
         )
         fig_progress.update_layout(height=400)
         st.plotly_chart(fig_progress, use_container_width=True)
+    
+    # Análise adicional
+    if len(projects) >= 3:
+        st.markdown("### 📊 Estatísticas Adicionais")
+        
+        col3, col4, col5 = st.columns(3)
+        
+        with col3:
+            # Projeto com maior economia
+            max_savings_project = max(projects, key=lambda x: x.get('expected_savings', 0))
+            st.metric(
+                "Maior Economia Esperada",
+                f"R$ {max_savings_project.get('expected_savings', 0):,.2f}",
+                delta=max_savings_project.get('name', 'N/A')[:20]
+            )
+        
+        with col4:
+            # Projeto mais avançado
+            max_progress_project = max(projects, key=lambda x: project_manager.calculate_project_progress(x))
+            max_progress = project_manager.calculate_project_progress(max_progress_project)
+            st.metric(
+                "Maior Progresso",
+                f"{max_progress:.1f}%",
+                delta=max_progress_project.get('name', 'N/A')[:20]
+            )
+        
+        with col5:
+            # Tempo médio de projeto
+            total_days = 0
+            count = 0
+            for project in projects:
+                start_date = project.get('start_date')
+                end_date = project.get('target_end_date')
+                if start_date and end_date:
+                    try:
+                        start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                        end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                        total_days += (end - start).days
+                        count += 1
+                    except:
+                        pass
+            
+            avg_days = total_days // count if count > 0 else 0
+            st.metric(
+                "Duração Média",
+                f"{avg_days} dias",
+                delta=f"≈ {avg_days//30} meses" if avg_days > 0 else "N/A"
+            )
