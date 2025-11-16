@@ -82,11 +82,8 @@ class ProjectManager:
                 }
             }
             
-
-            
             # Salvar no Firestore
             self.db.collection('projects').document(project_id).set(new_project)
-           
             
             # Atualizar lista de projetos do usuário
             try:
@@ -99,14 +96,12 @@ class ProjectManager:
                     if project_id not in projects:  # Evitar duplicatas
                         projects.append(project_id)
                         user_ref.update({'projects': projects})
-                        
                 else:
                     # Criar documento do usuário se não existir
                     user_ref.set({
                         'projects': [project_id],
                         'updated_at': datetime.now().isoformat()
                     }, merge=True)
-                    
                     
             except Exception as user_update_error:
                 st.warning(f"⚠️ Projeto criado, mas erro ao atualizar usuário: {str(user_update_error)}")
@@ -115,7 +110,6 @@ class ProjectManager:
             
         except Exception as e:
             error_msg = str(e)
-            st.error(f"❌ Debug: Erro detalhado ao criar projeto: {error_msg}")
             
             # Análise específica de erros
             if "permission" in error_msg.lower():
@@ -131,17 +125,12 @@ class ProjectManager:
         """Obtém todos os projetos do usuário"""
         try:
             if not self.db:
-                st.warning("⚠️ Banco de dados não disponível")
                 return []
             
             if not user_uid:
-                st.warning("⚠️ ID do usuário não fornecido")
                 return []
             
             projects = []
-            
-
-            
             projects_query = self.db.collection('projects').where('user_uid', '==', user_uid).stream()
             
             for doc in projects_query:
@@ -149,42 +138,31 @@ class ProjectManager:
                 if project_data:  # Verificar se dados existem
                     projects.append(project_data)
             
-           
-            
             # Ordenar por data de criação (mais recente primeiro)
             projects.sort(key=lambda x: x.get('created_at', ''), reverse=True)
             
             return projects
             
         except Exception as e:
-            st.error(f"❌ Debug: Erro ao carregar projetos: {str(e)}")
+            st.error(f"❌ Erro ao carregar projetos: {str(e)}")
             return []
-    
-    # Adicionar no arquivo src/utils/project_manager.py:
     
     def get_project(self, project_id: str) -> Optional[Dict]:
         """Obtém um projeto específico"""
         try:
-            if self.use_offline:
-                return st.session_state.offline_projects.get(project_id)
-            
             if not self.db or not project_id:
                 return None
             
             doc = self.db.collection('projects').document(project_id).get()
             
             if doc.exists:
-                project_data = doc.to_dict()
-                
-                return project_data
-           
-               
-                return None
+                return doc.to_dict()
+            
+            return None
             
         except Exception as e:
             st.error(f"Erro ao carregar projeto: {str(e)}")
             return None
-
     
     def update_project(self, project_id: str, updates: Dict) -> bool:
         """Atualiza dados do projeto"""
