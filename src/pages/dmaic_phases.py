@@ -1,349 +1,184 @@
 import streamlit as st
-import time
+from typing import Dict, List
 from datetime import datetime
-from src.pages.define_tools import show_define_tools
-
 
 def show_dmaic_phase():
-    """Página das fases DMAIC - Com navegação corrigida"""
+    """Mostrar navegação entre fases DMAIC"""
     
-    current_phase = st.session_state.get('current_dmaic_phase', 'define')
-    current_project = st.session_state.get('current_project')
-    
-    if not current_project:
-        st.error("❌ Nenhum projeto selecionado!")
-        
-        # Botões de retorno funcionais
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            if st.button("🏠 Voltar ao Dashboard", key="back_dashboard_no_project", use_container_width=True, type="primary"):
-                st.session_state.current_page = 'dashboard'
-                # Limpar dados de projeto se necessário
-                if 'current_project' in st.session_state:
-                    del st.session_state.current_project
-                if 'current_dmaic_phase' in st.session_state:
-                    del st.session_state.current_dmaic_phase
-                st.rerun()
-        
-        with col2:
-            if st.button("📊 Ver Projetos", key="view_projects_no_project", use_container_width=True):
-                st.session_state.current_page = 'dashboard'
-                st.rerun()
+    if 'current_project' not in st.session_state or not st.session_state.current_project:
+        st.error("❌ Nenhum projeto selecionado")
+        st.info("💡 Vá para a página de Projetos e selecione um projeto")
         return
     
-    # Header da fase com botões de navegação
-    col_header1, col_header2, col_header3 = st.columns([3, 1, 1])
+    current_project = st.session_state.current_project
+    project_name = current_project.get('name', 'Projeto')
     
-    with col_header1:
-        phase_icons = {
-            'define': '🎯',
-            'measure': '📏', 
-            'analyze': '🔍',
-            'improve': '⚡',
-            'control': '🎛️'
-        }
+    # Header da fase atual
+    st.markdown(f"# 🎯 Projeto: {project_name}")
+    
+    # Navegação entre fases DMAIC
+    st.markdown("## 🧭 Navegação entre Fases DMAIC")
+    
+    # Definir as fases
+    phases = {
+        "define": {"name": "Define", "icon": "🎯", "description": "Definir problema, objetivos e escopo"},
+        "measure": {"name": "Measure", "icon": "📏", "description": "Medir e coletar dados do estado atual"},
+        "analyze": {"name": "Analyze", "icon": "🔍", "description": "Analisar dados e identificar causas raiz"},
+        "improve": {"name": "Improve", "icon": "⚡", "description": "Desenvolver e implementar soluções"},
+        "control": {"name": "Control", "icon": "🎮", "description": "Controlar e sustentar melhorias"}
+    }
+    
+    # Verificar progresso de cada fase
+    phase_progress = {}
+    for phase_key in phases.keys():
+        phase_data = current_project.get(phase_key, {})
+        if isinstance(phase_data, dict):
+            completed_tools = sum(1 for tool_data in phase_data.values() 
+                                if isinstance(tool_data, dict) and tool_data.get('completed', False))
+            total_tools = len(phase_data) if phase_data else 5  # Assumir 5 ferramentas por fase
+            progress = (completed_tools / total_tools * 100) if total_tools > 0 else 0
+        else:
+            progress = 0
         
-        phase_names = {
-            'define': 'Define - Definir',
-            'measure': 'Measure - Medir',
-            'analyze': 'Analyze - Analisar', 
-            'improve': 'Improve - Melhorar',
-            'control': 'Control - Controlar'
-        }
-        
-        icon = phase_icons.get(current_phase, '📋')
-        name = phase_names.get(current_phase, current_phase.title())
-        
-        st.title(f"{icon} {name}")
-        st.caption(f"Projeto: **{current_project.get('name', 'Sem nome')}**")
+        phase_progress[phase_key] = progress
     
-    with col_header2:
-        if st.button("📊 Dashboard", key="return_dashboard", use_container_width=True):
-            st.session_state.current_page = 'dashboard'
-            st.success("📊 Voltando ao Dashboard...")
-            time.sleep(1)
-            st.rerun()
+    # Mostrar cards das fases
+    cols = st.columns(5)
     
-    with col_header3:
-        if st.button("❌ Fechar Projeto", key="close_project", use_container_width=True):
-            # Limpar projeto atual
-            if 'current_project' in st.session_state:
-                del st.session_state.current_project
-            if 'current_dmaic_phase' in st.session_state:
-                del st.session_state.current_dmaic_phase
-            st.session_state.current_page = 'dashboard'
-            st.success("❌ Projeto fechado!")
-            time.sleep(1)
-            st.rerun()
+    for i, (phase_key, phase_info) in enumerate(phases.items()):
+        with cols[i]:
+            progress = phase_progress[phase_key]
+            
+            # Determinar cor baseada no progresso
+            if progress == 100:
+                color = "🟢"
+            elif progress > 0:
+                color = "🟡"
+            else:
+                color = "🔴"
+            
+            # Card da fase
+            st.markdown(f"""
+            <div style="
+                border: 2px solid #ddd;
+                border-radius: 10px;
+                padding: 10px;
+                text-align: center;
+                margin: 5px;
+                background-color: {'#e8f5e8' if progress == 100 else '#fff3cd' if progress > 0 else '#f8d7da'};
+            ">
+                <h3>{phase_info['icon']} {phase_info['name']}</h3>
+                <p style="font-size: 12px; margin: 5px 0;">{phase_info['description']}</p>
+                <p style="font-size: 14px; font-weight: bold;">{color} {progress:.0f}%</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Botão para navegar para a fase
+            if st.button(f"Ir para {phase_info['name']}", key=f"goto_{phase_key}", use_container_width=True):
+                st.session_state['current_phase'] = phase_key
+                st.rerun()
     
-    # Informações do projeto
+    # Mostrar progresso geral do projeto
     st.divider()
     
+    overall_progress = sum(phase_progress.values()) / len(phases)
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        st.progress(overall_progress / 100)
+        st.caption(f"Progresso Geral do Projeto: {overall_progress:.1f}%")
+    
+    with col2:
+        if overall_progress == 100:
+            st.success("🎉 Completo!")
+        else:
+            st.info(f"⏳ {overall_progress:.0f}%")
+    
+    # Determinar fase atual
+    if 'current_phase' not in st.session_state:
+        # Determinar fase automaticamente baseada no progresso
+        for phase_key, progress in phase_progress.items():
+            if progress < 100:
+                st.session_state['current_phase'] = phase_key
+                break
+        else:
+            st.session_state['current_phase'] = 'define'  # Default
+    
+    current_phase = st.session_state.get('current_phase', 'define')
+    
+    # Mostrar conteúdo da fase atual
+    st.divider()
+    show_phase_content(current_phase, current_project)
+
+
+def show_phase_content(phase: str, project: Dict):
+    """Mostrar conteúdo específico da fase"""
+    
+    if phase == "define":
+        show_define_phase(project)
+    elif phase == "measure":
+        show_measure_phase(project)
+    elif phase == "analyze":
+        show_analyze_phase(project)
+    elif phase == "improve":
+        st.info("🚧 Fase Improve em desenvolvimento")
+    elif phase == "control":
+        st.info("🚧 Fase Control em desenvolvimento")
+
+
+def show_define_phase(project: Dict):
+    """Mostrar fase Define"""
+    from src.pages.define_tools import show_define_tools
+    
+    st.markdown("## 🎯 Define - Definir")
+    st.markdown("Defina claramente o problema, objetivos, escopo e equipe do projeto.")
+    
+    # Informações do projeto
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("Economia Esperada", f"R$ {current_project.get('expected_savings', 0):,.2f}")
+        expected_benefit = project.get('expected_benefit', 0)
+        st.metric("Benefício Esperado", f"R$ {expected_benefit:,.2f}")
     
     with col2:
-        created_date = current_project.get('created_at', '')[:10] if current_project.get('created_at') else 'N/A'
-        st.metric("Criado em", created_date)
+        created_at = project.get('created_at', '')
+        if created_at:
+            try:
+                date_obj = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                st.metric("Criado em", date_obj.strftime('%d/%m/%Y'))
+            except:
+                st.metric("Criado em", "N/A")
+        else:
+            st.metric("Criado em", "N/A")
     
     with col3:
-        st.metric("Status", current_project.get('status', 'active').title())
+        status = project.get('status', 'Active')
+        st.metric("Status", status)
     
-    st.divider()
-    
-    # Navegação entre fases
-    st.markdown("### 🔄 Navegação entre Fases DMAIC")
-    
-    phase_buttons = st.columns(5)
-    phases = ['define', 'measure', 'analyze', 'improve', 'control']
-    
-    for i, phase in enumerate(phases):
-        with phase_buttons[i]:
-            is_current = phase == current_phase
-            button_type = "primary" if is_current else "secondary"
-            
-            if st.button(
-                f"{phase_icons[phase]} {phase.title()}", 
-                key=f"nav_phase_{phase}",
-                use_container_width=True,
-                type=button_type,
-                disabled=is_current
-            ):
-                st.session_state.current_dmaic_phase = phase
-                st.success(f"Mudando para fase {phase.title()}...")
-                time.sleep(1)
-                st.rerun()
-    
-    st.divider()
-    
-    # Conteúdo específico da fase atual
-    show_phase_content(current_phase, current_project)
-    
-    # Botões de navegação no final da página
-    st.divider()
-    st.markdown("### 🧭 Navegação")
-    
-    nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
-    
-    with nav_col1:
-        if st.button("🏠 Dashboard", key="bottom_dashboard", use_container_width=True, type="secondary"):
-            st.session_state.current_page = 'dashboard'
-            st.rerun()
-    
-    with nav_col2:
-        if st.button("📋 Relatórios", key="bottom_reports", use_container_width=True, type="secondary"):
-            st.session_state.current_page = 'reports'
-            st.rerun()
-    
-    with nav_col3:
-        if st.button("❓ Ajuda", key="bottom_help", use_container_width=True, type="secondary"):
-            st.session_state.current_page = 'help'
-            st.rerun()
-    
-    with nav_col4:
-        if st.button("🔄 Atualizar", key="bottom_refresh", use_container_width=True, type="secondary"):
-            st.rerun()
-
-def show_phase_content(phase, project):
-    """Mostra conteúdo específico de cada fase"""
-    
-    if phase == 'define':
-        show_define_phase(project)
-    elif phase == 'measure':
-        show_measure_phase(project)
-    elif phase == 'analyze':
-        show_analyze_phase(project)
-    elif phase == 'improve':
-        show_improve_phase(project)
-    elif phase == 'control':
-        show_control_phase(project)
-    else:
-        st.error(f"Fase '{phase}' não reconhecida")
-
-def show_define_phase(project):
-    """Conteúdo da fase Define com ferramentas funcionais"""
+    # Ferramentas da fase Define
     show_define_tools(project)
-    
-    st.markdown("### 🎯 Fase Define (Definir)")
-    
-    # Tabs para organizar o conteúdo
-    tab1, tab2, tab3 = st.tabs(["📋 Visão Geral", "🔧 Ferramentas", "📊 Progresso"])
-    
-    with tab1:
-        st.markdown("""
-        **Objetivo:** Definir claramente o problema, objetivos e escopo do projeto.
-        
-        **Principais Atividades:**
-        - ✅ Criar o Project Charter
-        - ✅ Identificar e mapear stakeholders
-        - ✅ Capturar Voice of Customer (VOC)
-        - ✅ Desenvolver diagrama SIPOC
-        - ✅ Definir timeline detalhado do projeto
-        
-        **Entregáveis:**
-        - Project Charter aprovado
-        - Mapa de stakeholders
-        - Requisitos do cliente documentados
-        - Processo mapeado (SIPOC)
-        - Cronograma do projeto
-        """)
-        
-        # Informações do projeto atual
-        st.markdown("#### 📝 Informações do Projeto")
-        
-        info_col1, info_col2 = st.columns(2)
-        
-        with info_col1:
-            st.markdown(f"""
-            **Nome:** {project.get('name', 'N/A')}
-            
-            **Descrição:** {project.get('description', 'N/A')}
-            
-            **Economia Esperada:** R$ {project.get('expected_savings', 0):,.2f}
-            """)
-        
-        with info_col2:
-            st.markdown(f"""
-            **Status:** {project.get('status', 'active').title()}
-            
-            **Data de Início:** {project.get('start_date', 'N/A')[:10] if project.get('start_date') else 'N/A'}
-            
-            **Data Alvo:** {project.get('target_end_date', 'N/A')[:10] if project.get('target_end_date') else 'N/A'}
-            """)
-    
-    with tab2:
-        st.markdown("### 🔧 Ferramentas da Fase Define")
-        
-        # Grid de ferramentas
-        tool_col1, tool_col2, tool_col3 = st.columns(3)
-        
-        with tool_col1:
-            st.markdown("#### 📋 Project Charter")
-            st.markdown("Documento que define oficialmente o projeto")
-            if st.button("🚀 Abrir Charter", key="open_charter", use_container_width=True, type="primary"):
-                st.info("🚧 Ferramenta Project Charter será implementada na próxima atualização")
-        
-        with tool_col2:
-            st.markdown("#### 👥 Stakeholders")
-            st.markdown("Identificar pessoas impactadas pelo projeto")
-            if st.button("👥 Mapear Stakeholders", key="open_stakeholders", use_container_width=True, type="primary"):
-                st.info("🚧 Ferramenta Stakeholders será implementada na próxima atualização")
-        
-        with tool_col3:
-            st.markdown("#### 🗣️ Voice of Customer")
-            st.markdown("Capturar necessidades e expectativas")
-            if st.button("🗣️ Capturar VOC", key="open_voc", use_container_width=True, type="primary"):
-                st.info("🚧 Ferramenta VOC será implementada na próxima atualização")
-        
-        # Segunda linha de ferramentas
-        tool_col4, tool_col5, tool_col6 = st.columns(3)
-        
-        with tool_col4:
-            st.markdown("#### 📊 SIPOC")
-            st.markdown("Mapeamento do processo atual")
-            if st.button("📊 Criar SIPOC", key="open_sipoc", use_container_width=True, type="primary"):
-                st.info("🚧 Ferramenta SIPOC será implementada na próxima atualização")
-        
-        with tool_col5:
-            st.markdown("#### 📅 Timeline")
-            st.markdown("Cronograma detalhado do projeto")
-            if st.button("📅 Definir Timeline", key="open_timeline", use_container_width=True, type="primary"):
-                st.info("🚧 Ferramenta Timeline será implementada na próxima atualização")
-        
-        with tool_col6:
-            st.markdown("#### 📈 Métricas")
-            st.markdown("Definir indicadores de sucesso")
-            if st.button("📈 Definir Métricas", key="open_metrics", use_container_width=True, type="primary"):
-                st.info("🚧 Ferramenta Métricas será implementada na próxima atualização")
-    
-    with tab3:
-        st.markdown("### 📊 Progresso da Fase Define")
-        
-        # Calcular progresso baseado nos dados do projeto
-        define_data = project.get('define', {})
-        total_tools = 6  # Charter, Stakeholders, VOC, SIPOC, Timeline, Metrics
-        completed_tools = sum(1 for tool_data in define_data.values() if isinstance(tool_data, dict) and tool_data.get('completed', False))
-        
-        progress = (completed_tools / total_tools) * 100
-        
-        # Mostrar progresso
-        st.metric("Progresso Geral da Fase", f"{progress:.1f}%", f"{completed_tools}/{total_tools} ferramentas")
-        st.progress(progress / 100)
-        
-        # Lista detalhada de status
-        st.markdown("#### ✅ Status Detalhado das Ferramentas")
-        
-        tools_status = [
-            ("📋 Project Charter", define_data.get('charter', {}).get('completed', False)),
-            ("👥 Stakeholders", define_data.get('stakeholders', {}).get('completed', False)),
-            ("🗣️ Voice of Customer", define_data.get('voc', {}).get('completed', False)),
-            ("📊 SIPOC", define_data.get('sipoc', {}).get('completed', False)),
-            ("📅 Timeline", define_data.get('timeline', {}).get('completed', False)),
-            ("📈 Métricas", define_data.get('metrics', {}).get('completed', False))
-        ]
-        
-        for tool_name, completed in tools_status:
-            status_icon = "✅" if completed else "⏳"
-            status_text = "Concluído" if completed else "Pendente"
-            status_color = "green" if completed else "orange"
-            
-            col_status1, col_status2 = st.columns([3, 1])
-            with col_status1:
-                st.markdown(f"{status_icon} **{tool_name}**")
-            with col_status2:
-                st.markdown(f":{status_color}[{status_text}]")
-        
-        # Próximos passos
-        if progress < 100:
-            st.markdown("#### 🚀 Próximos Passos Recomendados")
-            
-            next_steps = []
-            if not define_data.get('charter', {}).get('completed', False):
-                next_steps.append("📋 Complete o Project Charter")
-            if not define_data.get('stakeholders', {}).get('completed', False):
-                next_steps.append("👥 Identifique os stakeholders")
-            if not define_data.get('voc', {}).get('completed', False):
-                next_steps.append("🗣️ Capture a Voice of Customer")
-            
-            for step in next_steps[:3]:  # Mostrar apenas os 3 primeiros
-                st.info(f"• {step}")
-            
-            st.markdown("**Tempo estimado para conclusão:** 2-3 semanas")
-        else:
-            st.success("🎉 **Parabéns! Fase Define concluída com sucesso!**")
-            st.info("✨ Você pode avançar para a fase **Measure** usando a navegação acima.")
-            
-            if st.button("➡️ Avançar para Measure", key="advance_measure", type="primary"):
-                st.session_state.current_dmaic_phase = "measure"
-                st.success("Avançando para fase Measure...")
-                time.sleep(1)
-                st.rerun()
 
-def show_measure_phase(project):
-    """Conteúdo da fase Measure com ferramentas funcionais"""
+
+def show_measure_phase(project: Dict):
+    """Mostrar fase Measure"""
     from src.pages.measure_tools import show_measure_tools
+    
+    st.markdown("## 📏 Measure - Medir")
+    st.markdown("Meça o desempenho atual do processo e colete dados para análise.")
+    
+    # Verificar se a fase Define foi iniciada
+    define_data = project.get('define', {})
+    define_started = any(tool.get('completed', False) for tool in define_data.values() if isinstance(tool, dict))
+    
+    if not define_started:
+        st.warning("⚠️ Recomendamos completar pelo menos o **Project Charter** na fase Define antes de prosseguir")
+    
+    # Ferramentas da fase Measure
     show_measure_tools(project)
-    
-    st.markdown("### 📏 Fase Measure (Medir)")
-    
-    st.info("""
-    🚧 **Fase Measure em Desenvolvimento**
-    
-    Esta fase incluirá:
-    - 📊 Plano de coleta de dados
-    - 📈 Upload e análise de arquivos
-    - 📋 Análise de sistema de medição (MSA)
-    - 🎯 Estudos de capacidade do processo
-    - 📐 Definição de métricas CTQ
-    """)
-    
-    if st.button("⬅️ Voltar para Define", key="back_to_define", type="secondary"):
-        st.session_state.current_dmaic_phase = "define"
-        st.rerun()
 
-def show_analyze_phase(project):
+
+def show_analyze_phase(project: Dict):
     """Mostrar fase Analyze"""
     from src.pages.analyze_tools import show_analyze_tools
     
@@ -357,31 +192,70 @@ def show_analyze_phase(project):
     if not measure_completed:
         st.warning("⚠️ Recomendamos completar pelo menos uma ferramenta da fase **Measure** antes de prosseguir")
     
+    # Mostrar resumo dos dados disponíveis
+    if f'uploaded_data_{project.get("id")}' in st.session_state:
+        df = st.session_state[f'uploaded_data_{project.get("id")}']
+        
+        st.info(f"📊 **Dados Disponíveis:** {df.shape[0]} linhas, {df.shape[1]} colunas")
+        
+        numeric_cols = len(df.select_dtypes(include=['number']).columns)
+        if numeric_cols > 0:
+            st.success(f"✅ {numeric_cols} variáveis numéricas disponíveis para análise")
+        else:
+            st.warning("⚠️ Nenhuma variável numérica detectada - verifique o upload de dados")
+    else:
+        st.warning("⚠️ Nenhum dado carregado - faça upload na fase Measure")
+    
     # Ferramentas da fase Analyze
     show_analyze_tools(project)
 
-def show_phase_content(phase: str, project: Dict):
-    """Mostrar conteúdo específico da fase"""
+
+def show_improve_phase(project: Dict):
+    """Mostrar fase Improve"""
+    st.markdown("## ⚡ Improve - Melhorar")
+    st.markdown("Desenvolva e implemente soluções para as causas raiz identificadas.")
     
-    if phase == "define":
-        show_define_phase(project)
-    elif phase == "measure":
-        show_measure_phase(project)
-    elif phase == "analyze":
-        show_analyze_phase(project)  # Adicionar esta linha
-    elif phase == "improve":
-        st.info("🚧 Fase Improve em desenvolvimento")
-    elif phase == "control":
-        st.info("🚧 Fase Control em desenvolvimento")
+    # Verificar se a fase Analyze foi concluída
+    analyze_data = project.get('analyze', {})
+    analyze_completed = any(tool.get('completed', False) for tool in analyze_data.values() if isinstance(tool, dict))
+    
+    if not analyze_completed:
+        st.warning("⚠️ Complete a fase **Analyze** antes de desenvolver soluções")
+    
+    st.info("🚧 **Fase Improve em desenvolvimento**")
+    
+    st.markdown("""
+    ### 🔧 Ferramentas que serão incluídas:
+    
+    - **💡 Geração de Soluções**: Brainstorming, SCAMPER, Design Thinking
+    - **📊 Matriz de Priorização**: Esforço vs Impacto, Critérios múltiplos
+    - **🧪 Teste Piloto**: Planejamento e execução de pilotos
+    - **📈 Análise Custo-Benefício**: ROI das soluções propostas
+    - **📋 Plano de Implementação**: Cronograma, responsáveis, recursos
+    """)
 
 
-
-def show_improve_phase(project):
-    """Conteúdo da fase Improve"""
-    st.markdown("### ⚡ Fase Improve (Melhorar)")
-    st.info("🚧 Fase Improve será implementada em etapas futuras")
-
-def show_control_phase(project):
-    """Conteúdo da fase Control"""
-    st.markdown("### 🎛️ Fase Control (Controlar)")
-    st.info("🚧 Fase Control será implementada em etapas futuras")
+def show_control_phase(project: Dict):
+    """Mostrar fase Control"""
+    st.markdown("## 🎮 Control - Controlar")
+    st.markdown("Implemente controles para sustentar as melhorias alcançadas.")
+    
+    # Verificar se a fase Improve foi concluída
+    improve_data = project.get('improve', {})
+    improve_completed = any(tool.get('completed', False) for tool in improve_data.values() if isinstance(tool, dict))
+    
+    if not improve_completed:
+        st.warning("⚠️ Complete a fase **Improve** antes de estabelecer controles")
+    
+    st.info("🚧 **Fase Control em desenvolvimento**")
+    
+    st.markdown("""
+    ### 🎯 Ferramentas que serão incluídas:
+    
+    - **📊 Plano de Controle**: Sistema de monitoramento contínuo
+    - **📈 Gráficos de Controle**: SPC para monitoramento estatístico
+    - **📋 Procedimentos Padrão**: Documentação dos novos processos
+    - **🎓 Plano de Treinamento**: Capacitação da equipe
+    - **📊 Dashboard de KPIs**: Monitoramento visual dos resultados
+    - **📝 Documentação Final**: Lições aprendidas e handover
+    """)
