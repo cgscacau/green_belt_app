@@ -327,40 +327,28 @@ def show_projects_analytics(projects):
         fig_progress.update_layout(height=400)
         st.plotly_chart(fig_progress, use_container_width=True)
 
+
 @st.dialog("➕ Criar Novo Projeto")
 def show_create_project_modal(project_manager, user_data):
-    """Modal para criação de novo projeto usando st.dialog"""
-    
-    st.markdown("### Informações do Projeto")
+    """Modal para criação de novo projeto com interface melhorada"""
     
     with st.form("create_project_form", clear_on_submit=False):
-        col1, col2 = st.columns(2)
+        # Seção 1: Informações Básicas
+        st.markdown("### 📋 Informações Básicas")
+        
+        col1, col2 = st.columns([2, 1])
         
         with col1:
             project_name = st.text_input(
-                "🎯 Nome do Projeto *",
+                "Nome do Projeto *",
                 placeholder="Ex: Redução de Defeitos na Linha 1",
                 help="Nome claro e descritivo do projeto",
                 key="new_project_name"
             )
-            
-            description = st.text_area(
-                "📝 Descrição",
-                placeholder="Descreva brevemente o problema ou oportunidade...",
-                help="Descrição detalhada do projeto",
-                key="new_project_description"
-            )
         
         with col2:
-            business_case = st.text_area(
-                "💼 Caso de Negócio",
-                placeholder="Justificativa do projeto, impacto no negócio...",
-                help="Por que este projeto é importante?",
-                key="new_project_business_case"
-            )
-            
             expected_savings = st.number_input(
-                "💰 Economia Esperada (R$)",
+                "Economia Esperada (R$)",
                 min_value=0.0,
                 value=0.0,
                 step=1000.0,
@@ -368,11 +356,33 @@ def show_create_project_modal(project_manager, user_data):
                 key="new_project_savings"
             )
         
+        description = st.text_area(
+            "Descrição",
+            placeholder="Descreva brevemente o problema ou oportunidade de melhoria...",
+            help="Descrição detalhada do projeto",
+            height=100,
+            key="new_project_description"
+        )
+        
+        # Seção 2: Justificativa
+        st.markdown("### 💼 Justificativa do Negócio")
+        
+        business_case = st.text_area(
+            "Caso de Negócio",
+            placeholder="Por que este projeto é importante? Qual o impacto no negócio?",
+            help="Justificativa e impacto esperado no negócio",
+            height=80,
+            key="new_project_business_case"
+        )
+        
+        # Seção 3: Cronograma
+        st.markdown("### 📅 Cronograma")
+        
         col3, col4 = st.columns(2)
         
         with col3:
             start_date = st.date_input(
-                "📅 Data de Início",
+                "Data de Início",
                 value=datetime.now().date(),
                 help="Data prevista para início do projeto",
                 key="new_project_start_date"
@@ -380,40 +390,69 @@ def show_create_project_modal(project_manager, user_data):
         
         with col4:
             target_end_date = st.date_input(
-                "🎯 Data Alvo de Conclusão",
+                "Data Alvo de Conclusão",
                 value=(datetime.now() + timedelta(days=120)).date(),
                 help="Data prevista para conclusão (padrão: 120 dias)",
                 key="new_project_end_date"
             )
         
         # Validação de datas
-        if target_end_date <= start_date:
+        date_valid = target_end_date > start_date
+        if not date_valid:
             st.error("❌ A data de conclusão deve ser posterior à data de início")
         
-        # Botões do formulário
-        col5, col6 = st.columns([1, 1])
+        # Resumo do projeto
+        if project_name:
+            duration = (target_end_date - start_date).days if date_valid else 0
+            
+            with st.expander("📊 Resumo do Projeto"):
+                col5, col6, col7 = st.columns(3)
+                
+                with col5:
+                    st.metric("Duração Estimada", f"{duration} dias")
+                
+                with col6:
+                    st.metric("Economia Esperada", f"R$ {expected_savings:,.2f}")
+                
+                with col7:
+                    st.metric("Fase Inicial", "Define")
         
-        with col5:
+        st.divider()
+        
+        # Botões do formulário
+        col8, col9, col10 = st.columns([1, 1, 1])
+        
+        with col8:
             submit_button = st.form_submit_button(
                 "✅ Criar Projeto", 
                 use_container_width=True, 
                 type="primary",
-                disabled=not project_name or target_end_date <= start_date
+                disabled=not project_name or not date_valid
             )
         
-        with col6:
+        with col9:
+            if st.form_submit_button("🔄 Limpar Campos", use_container_width=True):
+                # Limpar campos do formulário
+                for key in ['new_project_name', 'new_project_description', 'new_project_business_case', 
+                           'new_project_savings', 'new_project_start_date', 'new_project_end_date']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.rerun()
+        
+        with col10:
             if st.form_submit_button("❌ Cancelar", use_container_width=True):
                 st.session_state.show_create_project = False
                 st.rerun()
         
+        # Processar submissão
         if submit_button:
-            if project_name and target_end_date > start_date:
+            if project_name and date_valid:
                 # Mostrar spinner durante criação
                 with st.spinner("🔄 Criando projeto..."):
                     project_data = {
-                        'name': project_name,
-                        'description': description,
-                        'business_case': business_case,
+                        'name': project_name.strip(),
+                        'description': description.strip(),
+                        'business_case': business_case.strip(),
                         'expected_savings': expected_savings,
                         'start_date': start_date.isoformat(),
                         'target_end_date': target_end_date.isoformat()
@@ -423,10 +462,13 @@ def show_create_project_modal(project_manager, user_data):
                 
                 if success:
                     st.success("✅ Projeto criado com sucesso!")
+                    st.info(f"🆔 ID do Projeto: {result}")
                     st.balloons()
                     
-                    # Aguardar um momento e fechar modal
+                    # Aguardar um momento para mostrar o sucesso
                     time.sleep(2)
+                    
+                    # Fechar modal e limpar campos
                     st.session_state.show_create_project = False
                     
                     # Limpar campos do formulário
@@ -439,15 +481,24 @@ def show_create_project_modal(project_manager, user_data):
                 else:
                     st.error(f"❌ Erro ao criar projeto: {result}")
                     
-                    # Debug: mostrar detalhes do erro se disponível
-                    if "Firebase" in str(result):
-                        st.error("🔥 Erro de conexão com Firebase. Verifique sua conexão com a internet.")
-                    elif "permission" in str(result).lower():
-                        st.error("🔒 Erro de permissão. Verifique suas credenciais.")
-                    else:
-                        st.error(f"📋 Detalhes: {result}")
+                    # Mostrar detalhes do erro para debug
+                    with st.expander("🔍 Detalhes do Erro"):
+                        if "Firebase" in str(result):
+                            st.error("🔥 **Erro de Firebase:** Verifique sua conexão e configurações.")
+                        elif "permission" in str(result).lower():
+                            st.error("🔒 **Erro de Permissão:** Verifique as regras do Firestore.")
+                        elif "network" in str(result).lower():
+                            st.error("🌐 **Erro de Rede:** Verifique sua conexão com a internet.")
+                        else:
+                            st.error(f"📋 **Erro Técnico:** {result}")
+                        
+                        st.markdown("**Possíveis soluções:**")
+                        st.markdown("- Verifique se o Firebase está configurado corretamente")
+                        st.markdown("- Teste a conexão na página de configuração")
+                        st.markdown("- Verifique as regras de segurança do Firestore")
             else:
                 if not project_name:
                     st.error("❌ Nome do projeto é obrigatório")
-                if target_end_date <= start_date:
-                    st.error("❌ Data de conclusão deve ser posterior à data de início")
+                if not date_valid:
+                    st.error("❌ Datas inválidas")
+
