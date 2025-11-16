@@ -983,18 +983,832 @@ def _show_measure_progress(manager: MeasurePhaseManager, tool_options: Dict, mea
         st.info("✨ Você pode avançar para a fase **Analyze** usando a navegação das fases.")
 
 
-# Manter funções existentes para compatibilidade
 def show_process_capability(project_data: Dict):
-    """Análise de Capacidade do Processo - Função existente mantida"""
-    # [Código existente da função...]
-    pass
+    """Análise de Capacidade do Processo - VERSÃO CORRIGIDA"""
+    
+    # Usar o manager como as outras ferramentas
+    manager = MeasurePhaseManager(project_data)
+    project_id = manager.project_id
+    tool_name = "process_capability"
+    
+    st.markdown("## 📐 Análise de Capacidade do Processo")
+    st.markdown("Avalie se o processo é capaz de atender às especificações definidas.")
+    
+    # Verificar se há dados
+    df = manager.project_manager.get_uploaded_data(project_id)
+    
+    if df is None:
+        st.warning("⚠️ **Dados não encontrados**")
+        st.info("Primeiro faça upload dos dados na ferramenta **Upload e Análise de Dados**")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📁 Ir para Upload", key=f"goto_upload_{project_id}"):
+                st.info("💡 Selecione 'Upload e Análise de Dados' no menu acima")
+        with col2:
+            if st.button("🔄 Recarregar", key=f"reload_capability_{project_id}"):
+                st.rerun()
+        return
+    
+    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+    
+    if not numeric_columns:
+        st.error("❌ Nenhuma coluna numérica encontrada nos dados")
+        st.info("💡 Certifique-se de que seus dados contêm variáveis numéricas para análise")
+        return
+    
+    # Status da ferramenta
+    is_completed = manager.is_tool_completed(tool_name)
+    if is_completed:
+        st.success("✅ **Análise de capacidade finalizada**")
+        st.info("💡 Você pode refazer a análise ou visualizar os resultados salvos")
+    else:
+        st.info("⏳ **Análise em desenvolvimento**")
+    
+    # Inicializar dados da sessão
+    session_key = f"{tool_name}_{project_id}"
+    if session_key not in st.session_state:
+        existing_data = manager.get_tool_data(tool_name)
+        st.session_state[session_key] = existing_data if existing_data else {}
+    
+    capability_data = st.session_state[session_key]
+    
+    # Mostrar resultados salvos se existirem
+    if capability_data and capability_data.get('analysis_completed'):
+        st.markdown("### 📊 Resultados Salvos")
+        _show_saved_capability_results(capability_data)
+        st.divider()
+        
+        if st.checkbox("🔄 Refazer Análise", key=f"redo_capability_{project_id}"):
+            st.info("Configure nova análise abaixo:")
+        else:
+            # Mostrar apenas botões de ação se análise já foi feita
+            _show_capability_action_buttons(manager, tool_name, capability_data)
+            return
+    
+    # Configuração da análise
+    st.markdown("### ⚙️ Configuração da Análise")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        selected_column = st.selectbox(
+            "Variável para análise:",
+            numeric_columns,
+            key=f"capability_col_{project_id}",
+            help="Selecione a variável crítica para qualidade (CTQ)"
+        )
+    
+    with col2:
+        spec_type = st.selectbox(
+            "Tipo de Especificação:",
+            ["Bilateral", "Superior apenas", "Inferior apenas"],
+            key=f"capability_spec_type_{project_id}",
+            help="Bilateral: LSL e USL | Superior: apenas USL | Inferior: apenas LSL"
+        )
+    
+    # Dados da variável selecionada
+    data_col = df[selected_column].dropna()
+    
+    if len(data_col) == 0:
+        st.error("❌ Coluna selecionada não possui dados válidos")
+        return
+    
+    # Estatísticas básicas
+    mean_val = data_col.mean()
+    std_val = data_col.std()
+    
+    st.markdown("### 📊 Estatísticas da Variável")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Média", f"{mean_val:.4f}")
+    
+    with col2:
+        st.metric("Desvio Padrão", f"{std_val:.4f}")
+    
+    with col3:
+        st.metric("Mínimo", f"{data_col.min():.4f}")
+    
+    with col4:
+        st.metric("Máximo", f"{data_col.max():.4f}")
+    
+    # Definição dos limites de especificação
+    st.markdown("### 🎯 Limites de Especificação")
+    
+    col3, col4 = st.columns(2)
+    
+    with col3:
+        if spec_type in ["Bilateral", "Inferior apenas"]:
+            lsl = st.number_input(
+                "LSL (Limite Inferior de Especificação):",
+                value=float(capability_data.get('lsl', mean_val - 3*std_val)),
+                key=f"capability_lsl_{project_id}",
+                help="Valor mínimo aceitável"
+            )
+        else:
+            lsl = None
+    
+    with col4:
+        if spec_type in ["Bilateral", "Superior apenas"]:
+            usl = st.number_input(
+                "USL (Limite Superior de Especificação):",
+                value=float(capability_data.get('usl', mean_val + 3*std_val)),
+                key=f"capability_usl_{project_id}",
+                help="Valor máximo aceitável"
+            )
+        else:
+            usl = None
+    
+    # Botão para executar análise
+    if st.button("🔍 Analisar Capacidade", key=f"analyze_capability_{project_id}", type="primary"):
+        
+        with st.spinner("📊 Calculando índices de capacidade..."):
+            # Calcular índices
+            results = _calculate_capability_advanced(data_col, lsl, usl)
+            
+            if results is None:
+                st.error("❌ Erro no cálculo dos índices")
+                return
+            
+            # Determinar status da capacidade
+            capability_status = _determine_capability_status(results.get('Cpk'))
+            
+            # Salvar resultados na sessão
+            capability_data.update({
+                'variable': selected_column,
+                'spec_type': spec_type,
+                'lsl': float(lsl) if lsl is not None else None,
+                'usl': float(usl) if usl is not None else None,
+                'process_mean': float(mean_val),
+                'process_std': float(std_val),
+                'sample_size': int(len(data_col)),
+                'cp': float(results['Cp']) if results['Cp'] is not None else None,
+                'cpk': float(results['Cpk']) if results['Cpk'] is not None else None,
+                'pp': float(results['Pp']) if results['Pp'] is not None else None,
+                'ppk': float(results['Ppk']) if results['Ppk'] is not None else None,
+                'defect_rate': float(results['defect_rate']) if results['defect_rate'] is not None else None,
+                'capability_status': capability_status,
+                'analysis_date': datetime.now().isoformat(),
+                'analysis_completed': True
+            })
+            
+            st.session_state[session_key] = capability_data
+            
+            # Mostrar resultados
+            _show_capability_results(results, capability_status, data_col, lsl, usl, selected_column, mean_val, std_val)
+    
+    # Mostrar botões de ação se análise foi executada
+    if capability_data.get('analysis_completed'):
+        _show_capability_action_buttons(manager, tool_name, capability_data)
+
+
+def _show_saved_capability_results(capability_data: Dict):
+    """Mostra resultados salvos da análise de capacidade"""
+    st.markdown(f"**Variável Analisada:** {capability_data.get('variable', 'N/A')}")
+    st.markdown(f"**Data da Análise:** {capability_data.get('analysis_date', 'N/A')[:19]}")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        cp_val = capability_data.get('cp')
+        if cp_val is not None:
+            st.metric("Cp", f"{cp_val:.3f}")
+        else:
+            st.metric("Cp", "N/A")
+    
+    with col2:
+        cpk_val = capability_data.get('cpk')
+        if cpk_val is not None:
+            st.metric("Cpk", f"{cpk_val:.3f}")
+        else:
+            st.metric("Cpk", "N/A")
+    
+    with col3:
+        st.metric("Status", capability_data.get('capability_status', 'N/A'))
+    
+    with col4:
+        defect_rate = capability_data.get('defect_rate')
+        if defect_rate is not None:
+            st.metric("Taxa de Defeitos", f"{defect_rate:.2f}%")
+        else:
+            st.metric("Taxa de Defeitos", "N/A")
+
+
+def _show_capability_results(results: Dict, capability_status: str, data_col, lsl, usl, selected_column: str, mean_val: float, std_val: float):
+    """Mostra resultados da análise de capacidade"""
+    # Mostrar resultados principais
+    st.markdown("### 📈 Resultados da Análise")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        if results['Cp'] is not None:
+            st.metric("Cp (Capacidade Potencial)", f"{results['Cp']:.3f}")
+        else:
+            st.metric("Cp", "N/A")
+    
+    with col2:
+        if results['Cpk'] is not None:
+            st.metric("Cpk (Capacidade Real)", f"{results['Cpk']:.3f}")
+        else:
+            st.metric("Cpk", "N/A")
+    
+    with col3:
+        if results['Pp'] is not None:
+            st.metric("Pp (Performance Potencial)", f"{results['Pp']:.3f}")
+        else:
+            st.metric("Pp", "N/A")
+    
+    with col4:
+        if results['Ppk'] is not None:
+            st.metric("Ppk (Performance Real)", f"{results['Ppk']:.3f}")
+        else:
+            st.metric("Ppk", "N/A")
+    
+    # Interpretação dos resultados
+    st.markdown("### 🎯 Interpretação dos Resultados")
+    
+    if results['Cpk'] is not None:
+        cpk_value = results['Cpk']
+        
+        if cpk_value >= 2.0:
+            st.success("🟢 **Excelente:** Processo altamente capaz (Cpk ≥ 2.0)")
+        elif cpk_value >= 1.33:
+            st.success("🟢 **Capaz:** Processo capaz (1.33 ≤ Cpk < 2.0)")
+        elif cpk_value >= 1.0:
+            st.warning("🟡 **Marginal:** Processo marginalmente capaz (1.0 ≤ Cpk < 1.33)")
+        else:
+            st.error("🔴 **Não Capaz:** Processo não capaz (Cpk < 1.0)")
+    
+    # Taxa de defeitos
+    if results['defect_rate'] is not None:
+        st.markdown(f"**Taxa de Defeitos Estimada:** {results['defect_rate']:.4f}%")
+    
+    # Gráfico de capacidade
+    st.markdown("### 📊 Visualização da Capacidade")
+    
+    try:
+        fig = go.Figure()
+        
+        # Histograma dos dados
+        fig.add_trace(go.Histogram(
+            x=data_col,
+            nbinsx=30,
+            name="Distribuição dos Dados",
+            opacity=0.7,
+            marker_color='lightblue'
+        ))
+        
+        # Curva normal teórica (se scipy disponível)
+        if SCIPY_AVAILABLE:
+            x_range = np.linspace(data_col.min(), data_col.max(), 100)
+            normal_curve = stats.norm.pdf(x_range, mean_val, std_val) * len(data_col) * (data_col.max() - data_col.min()) / 30
+            
+            fig.add_trace(go.Scatter(
+                x=x_range,
+                y=normal_curve,
+                mode='lines',
+                name='Distribuição Normal',
+                line=dict(color='blue', width=2)
+            ))
+        
+        # Limites de especificação
+        if lsl is not None:
+            fig.add_vline(
+                x=lsl,
+                line_dash="dash",
+                line_color="red",
+                line_width=3,
+                annotation_text="LSL"
+            )
+        
+        if usl is not None:
+            fig.add_vline(
+                x=usl,
+                line_dash="dash",
+                line_color="red",
+                line_width=3,
+                annotation_text="USL"
+            )
+        
+        # Média do processo
+        fig.add_vline(
+            x=mean_val,
+            line_dash="dot",
+            line_color="green",
+            line_width=2,
+            annotation_text="Média"
+        )
+        
+        fig.update_layout(
+            title=f"Análise de Capacidade - {selected_column}",
+            xaxis_title=selected_column,
+            yaxis_title="Frequência",
+            height=500,
+            showlegend=True
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        st.warning(f"⚠️ Erro ao gerar gráfico: {str(e)}")
+
+
+def _show_capability_action_buttons(manager: MeasurePhaseManager, tool_name: str, capability_data: Dict):
+    """Botões de ação para capacidade do processo"""
+    st.divider()
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("💾 Salvar Análise", key=f"save_{tool_name}_{manager.project_id}"):
+            success = manager.save_tool_data(tool_name, capability_data, completed=False)
+            if success:
+                st.success("💾 Análise de capacidade salva com sucesso!")
+            else:
+                st.error("❌ Erro ao salvar análise")
+    
+    with col2:
+        if st.button("✅ Finalizar Capacidade", key=f"complete_{tool_name}_{manager.project_id}"):
+            # Validar se análise foi executada
+            if capability_data.get('analysis_completed'):
+                success = manager.save_tool_data(tool_name, capability_data, completed=True)
+                if success:
+                    st.success("✅ Análise de capacidade finalizada com sucesso!")
+                    st.balloons()
+                    # Forçar atualização da interface
+                    st.rerun()
+                else:
+                    st.error("❌ Erro ao finalizar análise")
+            else:
+                st.error("❌ Execute a análise antes de finalizar")
+
+
+def _determine_capability_status(cpk_value) -> str:
+    """Determina o status da capacidade baseado no Cpk"""
+    if cpk_value is None:
+        return "Indeterminado"
+    
+    if cpk_value >= 2.0:
+        return "Excelente"
+    elif cpk_value >= 1.33:
+        return "Capaz"
+    elif cpk_value >= 1.0:
+        return "Marginal"
+    else:
+        return "Não Capaz"
+
+
+def _calculate_capability_advanced(data, lsl=None, usl=None):
+    """Calcular índices de capacidade - VERSÃO MELHORADA"""
+    try:
+        if len(data) == 0:
+            return None
+        
+        mean_val = data.mean()
+        std_val = data.std()
+        
+        if std_val == 0:
+            st.warning("⚠️ Desvio padrão é zero - não é possível calcular índices")
+            return None
+        
+        results = {
+            'Cp': None, 'Cpk': None, 'Pp': None, 'Ppk': None,
+            'defect_rate': None, 'sigma_level': None
+        }
+        
+        # Cp e Cpk (baseados em desvio padrão within)
+        if lsl is not None and usl is not None and std_val > 0:
+            results['Cp'] = (usl - lsl) / (6 * std_val)
+            cpu = (usl - mean_val) / (3 * std_val)
+            cpl = (mean_val - lsl) / (3 * std_val)
+            results['Cpk'] = min(cpu, cpl)
+            
+            # Pp e Ppk (baseados em desvio padrão total)
+            results['Pp'] = (usl - lsl) / (6 * std_val)
+            results['Ppk'] = results['Cpk']  # Simplificado para esta versão
+            
+        elif usl is not None and std_val > 0:
+            results['Cpk'] = (usl - mean_val) / (3 * std_val)
+            results['Ppk'] = results['Cpk']
+            
+        elif lsl is not None and std_val > 0:
+            results['Cpk'] = (mean_val - lsl) / (3 * std_val)
+            results['Ppk'] = results['Cpk']
+        
+        # Taxa de defeitos
+        if lsl is not None or usl is not None:
+            defects = 0
+            
+            if lsl is not None:
+                defects += sum(data < lsl)
+            
+            if usl is not None:
+                defects += sum(data > usl)
+            
+            results['defect_rate'] = (defects / len(data)) * 100
+        
+        return results
+        
+    except Exception as e:
+        st.error(f"❌ Erro no cálculo: {str(e)}")
+        return None
+
 
 def show_msa_analysis(project_data: Dict):
-    """MSA - Análise do Sistema de Medição - Função existente mantida"""
-    # [Código existente da função...]
-    pass
+    """MSA - Análise do Sistema de Medição - VERSÃO CORRIGIDA"""
+    
+    # Usar o manager como as outras ferramentas
+    manager = MeasurePhaseManager(project_data)
+    project_id = manager.project_id
+    tool_name = "msa"
+    
+    st.markdown("## 🎯 MSA - Sistema de Medição")
+    
+    # Status da ferramenta
+    is_completed = manager.is_tool_completed(tool_name)
+    if is_completed:
+        st.success("✅ **MSA finalizado**")
+    else:
+        st.info("⏳ **MSA em desenvolvimento**")
+    
+    # Inicializar dados da sessão
+    session_key = f"{tool_name}_{project_id}"
+    if session_key not in st.session_state:
+        existing_data = manager.get_tool_data(tool_name)
+        st.session_state[session_key] = existing_data if existing_data else {}
+    
+    msa_data = st.session_state[session_key]
+    
+    # Mostrar resultados salvos se existirem
+    if msa_data and msa_data.get('analysis_completed'):
+        st.markdown("### 📊 Resultados do MSA")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("R&R (%)", f"{msa_data.get('rr_percent', 0):.1f}%")
+        with col2:
+            st.metric("Interpretação", msa_data.get('interpretation', 'N/A'))
+        with col3:
+            st.metric("Medições", msa_data.get('total_measurements', 0))
+        
+        st.divider()
+        
+        if not st.checkbox("🔄 Refazer MSA", key=f"redo_msa_{project_id}"):
+            _show_msa_action_buttons(manager, tool_name, msa_data)
+            return
+    
+    st.info("""
+    **MSA (Measurement System Analysis)**
+    
+    Avalia a qualidade do sistema de medição através de:
+    - **Repetibilidade**: Variação do mesmo operador
+    - **Reprodutibilidade**: Variação entre operadores
+    - **R&R**: Combinação de ambos
+    """)
+    
+    # Configuração básica
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        num_operators = st.number_input(
+            "Operadores", 
+            min_value=2, max_value=5, 
+            value=msa_data.get('num_operators', 3), 
+            key=f"msa_ops_{project_id}"
+        )
+    with col2:
+        num_parts = st.number_input(
+            "Peças", 
+            min_value=5, max_value=20, 
+            value=msa_data.get('num_parts', 10), 
+            key=f"msa_parts_{project_id}"
+        )
+    with col3:
+        num_trials = st.number_input(
+            "Repetições", 
+            min_value=2, max_value=5, 
+            value=msa_data.get('num_trials', 3), 
+            key=f"msa_trials_{project_id}"
+        )
+    
+    # Gerar template
+    if st.button("📥 Gerar Template MSA", key=f"gen_msa_template_{project_id}"):
+        template_data = []
+        for op in range(1, num_operators + 1):
+            for part in range(1, num_parts + 1):
+                for trial in range(1, num_trials + 1):
+                    template_data.append({
+                        'Operador': f'Op_{op}',
+                        'Peça': f'Peça_{part}',
+                        'Repetição': trial,
+                        'Medição': ''
+                    })
+        
+        template_df = pd.DataFrame(template_data)
+        st.dataframe(template_df.head(15))
+        
+        csv = template_df.to_csv(index=False)
+        st.download_button(
+            "📥 Download Template",
+            csv,
+            f"MSA_Template_{project_data.get('name', 'Projeto')}.csv",
+            "text/csv",
+            key=f"download_msa_template_{project_id}"
+        )
+    
+    # Upload MSA
+    msa_file = st.file_uploader(
+        "Upload dados MSA", 
+        type=['csv', 'xlsx'], 
+        key=f"msa_file_upload_{project_id}"
+    )
+    
+    if msa_file:
+        try:
+            if msa_file.name.endswith('.csv'):
+                msa_df = pd.read_csv(msa_file)
+            else:
+                msa_df = pd.read_excel(msa_file)
+            
+            required_cols = ['Operador', 'Peça', 'Repetição', 'Medição']
+            if all(col in msa_df.columns for col in required_cols):
+                st.success(f"✅ Dados MSA carregados: {len(msa_df)} medições")
+                
+                # Análise MSA simplificada
+                try:
+                    msa_df['Medição'] = pd.to_numeric(msa_df['Medição'], errors='coerce')
+                    msa_df = msa_df.dropna(subset=['Medição'])
+                    
+                    if len(msa_df) == 0:
+                        st.error("❌ Nenhuma medição válida encontrada")
+                        return
+                    
+                    # Cálculo básico de R&R
+                    total_var = msa_df['Medição'].var()
+                    
+                    if total_var == 0:
+                        st.warning("⚠️ Variância total é zero")
+                        return
+                    
+                    part_var = msa_df.groupby('Peça')['Medição'].mean().var()
+                    rr_var = max(0, total_var - part_var)  # Evitar valores negativos
+                    
+                    rr_percent = (rr_var / total_var) * 100 if total_var > 0 else 0
+                    
+                    # Interpretação
+                    if rr_percent < 10:
+                        interpretation = "Excelente"
+                    elif rr_percent < 30:
+                        interpretation = "Aceitável"
+                    else:
+                        interpretation = "Inadequado"
+                    
+                    # Mostrar resultados
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("R&R (%)", f"{rr_percent:.1f}%")
+                    with col2:
+                        if rr_percent < 10:
+                            st.success("✅ Excelente")
+                        elif rr_percent < 30:
+                            st.warning("⚠️ Aceitável")
+                        else:
+                            st.error("❌ Inadequado")
+                    with col3:
+                        st.metric("Medições", len(msa_df))
+                    
+                    # Salvar resultados
+                    msa_data.update({
+                        'num_operators': num_operators,
+                        'num_parts': num_parts,
+                        'num_trials': num_trials,
+                        'total_measurements': len(msa_df),
+                        'rr_percent': float(rr_percent),
+                        'interpretation': interpretation,
+                        'analysis_date': datetime.now().isoformat(),
+                        'analysis_completed': True
+                    })
+                    
+                    st.session_state[session_key] = msa_data
+                    
+                    # Mostrar botões de ação
+                    _show_msa_action_buttons(manager, tool_name, msa_data)
+                    
+                except Exception as e:
+                    st.error(f"❌ Erro na análise MSA: {str(e)}")
+            else:
+                st.error(f"❌ Colunas obrigatórias: {required_cols}")
+                st.write("**Colunas encontradas:**", list(msa_df.columns))
+                
+        except Exception as e:
+            st.error(f"❌ Erro ao processar arquivo: {str(e)}")
+
+
+def _show_msa_action_buttons(manager: MeasurePhaseManager, tool_name: str, msa_data: Dict):
+    """Botões de ação para MSA"""
+    st.divider()
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("💾 Salvar MSA", key=f"save_{tool_name}_{manager.project_id}"):
+            success = manager.save_tool_data(tool_name, msa_data, completed=False)
+            if success:
+                st.success("💾 MSA salvo com sucesso!")
+            else:
+                st.error("❌ Erro ao salvar MSA")
+    
+    with col2:
+        if st.button("✅ Finalizar MSA", key=f"complete_{tool_name}_{manager.project_id}"):
+            if msa_data.get('analysis_completed'):
+                success = manager.save_tool_data(tool_name, msa_data, completed=True)
+                if success:
+                    st.success("✅ MSA finalizado com sucesso!")
+                    st.balloons()
+                    st.rerun()
+                else:
+                    st.error("❌ Erro ao finalizar MSA")
+            else:
+                st.error("❌ Execute a análise MSA antes de finalizar")
+
 
 def show_baseline_metrics(project_data: Dict):
-    """Baseline e Métricas CTQ - Função existente mantida"""
-    # [Código existente da função...]
-    pass
+    """Baseline e Métricas CTQ - VERSÃO CORRIGIDA"""
+    
+    # Usar o manager como as outras ferramentas
+    manager = MeasurePhaseManager(project_data)
+    project_id = manager.project_id
+    tool_name = "baseline_data"
+    
+    st.markdown("## 📈 Baseline e Métricas CTQ")
+    st.markdown("Defina as métricas críticas para qualidade e estabeleça o baseline do processo.")
+    
+    # Status da ferramenta
+    is_completed = manager.is_tool_completed(tool_name)
+    if is_completed:
+        st.success("✅ **Baseline finalizado**")
+    else:
+        st.info("⏳ **Baseline em desenvolvimento**")
+    
+    # Inicializar dados da sessão
+    session_key = f"{tool_name}_{project_id}"
+    if session_key not in st.session_state:
+        existing_data = manager.get_tool_data(tool_name)
+        st.session_state[session_key] = existing_data if existing_data else {'ctq_metrics': []}
+    
+    baseline_data = st.session_state[session_key]
+    
+    # Adicionar CTQ
+    st.markdown("### 🎯 Métricas CTQ (Critical to Quality)")
+    
+    with st.expander("➕ Adicionar Nova Métrica CTQ"):
+        col1, col2 = st.columns(2)
+        with col1:
+            ctq_name = st.text_input("Nome da Métrica *", key=f"baseline_ctq_name_{project_id}")
+            ctq_baseline = st.number_input("Valor Baseline *", key=f"baseline_ctq_baseline_{project_id}")
+        with col2:
+            ctq_target = st.number_input("Meta *", key=f"baseline_ctq_target_{project_id}")
+            ctq_unit = st.text_input("Unidade", key=f"baseline_ctq_unit_{project_id}")
+        
+        ctq_description = st.text_area(
+            "Descrição/Como Medir",
+            key=f"baseline_ctq_description_{project_id}",
+            placeholder="Descreva como esta métrica é calculada ou medida..."
+        )
+        
+        if st.button("➕ Adicionar CTQ", key=f"add_baseline_ctq_{project_id}"):
+            if ctq_name.strip() and ctq_baseline is not None and ctq_target is not None:
+                baseline_data['ctq_metrics'].append({
+                    'name': ctq_name.strip(),
+                    'baseline': float(ctq_baseline),
+                    'target': float(ctq_target),
+                    'unit': ctq_unit,
+                    'description': ctq_description
+                })
+                st.session_state[session_key] = baseline_data
+                st.success(f"✅ CTQ '{ctq_name}' adicionada!")
+                st.rerun()
+            else:
+                st.error("❌ Preencha nome, baseline e meta")
+    
+    # Mostrar CTQs existentes
+    if baseline_data['ctq_metrics']:
+        st.markdown("#### 📊 Métricas CTQ Definidas")
+        
+        for i, ctq in enumerate(baseline_data['ctq_metrics']):
+            with st.expander(f"**{ctq['name']}** - Baseline: {ctq['baseline']} {ctq['unit']}"):
+                col1, col2, col3 = st.columns([3, 2, 1])
+                
+                with col1:
+                    st.write(f"**Baseline:** {ctq['baseline']} {ctq['unit']}")
+                    st.write(f"**Meta:** {ctq['target']} {ctq['unit']}")
+                    if ctq.get('description'):
+                        st.write(f"**Descrição:** {ctq['description']}")
+                    
+                    # Calcular diferença
+                    diff = ctq['target'] - ctq['baseline']
+                    improvement = (abs(diff) / ctq['baseline'] * 100) if ctq['baseline'] != 0 else 0
+                    st.write(f"**Melhoria Alvo:** {improvement:.1f}%")
+                
+                with col2:
+                    # Visualização simples
+                    if ctq['baseline'] != 0:
+                        progress_val = min(1.0, ctq['target'] / ctq['baseline']) if ctq['baseline'] > 0 else 0
+                        st.progress(progress_val)
+                        st.caption("Progresso para meta")
+                
+                with col3:
+                    if st.button("🗑️", key=f"remove_baseline_ctq_{i}_{project_id}"):
+                        baseline_data['ctq_metrics'].pop(i)
+                        st.session_state[session_key] = baseline_data
+                        st.success("✅ CTQ removida!")
+                        st.rerun()
+    else:
+        st.info("📝 Nenhuma métrica CTQ definida ainda. Adicione pelo menos uma para continuar.")
+    
+    # Informações adicionais do baseline
+    st.markdown("### 📅 Informações do Baseline")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        baseline_period = st.text_input(
+            "Período do Baseline *",
+            value=baseline_data.get('baseline_period', ''),
+            placeholder="Ex: Janeiro a Março 2024",
+            key=f"baseline_period_input_{project_id}",
+            help="Período de referência para os dados baseline"
+        )
+        baseline_data['baseline_period'] = baseline_period
+        
+    with col2:
+        data_source = st.text_input(
+            "Fonte dos Dados *",
+            value=baseline_data.get('data_source', ''),
+            placeholder="Ex: Sistema ERP, Planilhas de controle",
+            key=f"baseline_data_source_{project_id}",
+            help="De onde vêm os dados do baseline"
+        )
+        baseline_data['data_source'] = data_source
+    
+    baseline_notes = st.text_area(
+        "Observações/Contexto",
+        value=baseline_data.get('baseline_notes', ''),
+        placeholder="Informações adicionais sobre o contexto do baseline...",
+        key=f"baseline_notes_{project_id}"
+    )
+    baseline_data['baseline_notes'] = baseline_notes
+    
+    # Botões de ação
+    _show_baseline_action_buttons(manager, tool_name, baseline_data)
+
+
+def _show_baseline_action_buttons(manager: MeasurePhaseManager, tool_name: str, baseline_data: Dict):
+    """Botões de ação para baseline"""
+    st.divider()
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("💾 Salvar Baseline", key=f"save_{tool_name}_{manager.project_id}"):
+            success = manager.save_tool_data(tool_name, baseline_data, completed=False)
+            if success:
+                st.success("💾 Baseline salvo com sucesso!")
+            else:
+                st.error("❌ Erro ao salvar baseline")
+    
+    with col2:
+        if st.button("✅ Finalizar Baseline", key=f"complete_{tool_name}_{manager.project_id}"):
+            # Validação
+            if _validate_baseline_data(baseline_data):
+                success = manager.save_tool_data(tool_name, baseline_data, completed=True)
+                if success:
+                    st.success("✅ Baseline finalizado com sucesso!")
+                    st.balloons()
+                    st.rerun()
+                else:
+                    st.error("❌ Erro ao finalizar baseline")
+            else:
+                st.error("❌ Complete todos os campos obrigatórios")
+
+
+def _validate_baseline_data(baseline_data: Dict) -> bool:
+    """Valida dados do baseline"""
+    # Verificar CTQs
+    if not baseline_data.get('ctq_metrics'):
+        st.error("❌ Adicione pelo menos uma métrica CTQ")
+        return False
+    
+    # Verificar período
+    if not baseline_data.get('baseline_period', '').strip():
+        st.error("❌ Defina o período do baseline")
+        return False
+    
+    # Verificar fonte
+    if not baseline_data.get('data_source', '').strip():
+        st.error("❌ Defina a fonte dos dados")
+        return False
+    
+    return True
+
