@@ -344,9 +344,37 @@ def show_measure_phase(project):
         st.rerun()
 
 def show_analyze_phase(project):
-    """Conteúdo da fase Analyze"""
-    st.markdown("### 🔍 Fase Analyze (Analisar)")
-    st.info("🚧 Fase Analyze será implementada em etapas futuras")
+    """Mostrar fase Analyze"""
+    from src.pages.analyze_tools import show_analyze_tools
+    
+    st.markdown("## 🔍 Analyze - Analisar")
+    st.markdown("Identifique as causas raiz dos problemas através de análise estatística e ferramentas de qualidade.")
+    
+    # Verificar se a fase Measure foi concluída
+    measure_data = project.get('measure', {})
+    measure_completed = any(tool.get('completed', False) for tool in measure_data.values() if isinstance(tool, dict))
+    
+    if not measure_completed:
+        st.warning("⚠️ Recomendamos completar pelo menos uma ferramenta da fase **Measure** antes de prosseguir")
+    
+    # Ferramentas da fase Analyze
+    show_analyze_tools(project)
+
+def show_phase_content(phase: str, project: Dict):
+    """Mostrar conteúdo específico da fase"""
+    
+    if phase == "define":
+        show_define_phase(project)
+    elif phase == "measure":
+        show_measure_phase(project)
+    elif phase == "analyze":
+        show_analyze_phase(project)  # Adicionar esta linha
+    elif phase == "improve":
+        st.info("🚧 Fase Improve em desenvolvimento")
+    elif phase == "control":
+        st.info("🚧 Fase Control em desenvolvimento")
+
+
 
 def show_improve_phase(project):
     """Conteúdo da fase Improve"""
