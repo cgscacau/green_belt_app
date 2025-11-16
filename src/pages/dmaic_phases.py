@@ -87,11 +87,6 @@ def show_dmaic_phase():
         
         phase_progress[phase_key] = progress
         
-        # ✅ DEBUG - MOSTRAR DETALHES (REMOVER APÓS TESTE)
-        if phase_key == "improve":  # Debug apenas para improve
-            st.write(f"**Debug {phase_key}:**")
-            st.write(f"- Ferramentas esperadas: {phase_config['tools']}")
-            st.write(f"- Dados da fase: {list(phase_data.keys()) if isinstance(phase_data, dict) else 'Não é dict'}")
             
             if isinstance(phase_data, dict):
                 for tool_name in phase_config["tools"]:
