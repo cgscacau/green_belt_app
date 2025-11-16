@@ -327,7 +327,7 @@ def show_data_collection_plan(project_data: Dict):
 
 
 def show_file_upload_analysis(project_data: Dict):
-    """Upload e Análise de Arquivos"""
+    """Upload e Análise de Arquivos - VERSÃO CORRIGIDA"""
     
     project_id = project_data.get('id')
     
@@ -365,7 +365,6 @@ def show_file_upload_analysis(project_data: Dict):
                 df = pd.read_excel(uploaded_file)
             
             elif file_extension == 'txt':
-                # Tentar diferentes separadores para TXT
                 try:
                     df = pd.read_csv(uploaded_file, sep='\t')
                 except:
@@ -376,27 +375,64 @@ def show_file_upload_analysis(project_data: Dict):
                         uploaded_file.seek(0)
                         df = pd.read_csv(uploaded_file, sep=';')
             
-            # CORREÇÃO IMPORTANTE: Limpeza e conversão dos dados
-            # Identificar colunas que podem ser numéricas
+            # CORREÇÃO: Processamento mais robusto dos dados
+            st.info("🔄 Processando dados...")
+            
+            # Limpeza inicial dos dados
             for col in df.columns:
-                # Tentar converter colunas que parecem numéricas
                 if df[col].dtype == 'object':
-                    # Remover espaços e tentar converter
-                    df[col] = df[col].astype(str).str.strip()
+                    # Converter para string e limpar
+                    df[col] = df[col].astype(str)
+                    df[col] = df[col].str.strip()
                     
-                    # Tentar converter para numérico
+                    # Substituir valores vazios por NaN
+                    df[col] = df[col].replace(['', 'nan', 'NaN', 'null', 'NULL'], np.nan)
+            
+            # Tentar conversão inteligente para numérico
+            original_numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            converted_cols = []
+            
+            for col in df.columns:
+                if col not in original_numeric_cols:
+                    # Tentar conversão para numérico
                     try:
-                        # Substituir vírgula por ponto (formato brasileiro)
-                        df[col] = df[col].str.replace(',', '.')
-                        df[col] = pd.to_numeric(df[col], errors='ignore')
-                    except:
-                        pass
+                        # Fazer uma cópia da coluna para teste
+                        test_col = df[col].copy()
+                        
+                        # Se for object, tentar limpar e converter
+                        if test_col.dtype == 'object':
+                            # Remover caracteres não numéricos (exceto . , - +)
+                            test_col = test_col.astype(str)
+                            
+                            # Substituir vírgula por ponto
+                            test_col = test_col.str.replace(',', '.')
+                            
+                            # Remover espaços
+                            test_col = test_col.str.strip()
+                            
+                            # Tentar converter para float
+                            test_converted = pd.to_numeric(test_col, errors='coerce')
+                            
+                            # Se conseguiu converter pelo menos 50% dos dados não-nulos
+                            non_null_original = test_col.notna().sum()
+                            non_null_converted = test_converted.notna().sum()
+                            
+                            if non_null_original > 0 and (non_null_converted / non_null_original) >= 0.5:
+                                df[col] = test_converted
+                                converted_cols.append(col)
+                                
+                    except Exception as e:
+                        # Se der erro, manter como estava
+                        continue
             
             # Salvar dados no session_state
             st.session_state[f'uploaded_data_{project_id}'] = df
             st.session_state[f'file_name_{project_id}'] = uploaded_file.name
             
             st.success(f"✅ Arquivo '{uploaded_file.name}' carregado com sucesso!")
+            
+            if converted_cols:
+                st.info(f"🔄 Colunas convertidas para numérico: {', '.join(converted_cols)}")
             
             # Informações básicas do arquivo
             col1, col2, col3, col4 = st.columns(4)
@@ -408,7 +444,6 @@ def show_file_upload_analysis(project_data: Dict):
                 st.metric("Colunas", df.shape[1])
             
             with col3:
-                # CORREÇÃO: Melhor detecção de colunas numéricas
                 numeric_cols = len(df.select_dtypes(include=[np.number]).columns)
                 st.metric("Colunas Numéricas", numeric_cols)
             
@@ -428,10 +463,19 @@ def show_file_upload_analysis(project_data: Dict):
         st.markdown("### 📊 Análise dos Dados")
         
         # DEBUG: Mostrar tipos de dados
-        if st.checkbox("🔍 Debug - Mostrar tipos de dados", key=f"debug_types_{project_id}"):
+        debug_mode = st.checkbox("🔍 Debug - Mostrar tipos de dados", key=f"debug_types_{project_id}")
+        if debug_mode:
             st.write("**Tipos de dados por coluna:**")
+            debug_info = []
             for col in df.columns:
-                st.write(f"- {col}: {df[col].dtype}")
+                non_null_count = df[col].notna().sum()
+                debug_info.append({
+                    'Coluna': col,
+                    'Tipo': str(df[col].dtype),
+                    'Valores Não-Nulos': non_null_count,
+                    'Amostra': str(df[col].dropna().iloc[0]) if non_null_count > 0 else 'N/A'
+                })
+            st.dataframe(pd.DataFrame(debug_info), use_container_width=True)
         
         # Tabs para diferentes análises
         tab1, tab2, tab3, tab4 = st.tabs(["👀 Visualizar", "📈 Estatísticas", "📊 Gráficos", "🔍 Qualidade"])
@@ -439,7 +483,6 @@ def show_file_upload_analysis(project_data: Dict):
         with tab1:
             st.markdown("#### 📋 Preview dos Dados")
             
-            # Opções de visualização
             col1, col2 = st.columns(2)
             
             with col1:
@@ -469,125 +512,175 @@ def show_file_upload_analysis(project_data: Dict):
         with tab2:
             st.markdown("#### 📊 Estatísticas Descritivas")
             
-            # CORREÇÃO PRINCIPAL: Melhor detecção de colunas numéricas
-            # Primeiro, tentar detectar colunas numéricas padrão
+            # Detectar colunas numéricas
             numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
             
-            # Se não encontrou colunas numéricas, tentar forçar conversão
-            if not numeric_columns:
-                st.warning("⚠️ Nenhuma coluna numérica detectada automaticamente. Tentando conversão manual...")
-                
-                potential_numeric_cols = []
-                for col in df.columns:
-                    # Pegar uma amostra da coluna para testar
-                    sample_data = df[col].dropna().head(100)
-                    
-                    # Tentar converter para numérico
-                    try:
-                        # Remover espaços e substituir vírgula por ponto
-                        if sample_data.dtype == 'object':
-                            test_series = sample_data.astype(str).str.strip()
-                            test_series = test_series.str.replace(',', '.')
-                            pd.to_numeric(test_series, errors='raise')
-                            potential_numeric_cols.append(col)
-                        elif pd.api.types.is_numeric_dtype(sample_data):
-                            potential_numeric_cols.append(col)
-                    except:
-                        continue
-                
-                if potential_numeric_cols:
-                    st.info(f"💡 Colunas que podem ser convertidas para numérico: {', '.join(potential_numeric_cols)}")
-                    
-                    # Permitir que o usuário selecione quais colunas converter
-                    cols_to_convert = st.multiselect(
-                        "Selecione as colunas para converter para numérico:",
-                        potential_numeric_cols,
-                        default=potential_numeric_cols,
-                        key=f"convert_cols_{project_id}"
-                    )
-                    
-                    if st.button("🔄 Converter Colunas", key=f"convert_btn_{project_id}"):
-                        df_converted = df.copy()
-                        
-                        for col in cols_to_convert:
-                            try:
-                                # Converter para string, limpar e converter para numérico
-                                df_converted[col] = df_converted[col].astype(str).str.strip()
-                                df_converted[col] = df_converted[col].str.replace(',', '.')
-                                df_converted[col] = pd.to_numeric(df_converted[col], errors='coerce')
-                                
-                            except Exception as e:
-                                st.warning(f"⚠️ Erro ao converter coluna {col}: {str(e)}")
-                        
-                        # Atualizar o DataFrame no session_state
-                        st.session_state[f'uploaded_data_{project_id}'] = df_converted
-                        df = df_converted
-                        numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-                        
-                        st.success(f"✅ Colunas convertidas! Agora temos {len(numeric_columns)} colunas numéricas.")
-                        st.rerun()
-            
-            # Mostrar estatísticas se houver colunas numéricas
             if numeric_columns:
                 st.success(f"✅ Encontradas {len(numeric_columns)} colunas numéricas: {', '.join(numeric_columns)}")
                 
+                # Filtrar colunas que têm dados válidos
+                valid_numeric_columns = []
+                for col in numeric_columns:
+                    valid_data_count = df[col].dropna().shape[0]
+                    if valid_data_count > 0:
+                        valid_numeric_columns.append(col)
+                
+                if not valid_numeric_columns:
+                    st.error("❌ As colunas numéricas não possuem dados válidos")
+                    return
+                
                 selected_columns = st.multiselect(
                     "Selecione as colunas para análise:",
-                    numeric_columns,
-                    default=numeric_columns[:5] if len(numeric_columns) >= 5 else numeric_columns,
+                    valid_numeric_columns,
+                    default=valid_numeric_columns[:5] if len(valid_numeric_columns) >= 5 else valid_numeric_columns,
                     key=f"selected_cols_{project_id}"
                 )
                 
                 if selected_columns:
-                    # Estatísticas descritivas
                     try:
-                        stats_df = df[selected_columns].describe()
-                        st.dataframe(stats_df, use_container_width=True)
+                        # CORREÇÃO: Filtrar apenas dados válidos para estatísticas
+                        df_clean = df[selected_columns].copy()
+                        
+                        # Remover linhas onde todas as colunas selecionadas são NaN
+                        df_clean = df_clean.dropna(how='all')
+                        
+                        if df_clean.empty:
+                            st.error("❌ Não há dados válidos nas colunas selecionadas")
+                            return
+                        
+                        st.info(f"📊 Calculando estatísticas para {len(df_clean)} linhas válidas")
+                        
+                        # Estatísticas descritivas básicas
+                        stats_df = df_clean.describe()
+                        st.dataframe(stats_df.round(4), use_container_width=True)
                         
                         # Estatísticas adicionais
                         st.markdown("#### 📈 Estatísticas Adicionais")
                         
                         additional_stats = []
                         for col in selected_columns:
-                            data_col = df[col].dropna()
+                            data_col = df_clean[col].dropna()
                             
                             if len(data_col) > 0:
                                 try:
-                                    mode_val = data_col.mode().iloc[0] if not data_col.mode().empty else 'N/A'
+                                    # Calcular moda de forma segura
+                                    mode_values = data_col.mode()
+                                    mode_val = mode_values.iloc[0] if len(mode_values) > 0 else np.nan
+                                    
+                                    # Calcular coeficiente de variação
+                                    mean_val = data_col.mean()
+                                    std_val = data_col.std()
+                                    cv = (std_val / mean_val * 100) if mean_val != 0 and not np.isnan(mean_val) else 0
+                                    
+                                    # Calcular assimetria e curtose
+                                    skewness = stats.skew(data_col) if len(data_col) > 2 else 0
+                                    kurt = stats.kurtosis(data_col) if len(data_col) > 2 else 0
                                     
                                     additional_stats.append({
                                         'Coluna': col,
                                         'Mediana': f"{data_col.median():.4f}",
-                                        'Moda': f"{mode_val:.4f}" if mode_val != 'N/A' else 'N/A',
+                                        'Moda': f"{mode_val:.4f}" if not np.isnan(mode_val) else 'N/A',
                                         'Variância': f"{data_col.var():.4f}",
-                                        'Coef. Variação': f"{(data_col.std() / data_col.mean() * 100):.2f}%" if data_col.mean() != 0 else "0%",
-                                        'Assimetria': f"{stats.skew(data_col):.4f}" if len(data_col) > 1 else "0",
-                                        'Curtose': f"{stats.kurtosis(data_col):.4f}" if len(data_col) > 1 else "0"
+                                        'Coef. Variação': f"{cv:.2f}%",
+                                        'Assimetria': f"{skewness:.4f}",
+                                        'Curtose': f"{kurt:.4f}",
+                                        'Dados Válidos': len(data_col)
                                     })
                                 except Exception as e:
                                     st.warning(f"⚠️ Erro ao calcular estatísticas para {col}: {str(e)}")
                         
                         if additional_stats:
                             st.dataframe(pd.DataFrame(additional_stats), use_container_width=True)
+                        else:
+                            st.error("❌ Não foi possível calcular estatísticas adicionais")
                             
                     except Exception as e:
                         st.error(f"❌ Erro ao calcular estatísticas: {str(e)}")
+                        
+                        # Tentar diagnóstico do problema
+                        st.markdown("**🔍 Diagnóstico:**")
+                        for col in selected_columns:
+                            col_info = df[col].describe() if pd.api.types.is_numeric_dtype(df[col]) else "Não numérica"
+                            st.write(f"- {col}: {col_info}")
                         
                 else:
                     st.info("👆 Selecione pelo menos uma coluna para análise")
                     
             else:
-                st.error("❌ Nenhuma coluna numérica encontrada no arquivo")
-                st.info("💡 Verifique se seus dados estão no formato correto. Números devem usar ponto (.) como separador decimal.")
+                st.warning("⚠️ Nenhuma coluna numérica encontrada")
+                
+                # Oferecer conversão manual
+                st.markdown("**🔧 Conversão Manual de Colunas**")
+                
+                all_columns = df.columns.tolist()
+                cols_to_convert = st.multiselect(
+                    "Selecione colunas para tentar converter para numérico:",
+                    all_columns,
+                    key=f"manual_convert_{project_id}"
+                )
+                
+                if st.button("🔄 Tentar Conversão", key=f"try_convert_{project_id}") and cols_to_convert:
+                    df_converted = df.copy()
+                    conversion_results = []
+                    
+                    for col in cols_to_convert:
+                        try:
+                            original_data = df_converted[col].copy()
+                            
+                            # Tentar diferentes métodos de conversão
+                            if original_data.dtype == 'object':
+                                # Método 1: Conversão direta
+                                try:
+                                    converted = pd.to_numeric(original_data, errors='coerce')
+                                    success_rate = converted.notna().sum() / original_data.notna().sum()
+                                    
+                                    if success_rate > 0.1:  # Se pelo menos 10% converteu
+                                        df_converted[col] = converted
+                                        conversion_results.append(f"✅ {col}: {success_rate:.1%} convertido")
+                                        continue
+                                except:
+                                    pass
+                                
+                                # Método 2: Limpeza e conversão
+                                try:
+                                    cleaned = original_data.astype(str).str.strip()
+                                    cleaned = cleaned.str.replace(',', '.')
+                                    cleaned = cleaned.str.replace(r'[^\d.-]', '', regex=True)
+                                    converted = pd.to_numeric(cleaned, errors='coerce')
+                                    success_rate = converted.notna().sum() / original_data.notna().sum()
+                                    
+                                    if success_rate > 0.1:
+                                        df_converted[col] = converted
+                                        conversion_results.append(f"✅ {col}: {success_rate:.1%} convertido (com limpeza)")
+                                        continue
+                                except:
+                                    pass
+                            
+                            conversion_results.append(f"❌ {col}: Não foi possível converter")
+                            
+                        except Exception as e:
+                            conversion_results.append(f"❌ {col}: Erro - {str(e)}")
+                    
+                    # Mostrar resultados
+                    for result in conversion_results:
+                        if result.startswith("✅"):
+                            st.success(result)
+                        else:
+                            st.warning(result)
+                    
+                    # Atualizar DataFrame se houve conversões bem-sucedidas
+                    new_numeric_cols = df_converted.select_dtypes(include=[np.number]).columns.tolist()
+                    if len(new_numeric_cols) > len(numeric_columns):
+                        st.session_state[f'uploaded_data_{project_id}'] = df_converted
+                        st.success("🔄 DataFrame atualizado! Recarregue a página para ver as mudanças.")
+                        st.rerun()
         
         with tab3:
             st.markdown("#### 📊 Visualizações")
             
-            # Atualizar lista de colunas numéricas
             numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
             
             if numeric_columns:
-                # Seletor de tipo de gráfico
                 chart_type = st.selectbox(
                     "Tipo de Gráfico:",
                     ["Histograma", "Box Plot", "Linha do Tempo", "Scatter Plot", "Correlação"],
@@ -598,9 +691,14 @@ def show_file_upload_analysis(project_data: Dict):
                     if chart_type == "Histograma":
                         col_to_plot = st.selectbox("Coluna:", numeric_columns, key=f"hist_col_{project_id}")
                         
-                        fig = px.histogram(df, x=col_to_plot, nbins=30, title=f"Histograma - {col_to_plot}")
-                        fig.update_layout(height=400)
-                        st.plotly_chart(fig, use_container_width=True)
+                        # Filtrar dados válidos
+                        valid_data = df[col_to_plot].dropna()
+                        if len(valid_data) > 0:
+                            fig = px.histogram(x=valid_data, nbins=30, title=f"Histograma - {col_to_plot}")
+                            fig.update_layout(height=400)
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning("⚠️ Não há dados válidos para plotar")
                     
                     elif chart_type == "Box Plot":
                         cols_to_plot = st.multiselect("Colunas:", numeric_columns, default=numeric_columns[:3], key=f"box_cols_{project_id}")
@@ -608,7 +706,9 @@ def show_file_upload_analysis(project_data: Dict):
                         if cols_to_plot:
                             fig = go.Figure()
                             for col in cols_to_plot:
-                                fig.add_trace(go.Box(y=df[col], name=col))
+                                valid_data = df[col].dropna()
+                                if len(valid_data) > 0:
+                                    fig.add_trace(go.Box(y=valid_data, name=col))
                             
                             fig.update_layout(title="Box Plot - Comparação", height=400)
                             st.plotly_chart(fig, use_container_width=True)
@@ -616,9 +716,13 @@ def show_file_upload_analysis(project_data: Dict):
                     elif chart_type == "Linha do Tempo":
                         y_col = st.selectbox("Eixo Y:", numeric_columns, key=f"line_y_{project_id}")
                         
-                        fig = px.line(df.reset_index(), x=df.reset_index().index, y=y_col, title=f"Série Temporal - {y_col}")
-                        fig.update_layout(height=400)
-                        st.plotly_chart(fig, use_container_width=True)
+                        valid_data = df[y_col].dropna()
+                        if len(valid_data) > 0:
+                            fig = px.line(x=range(len(valid_data)), y=valid_data, title=f"Série Temporal - {y_col}")
+                            fig.update_layout(height=400)
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning("⚠️ Não há dados válidos para plotar")
                     
                     elif chart_type == "Scatter Plot":
                         if len(numeric_columns) >= 2:
@@ -630,23 +734,33 @@ def show_file_upload_analysis(project_data: Dict):
                                 if available_y_cols:
                                     y_col = st.selectbox("Eixo Y:", available_y_cols, key=f"scatter_y_{project_id}")
                                     
-                                    fig = px.scatter(df, x=x_col, y=y_col, title=f"Scatter Plot - {x_col} vs {y_col}")
-                                    fig.update_layout(height=400)
-                                    st.plotly_chart(fig, use_container_width=True)
+                                    # Filtrar dados válidos para ambas as colunas
+                                    df_scatter = df[[x_col, y_col]].dropna()
+                                    if len(df_scatter) > 0:
+                                        fig = px.scatter(df_scatter, x=x_col, y=y_col, title=f"Scatter Plot - {x_col} vs {y_col}")
+                                        fig.update_layout(height=400)
+                                        st.plotly_chart(fig, use_container_width=True)
+                                    else:
+                                        st.warning("⚠️ Não há dados válidos para plotar")
                         else:
                             st.warning("⚠️ Necessário pelo menos 2 colunas numéricas para scatter plot")
                     
                     elif chart_type == "Correlação":
                         if len(numeric_columns) >= 2:
-                            corr_matrix = df[numeric_columns].corr()
-                            
-                            fig = px.imshow(corr_matrix, 
-                                          text_auto=True, 
-                                          aspect="auto",
-                                          title="Matriz de Correlação",
-                                          color_continuous_scale='RdBu_r')
-                            fig.update_layout(height=400)
-                            st.plotly_chart(fig, use_container_width=True)
+                            # Filtrar apenas dados válidos
+                            df_corr = df[numeric_columns].dropna()
+                            if len(df_corr) > 1:
+                                corr_matrix = df_corr.corr()
+                                
+                                fig = px.imshow(corr_matrix, 
+                                              text_auto=True, 
+                                              aspect="auto",
+                                              title="Matriz de Correlação",
+                                              color_continuous_scale='RdBu_r')
+                                fig.update_layout(height=400)
+                                st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                st.warning("⚠️ Dados insuficientes para correlação")
                         else:
                             st.warning("⚠️ Necessário pelo menos 2 colunas numéricas para correlação")
                             
@@ -654,7 +768,6 @@ def show_file_upload_analysis(project_data: Dict):
                     st.error(f"❌ Erro ao criar gráfico: {str(e)}")
             else:
                 st.warning("⚠️ Nenhuma coluna numérica encontrada para visualização")
-                st.info("💡 Vá para a aba 'Estatísticas' para converter colunas para formato numérico")
         
         with tab4:
             st.markdown("#### 🔍 Análise de Qualidade dos Dados")
@@ -675,17 +788,16 @@ def show_file_upload_analysis(project_data: Dict):
             if not missing_df.empty:
                 st.dataframe(missing_df, use_container_width=True)
                 
-                # Gráfico de valores faltantes
                 try:
                     fig = px.bar(missing_df, x='Coluna', y='Percentual (%)', 
                                title="Percentual de Valores Faltantes por Coluna")
                     st.plotly_chart(fig, use_container_width=True)
                 except Exception as e:
-                    st.warning(f"⚠️ Erro ao criar gráfico de valores faltantes: {str(e)}")
+                    st.warning(f"⚠️ Erro ao criar gráfico: {str(e)}")
             else:
                 st.success("✅ Nenhum valor faltante encontrado!")
             
-            # Outliers (apenas para colunas numéricas)
+            # Outliers
             numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
             if numeric_columns:
                 st.markdown("##### 🎯 Detecção de Outliers (Método IQR)")
@@ -717,63 +829,58 @@ def show_file_upload_analysis(project_data: Dict):
                             st.metric("Limite Superior", f"{upper_bound:.2f}")
                         
                         if len(outliers) > 0:
-                            st.warning(f"⚠️ {len(outliers)} outliers detectados na coluna '{outlier_col}'")
+                            st.warning(f"⚠️ {len(outliers)} outliers detectados")
                             
-                            # Box plot com outliers destacados
                             try:
                                 fig = go.Figure()
                                 fig.add_trace(go.Box(y=data_col, name=outlier_col, boxpoints='outliers'))
-                                fig.update_layout(title=f"Box Plot com Outliers - {outlier_col}", height=300)
+                                fig.update_layout(title=f"Box Plot - {outlier_col}", height=300)
                                 st.plotly_chart(fig, use_container_width=True)
                             except Exception as e:
                                 st.warning(f"⚠️ Erro ao criar box plot: {str(e)}")
                         else:
                             st.success("✅ Nenhum outlier detectado!")
                     else:
-                        st.warning("⚠️ Coluna selecionada não possui dados válidos")
+                        st.warning("⚠️ Coluna não possui dados válidos")
                         
                 except Exception as e:
                     st.error(f"❌ Erro na análise de outliers: {str(e)}")
-            else:
-                st.info("💡 Vá para a aba 'Estatísticas' para converter colunas para análise de outliers")
         
         # Botão para salvar análise
         st.divider()
         
         if st.button("💾 Salvar Análise de Dados", key=f"save_analysis_{project_id}", use_container_width=True):
-            # Preparar resumo da análise
-            numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-            
-            analysis_summary = {
-                'file_name': file_name,
-                'upload_date': datetime.now().isoformat(),
-                'rows': int(df.shape[0]),
-                'columns': int(df.shape[1]),
-                'numeric_columns': len(numeric_columns),
-                'missing_values': int(df.isnull().sum().sum()),
-                'column_info': [
-                    {
-                        'name': col,
-                        'type': str(df[col].dtype),
-                        'unique_values': int(df[col].nunique()),
-                        'null_values': int(df[col].isnull().sum())
-                    }
-                    for col in df.columns
-                ]
-            }
-            
-            # Salvar no Firebase
-            update_data = {
-                f'measure.baseline_data.data': analysis_summary,
-                f'measure.baseline_data.completed': True,
-                f'measure.baseline_data.updated_at': datetime.now().isoformat(),
-                'updated_at': datetime.now().isoformat()
-            }
-            
-            project_manager = ProjectManager()
-            
-            with st.spinner("💾 Salvando análise..."):
-                try:
+            try:
+                numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+                
+                analysis_summary = {
+                    'file_name': file_name,
+                    'upload_date': datetime.now().isoformat(),
+                    'rows': int(df.shape[0]),
+                    'columns': int(df.shape[1]),
+                    'numeric_columns': len(numeric_columns),
+                    'missing_values': int(df.isnull().sum().sum()),
+                    'column_info': [
+                        {
+                            'name': col,
+                            'type': str(df[col].dtype),
+                            'unique_values': int(df[col].nunique()),
+                            'null_values': int(df[col].isnull().sum())
+                        }
+                        for col in df.columns
+                    ]
+                }
+                
+                update_data = {
+                    f'measure.baseline_data.data': analysis_summary,
+                    f'measure.baseline_data.completed': True,
+                    f'measure.baseline_data.updated_at': datetime.now().isoformat(),
+                    'updated_at': datetime.now().isoformat()
+                }
+                
+                project_manager = ProjectManager()
+                
+                with st.spinner("💾 Salvando análise..."):
                     success = project_manager.update_project(project_id, update_data)
                     
                     if success:
@@ -782,8 +889,8 @@ def show_file_upload_analysis(project_data: Dict):
                     else:
                         st.error("❌ Erro ao salvar análise")
                         
-                except Exception as e:
-                    st.error(f"❌ Erro ao salvar: {str(e)}")
+            except Exception as e:
+                st.error(f"❌ Erro ao salvar: {str(e)}")
 
 
 
