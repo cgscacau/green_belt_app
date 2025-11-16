@@ -2158,6 +2158,7 @@ class PilotImplementationTool:
             
             with col_time3:
                 st.metric("Data de Fim", project_end.strftime('%d/%m/%Y'))
+################################################################################################################################################################################
 
     def _show_measurements(self, pilot_data: Dict):
         """Sistema de medições do piloto"""
@@ -2166,17 +2167,82 @@ class PilotImplementationTool:
         if 'measurements' not in pilot_data:
             pilot_data['measurements'] = []
         
-        # [... código anterior para adicionar métricas permanece igual ...]
+        # Adicionar nova medição (código anterior permanece igual)
+        with st.expander("➕ Adicionar Medição"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                metric_name = st.text_input(
+                    "Nome da Métrica:",
+                    key=f"metric_name_{self.project_id}",
+                    placeholder="Ex: Tempo de ciclo, Taxa de defeitos"
+                )
+                
+                metric_unit = st.text_input(
+                    "Unidade:",
+                    key=f"metric_unit_{self.project_id}",
+                    placeholder="Ex: minutos, %, peças/hora"
+                )
+                
+                metric_frequency = st.selectbox(
+                    "Frequência de Coleta:",
+                    ["Diária", "Semanal", "Por lote", "Contínua"],
+                    key=f"metric_frequency_{self.project_id}"
+                )
+            
+            with col2:
+                metric_target = st.number_input(
+                    "Meta:",
+                    value=0.0,
+                    key=f"metric_target_{self.project_id}"
+                )
+                
+                metric_baseline = st.number_input(
+                    "Baseline (valor atual):",
+                    value=0.0,
+                    key=f"metric_baseline_{self.project_id}"
+                )
+                
+                metric_responsible = st.text_input(
+                    "Responsável pela Coleta:",
+                    key=f"metric_responsible_{self.project_id}"
+                )
+            
+            metric_method = st.text_area(
+                "Método de Coleta:",
+                key=f"metric_method_{self.project_id}",
+                placeholder="Como esta métrica será coletada?",
+                height=60
+            )
+            
+            if st.button("📊 Adicionar Métrica", key=f"add_metric_{self.project_id}"):
+                if metric_name.strip():
+                    pilot_data['measurements'].append({
+                        'name': metric_name,
+                        'unit': metric_unit,
+                        'frequency': metric_frequency,
+                        'target': metric_target,
+                        'baseline': metric_baseline,
+                        'responsible': metric_responsible,
+                        'method': metric_method,
+                        'data_points': [],
+                        'created_at': datetime.now().isoformat()
+                    })
+                    
+                    st.success(f"✅ Métrica '{metric_name}' adicionada!")
+                    st.rerun()
         
-        # ✅ SUBSTITUIR ESTA PARTE - Mostrar métricas existentes
+        # ✅ NOVA IMPLEMENTAÇÃO ROBUSTA - Mostrar métricas existentes
         if pilot_data['measurements']:
             st.markdown("##### 📈 Métricas do Piloto")
             
-            for i, metric in enumerate(pilot_data['measurements']):
+            for metric_index, metric in enumerate(pilot_data['measurements']):
                 with st.expander(f"📊 **{metric['name']}** ({metric.get('unit', 'unidade')})"):
-                    col1, col2, col3 = st.columns([2, 2, 1])
                     
-                    with col1:
+                    # Informações da métrica
+                    col_info1, col_info2, col_info3 = st.columns([2, 2, 1])
+                    
+                    with col_info1:
                         st.write(f"**Baseline:** {metric.get('baseline', 0)} {metric.get('unit', '')}")
                         st.write(f"**Meta:** {metric.get('target', 0)} {metric.get('unit', '')}")
                         st.write(f"**Frequência:** {metric.get('frequency', 'N/A')}")
@@ -2185,44 +2251,55 @@ class PilotImplementationTool:
                         if metric.get('method'):
                             st.write(f"**Método:** {metric['method']}")
                     
-                    with col2:
-                        # Interface para adicionar dados
-                        st.markdown("**Adicionar Medição:**")
+                    with col_info2:
+                        # Interface para adicionar nova medição
+                        st.markdown("**➕ Nova Medição:**")
                         
                         new_date = st.date_input(
                             "Data:",
-                            key=f"metric_date_{i}_{self.project_id}"
+                            key=f"new_metric_date_{metric_index}_{self.project_id}",
+                            value=datetime.now().date()
                         )
                         
                         new_value = st.number_input(
                             "Valor:",
-                            key=f"metric_value_{i}_{self.project_id}"
+                            key=f"new_metric_value_{metric_index}_{self.project_id}",
+                            value=0.0
                         )
                         
-                        if st.button("➕ Adicionar", key=f"add_data_point_{i}_{self.project_id}"):
-                            pilot_data['measurements'][i]['data_points'].append({
+                        if st.button("➕ Adicionar Medição", key=f"add_data_point_{metric_index}_{self.project_id}"):
+                            if 'data_points' not in pilot_data['measurements'][metric_index]:
+                                pilot_data['measurements'][metric_index]['data_points'] = []
+                            
+                            pilot_data['measurements'][metric_index]['data_points'].append({
                                 'date': new_date.isoformat(),
-                                'value': new_value,
+                                'value': float(new_value),
                                 'added_at': datetime.now().isoformat()
                             })
                             
                             st.success("✅ Medição adicionada!")
                             st.rerun()
                     
-                    with col3:
-                        if st.button("🗑️ Remover Métrica", key=f"remove_metric_{i}_{self.project_id}"):
-                            if st.session_state.get(f"confirm_delete_metric_{i}_{self.project_id}", False):
-                                pilot_data['measurements'].pop(i)
+                    with col_info3:
+                        # Botão para remover métrica inteira
+                        if st.button("🗑️ Remover Métrica", key=f"remove_metric_{metric_index}_{self.project_id}"):
+                            confirm_key = f"confirm_delete_metric_{metric_index}_{self.project_id}"
+                            
+                            if st.session_state.get(confirm_key, False):
+                                pilot_data['measurements'].pop(metric_index)
+                                # Limpar estado
+                                if confirm_key in st.session_state:
+                                    del st.session_state[confirm_key]
                                 st.success("✅ Métrica removida!")
                                 st.rerun()
                             else:
-                                st.session_state[f"confirm_delete_metric_{i}_{self.project_id}"] = True
+                                st.session_state[confirm_key] = True
                                 st.warning("⚠️ Clique novamente para confirmar")
                         
                         # Estatísticas da métrica
                         data_points = metric.get('data_points', [])
                         if data_points:
-                            values = [dp['value'] for dp in data_points]
+                            values = [float(dp['value']) for dp in data_points]
                             current_avg = sum(values) / len(values)
                             
                             st.metric("Média Atual", f"{current_avg:.2f}")
@@ -2238,96 +2315,111 @@ class PilotImplementationTool:
                                 else:
                                     st.error(f"📉 {improvement:.1f}%")
                     
-                    # ✅ NOVA SEÇÃO: GERENCIAR MEDIÇÕES EXISTENTES
+                    # ✅ SEÇÃO DE MEDIÇÕES COM EDIÇÃO/EXCLUSÃO ROBUSTA
                     data_points = metric.get('data_points', [])
                     if data_points:
                         st.markdown("---")
                         st.markdown("##### 📋 Medições Registradas")
                         
+                        # Criar uma cópia dos data_points com índices únicos
+                        data_points_with_index = [(idx, dp) for idx, dp in enumerate(data_points)]
                         # Ordenar por data (mais recente primeiro)
-                        sorted_data_points = sorted(data_points, key=lambda x: x['date'], reverse=True)
+                        data_points_with_index.sort(key=lambda x: x[1]['date'], reverse=True)
                         
-                        for j, data_point in enumerate(sorted_data_points):
-                            original_j = data_points.index(data_point)
+                        for display_idx, (original_idx, data_point) in enumerate(data_points_with_index):
+                            # Criar chaves únicas para evitar conflitos
+                            unique_key = f"m{metric_index}_dp{original_idx}_{self.project_id}"
+                            edit_key = f"edit_{unique_key}"
+                            confirm_key = f"confirm_{unique_key}"
+                            
                             measurement_date = datetime.fromisoformat(data_point['date']).strftime('%d/%m/%Y')
                             
-                            col_med1, col_med2, col_med3, col_med4 = st.columns([2, 2, 1, 1])
-                            
-                            with col_med1:
-                                st.write(f"📅 **{measurement_date}**")
-                            
-                            with col_med2:
-                                # ✅ MODO EDIÇÃO INLINE
-                                edit_key = f"edit_measurement_{i}_{original_j}_{self.project_id}"
+                            # Container para cada medição
+                            with st.container():
+                                col_date, col_value, col_edit, col_delete = st.columns([2, 2, 1, 1])
                                 
-                                if st.session_state.get(edit_key, False):
-                                    # MODO EDIÇÃO
-                                    new_edit_date = st.date_input(
-                                        "Nova data:",
-                                        value=datetime.fromisoformat(data_point['date']).date(),
-                                        key=f"edit_date_{i}_{original_j}_{self.project_id}"
-                                    )
-                                    
-                                    new_edit_value = st.number_input(
-                                        "Novo valor:",
-                                        value=float(data_point['value']),
-                                        key=f"edit_value_{i}_{original_j}_{self.project_id}"
-                                    )
-                                else:
-                                    # MODO VISUALIZAÇÃO
-                                    st.write(f"**{data_point['value']} {metric.get('unit', '')}**")
-                            
-                            with col_med3:
-                                if st.session_state.get(edit_key, False):
-                                    # BOTÕES DE EDIÇÃO
-                                    if st.button("💾", key=f"save_measurement_{i}_{original_j}_{self.project_id}", help="Salvar alterações"):
-                                        # Salvar alterações
-                                        pilot_data['measurements'][i]['data_points'][original_j] = {
-                                            'date': new_edit_date.isoformat(),
-                                            'value': new_edit_value,
-                                            'added_at': data_point.get('added_at', datetime.now().isoformat()),
-                                            'updated_at': datetime.now().isoformat()
-                                        }
-                                        
-                                        # Desativar modo edição
-                                        st.session_state[edit_key] = False
-                                        
-                                        st.success("✅ Medição atualizada!")
-                                        st.rerun()
-                                else:
-                                    # BOTÃO EDITAR
-                                    if st.button("✏️", key=f"edit_measurement_{i}_{original_j}_{self.project_id}", help="Editar medição"):
-                                        st.session_state[edit_key] = True
-                                        st.rerun()
-                            
-                            with col_med4:
-                                if st.session_state.get(edit_key, False):
-                                    # BOTÃO CANCELAR
-                                    if st.button("❌", key=f"cancel_measurement_{i}_{original_j}_{self.project_id}", help="Cancelar edição"):
-                                        st.session_state[edit_key] = False
-                                        st.rerun()
-                                else:
-                                    # BOTÃO EXCLUIR
-                                    if st.button("🗑️", key=f"delete_measurement_{i}_{original_j}_{self.project_id}", help="Excluir medição"):
-                                        confirm_key = f"confirm_delete_measurement_{i}_{original_j}_{self.project_id}"
-                                        
-                                        if st.session_state.get(confirm_key, False):
-                                            # Confirmar exclusão
-                                            pilot_data['measurements'][i]['data_points'].pop(original_j)
-                                            st.success("✅ Medição removida!")
+                                with col_date:
+                                    if st.session_state.get(edit_key, False):
+                                        # MODO EDIÇÃO - Data
+                                        new_edit_date = st.date_input(
+                                            "Data:",
+                                            value=datetime.fromisoformat(data_point['date']).date(),
+                                            key=f"edit_date_{unique_key}"
+                                        )
+                                    else:
+                                        # MODO VISUALIZAÇÃO - Data
+                                        st.write(f"📅 **{measurement_date}**")
+                                
+                                with col_value:
+                                    if st.session_state.get(edit_key, False):
+                                        # MODO EDIÇÃO - Valor
+                                        new_edit_value = st.number_input(
+                                            "Valor:",
+                                            value=float(data_point['value']),
+                                            key=f"edit_value_{unique_key}",
+                                            step=0.01
+                                        )
+                                    else:
+                                        # MODO VISUALIZAÇÃO - Valor
+                                        st.write(f"**{data_point['value']} {metric.get('unit', '')}**")
+                                
+                                with col_edit:
+                                    if st.session_state.get(edit_key, False):
+                                        # MODO EDIÇÃO - Botão Salvar
+                                        if st.button("💾", key=f"save_{unique_key}", help="Salvar alterações"):
+                                            # ✅ SALVAR ALTERAÇÕES
+                                            pilot_data['measurements'][metric_index]['data_points'][original_idx] = {
+                                                'date': new_edit_date.isoformat(),
+                                                'value': float(new_edit_value),
+                                                'added_at': data_point.get('added_at', datetime.now().isoformat()),
+                                                'updated_at': datetime.now().isoformat()
+                                            }
+                                            
+                                            # Limpar estado de edição
+                                            if edit_key in st.session_state:
+                                                del st.session_state[edit_key]
+                                            
+                                            st.success("✅ Medição atualizada!")
                                             st.rerun()
-                                        else:
-                                            # Primeira vez - solicitar confirmação
-                                            st.session_state[confirm_key] = True
-                                            st.warning("⚠️ Clique novamente para confirmar")
-                            
-                            # Separador visual
-                            if j < len(sorted_data_points) - 1:
-                                st.divider()
+                                    else:
+                                        # MODO VISUALIZAÇÃO - Botão Editar
+                                        if st.button("✏️", key=f"edit_{unique_key}", help="Editar medição"):
+                                            st.session_state[edit_key] = True
+                                            st.rerun()
+                                
+                                with col_delete:
+                                    if st.session_state.get(edit_key, False):
+                                        # MODO EDIÇÃO - Botão Cancelar
+                                        if st.button("❌", key=f"cancel_{unique_key}", help="Cancelar edição"):
+                                            if edit_key in st.session_state:
+                                                del st.session_state[edit_key]
+                                            st.rerun()
+                                    else:
+                                        # MODO VISUALIZAÇÃO - Botão Excluir
+                                        if st.button("🗑️", key=f"delete_{unique_key}", help="Excluir medição"):
+                                            if st.session_state.get(confirm_key, False):
+                                                # ✅ CONFIRMAR E EXCLUIR
+                                                pilot_data['measurements'][metric_index]['data_points'].pop(original_idx)
+                                                
+                                                # Limpar estados relacionados
+                                                keys_to_remove = [k for k in st.session_state.keys() if unique_key in k]
+                                                for k in keys_to_remove:
+                                                    del st.session_state[k]
+                                                
+                                                st.success("✅ Medição removida!")
+                                                st.rerun()
+                                            else:
+                                                # Primeira vez - solicitar confirmação
+                                                st.session_state[confirm_key] = True
+                                                st.warning("⚠️ Clique novamente para confirmar")
+                                
+                                # Separador visual entre medições
+                                if display_idx < len(data_points_with_index) - 1:
+                                    st.divider()
+                    else:
+                        st.info("📝 Nenhuma medição registrada ainda.")
             
-            # [... resto do código do dashboard permanece igual ...]
-            
-            # Gráfico consolidado das métricas
+            # Dashboard das métricas (código anterior permanece)
             if len(pilot_data['measurements']) > 0:
                 st.markdown("##### 📊 Dashboard das Métricas")
                 
@@ -2347,7 +2439,7 @@ class PilotImplementationTool:
                         
                         data_points = metric['data_points']
                         dates = [dp['date'] for dp in data_points]
-                        values = [dp['value'] for dp in data_points]
+                        values = [float(dp['value']) for dp in data_points]
                         
                         fig.add_trace(
                             go.Scatter(
@@ -2388,7 +2480,7 @@ class PilotImplementationTool:
             st.info("📊 Nenhuma métrica definida ainda. Adicione métricas para acompanhar o piloto.")
     
     
-    
+################################################################################################################################################################################    
     def _show_results(self, pilot_data: Dict):
         """Análise dos resultados do piloto"""
         st.markdown("#### 📈 Resultados do Piloto")
