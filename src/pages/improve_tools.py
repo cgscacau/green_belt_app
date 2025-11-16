@@ -412,37 +412,147 @@ class SolutionDevelopmentTool:
                 original_index = solution_data['solutions'].index(solution)
                 
                 with st.expander(f"**{solution['name']}** ({solution['type']}) - {solution['status']}"):
-                    col1, col2, col3 = st.columns([3, 2, 1])
                     
-                    with col1:
-                        st.write(f"**Descrição:** {solution['description']}")
-                        if solution.get('requirements'):
-                            st.write(f"**Recursos:** {solution['requirements']}")
-                        if solution.get('source'):
-                            st.write(f"**Origem:** {solution['source']}")
+                    # **NOVA FUNCIONALIDADE: Interface de Edição**
+                    edit_mode = st.checkbox(
+                        "✏️ Modo Edição", 
+                        key=f"edit_mode_{original_index}_{self.project_id}",
+                        help="Ative para editar esta solução"
+                    )
                     
-                    with col2:
-                        st.write(f"**Complexidade:** {solution['complexity']}")
-                        st.write(f"**Impacto:** {solution['expected_impact']}")
-                        st.write(f"**Custo:** R$ {solution['cost_estimate']:,.2f}")
-                        st.write(f"**Tempo:** {solution['implementation_time']} dias")
+                    if edit_mode:
+                        # **MODO EDIÇÃO ATIVADO**
+                        st.markdown("##### ✏️ Editando Solução")
                         
-                        if solution.get('evaluation_score', 0) > 0:
-                            st.write(f"**Score:** {solution['evaluation_score']:.1f}/10")
-                    
-                    with col3:
-                        new_status = st.selectbox(
-                            "Status:",
-                            ["Proposta", "Em Avaliação", "Aprovada", "Rejeitada", "Implementando"],
-                            index=["Proposta", "Em Avaliação", "Aprovada", "Rejeitada", "Implementando"].index(solution['status']),
-                            key=f"solution_status_{original_index}_{self.project_id}"
+                        col_edit1, col_edit2 = st.columns(2)
+                        
+                        with col_edit1:
+                            # Campos editáveis
+                            new_name = st.text_input(
+                                "Nome da Solução:",
+                                value=solution['name'],
+                                key=f"edit_name_{original_index}_{self.project_id}"
+                            )
+                            
+                            new_type = st.selectbox(
+                                "Tipo:",
+                                ["Melhoria de Processo", "Tecnologia", "Treinamento", "Mudança Organizacional", 
+                                 "Automação", "Padronização", "Redesign", "Eliminação"],
+                                index=["Melhoria de Processo", "Tecnologia", "Treinamento", "Mudança Organizacional", 
+                                       "Automação", "Padronização", "Redesign", "Eliminação"].index(solution['type']),
+                                key=f"edit_type_{original_index}_{self.project_id}"
+                            )
+                            
+                            new_complexity = st.selectbox(
+                                "Complexidade:",
+                                ["Baixa", "Média", "Alta"],
+                                index=["Baixa", "Média", "Alta"].index(solution['complexity']),
+                                key=f"edit_complexity_{original_index}_{self.project_id}"
+                            )
+                            
+                            new_impact = st.selectbox(
+                                "Impacto Esperado:",
+                                ["Baixo", "Médio", "Alto"],
+                                index=["Baixo", "Médio", "Alto"].index(solution['expected_impact']),
+                                key=f"edit_impact_{original_index}_{self.project_id}"
+                            )
+                        
+                        with col_edit2:
+                            new_cost = st.number_input(
+                                "Custo Estimado (R$):",
+                                min_value=0.0,
+                                value=float(solution['cost_estimate']),
+                                key=f"edit_cost_{original_index}_{self.project_id}"
+                            )
+                            
+                            new_time = st.number_input(
+                                "Tempo de Implementação (dias):",
+                                min_value=1,
+                                max_value=365,
+                                value=int(solution['implementation_time']),
+                                key=f"edit_time_{original_index}_{self.project_id}"
+                            )
+                        
+                        new_description = st.text_area(
+                            "Descrição Detalhada:",
+                            value=solution['description'],
+                            key=f"edit_description_{original_index}_{self.project_id}",
+                            height=100
                         )
                         
-                        solution_data['solutions'][original_index]['status'] = new_status
+                        new_requirements = st.text_area(
+                            "Recursos/Pré-requisitos:",
+                            value=solution.get('requirements', ''),
+                            key=f"edit_requirements_{original_index}_{self.project_id}"
+                        )
                         
-                        if st.button("🗑️", key=f"remove_solution_{original_index}_{self.project_id}"):
-                            solution_data['solutions'].pop(original_index)
-                            st.rerun()
+                        # Botões de ação da edição
+                        col_action1, col_action2 = st.columns(2)
+                        
+                        with col_action1:
+                            if st.button("💾 Salvar Alterações", key=f"save_edit_{original_index}_{self.project_id}"):
+                                if new_name.strip() and new_description.strip():
+                                    # Atualizar a solução
+                                    solution_data['solutions'][original_index].update({
+                                        'name': new_name,
+                                        'description': new_description,
+                                        'type': new_type,
+                                        'complexity': new_complexity,
+                                        'cost_estimate': float(new_cost),
+                                        'implementation_time': int(new_time),
+                                        'expected_impact': new_impact,
+                                        'requirements': new_requirements,
+                                        'updated_at': datetime.now().isoformat()
+                                    })
+                                    
+                                    st.success(f"✅ Solução '{new_name}' atualizada!")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Nome e descrição são obrigatórios")
+                        
+                        with col_action2:
+                            if st.button("❌ Cancelar Edição", key=f"cancel_edit_{original_index}_{self.project_id}"):
+                                st.info("Edição cancelada")
+                                st.rerun()
+                    
+                    else:
+                        # **MODO VISUALIZAÇÃO NORMAL**
+                        col1, col2, col3 = st.columns([3, 2, 1])
+                        
+                        with col1:
+                            st.write(f"**Descrição:** {solution['description']}")
+                            if solution.get('requirements'):
+                                st.write(f"**Recursos:** {solution['requirements']}")
+                            if solution.get('source'):
+                                st.write(f"**Origem:** {solution['source']}")
+                        
+                        with col2:
+                            st.write(f"**Complexidade:** {solution['complexity']}")
+                            st.write(f"**Impacto:** {solution['expected_impact']}")
+                            st.write(f"**Custo:** R$ {solution['cost_estimate']:,.2f}")
+                            st.write(f"**Tempo:** {solution['implementation_time']} dias")
+                            
+                            if solution.get('evaluation_score', 0) > 0:
+                                st.write(f"**Score:** {solution['evaluation_score']:.1f}/10")
+                        
+                        with col3:
+                            new_status = st.selectbox(
+                                "Status:",
+                                ["Proposta", "Em Avaliação", "Aprovada", "Rejeitada", "Implementando"],
+                                index=["Proposta", "Em Avaliação", "Aprovada", "Rejeitada", "Implementando"].index(solution['status']),
+                                key=f"solution_status_{original_index}_{self.project_id}"
+                            )
+                            
+                            solution_data['solutions'][original_index]['status'] = new_status
+                            
+                            if st.button("🗑️ Excluir", key=f"remove_solution_{original_index}_{self.project_id}"):
+                                if st.session_state.get(f"confirm_delete_{original_index}_{self.project_id}", False):
+                                    solution_data['solutions'].pop(original_index)
+                                    st.success("✅ Solução removida!")
+                                    st.rerun()
+                                else:
+                                    st.session_state[f"confirm_delete_{original_index}_{self.project_id}"] = True
+                                    st.warning("⚠️ Clique novamente para confirmar a exclusão")
             
             # Resumo estatístico
             if solution_data['solutions']:
@@ -468,6 +578,7 @@ class SolutionDevelopmentTool:
                     st.metric("Aprovadas", approved)
         else:
             st.info("📝 Nenhuma solução cadastrada ainda. Adicione soluções ou converta ideias do brainstorming.")
+
     
     def _show_solution_evaluation(self, solution_data: Dict):
         """Avaliação de soluções"""
