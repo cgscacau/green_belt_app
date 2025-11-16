@@ -316,6 +316,7 @@ def show_project_charter(project_data: Dict):
     if st.checkbox("🔍 Mostrar dados salvos (debug)", key=f"debug_charter_{project_id}"):
         st.json(st.session_state.get(charter_key, {}))
 
+
 def show_stakeholder_mapping(project_data: Dict):
     """Stakeholder Mapping - Mapeamento de Partes Interessadas"""
     
@@ -514,6 +515,7 @@ def show_stakeholder_mapping(project_data: Dict):
             except Exception as e:
                 st.error(f"❌ Erro ao salvar: {str(e)}")
 
+
 def show_voice_of_customer(project_data: Dict):
     """Voice of Customer - Voz do Cliente"""
     
@@ -549,6 +551,7 @@ def show_voice_of_customer(project_data: Dict):
         key=f"collection_methods_{project_id}"
     )
     
+    other_methods = ""
     if "Outros" in collection_methods:
         other_methods = st.text_input(
             "Especificar outros métodos:",
@@ -774,6 +777,7 @@ def show_voice_of_customer(project_data: Dict):
             except Exception as e:
                 st.error(f"❌ Erro ao salvar: {str(e)}")
 
+
 def show_sipoc_diagram(project_data: Dict):
     """SIPOC Diagram - Suppliers, Inputs, Process, Outputs, Customers"""
     
@@ -841,7 +845,7 @@ def show_sipoc_diagram(project_data: Dict):
                 if new_supplier.strip():
                     sipoc_data['suppliers'].append({
                         'name': new_supplier.strip(),
-                        'type': '',
+                        'type': 'Interno',
                         'description': '',
                         'id': len(sipoc_data['suppliers'])
                     })
@@ -885,7 +889,7 @@ def show_sipoc_diagram(project_data: Dict):
                 if new_input.strip():
                     sipoc_data['inputs'].append({
                         'name': new_input.strip(),
-                        'type': '',
+                        'type': 'Material',
                         'source': '',
                         'requirements': '',
                         'id': len(sipoc_data['inputs'])
@@ -1002,7 +1006,7 @@ def show_sipoc_diagram(project_data: Dict):
                 if new_output.strip():
                     sipoc_data['outputs'].append({
                         'name': new_output.strip(),
-                        'type': '',
+                        'type': 'Produto',
                         'quality_criteria': '',
                         'destination': '',
                         'id': len(sipoc_data['outputs'])
@@ -1054,7 +1058,7 @@ def show_sipoc_diagram(project_data: Dict):
                 if new_customer.strip():
                     sipoc_data['customers'].append({
                         'name': new_customer.strip(),
-                        'type': '',
+                        'type': 'Cliente Final',
                         'expectations': '',
                         'requirements': '',
                         'id': len(sipoc_data['customers'])
@@ -1214,6 +1218,7 @@ def show_sipoc_diagram(project_data: Dict):
                 
             except Exception as e:
                 st.error(f"❌ Erro ao salvar: {str(e)}")
+
 
 def show_project_timeline(project_data: Dict):
     """Project Timeline - Cronograma do Projeto"""
