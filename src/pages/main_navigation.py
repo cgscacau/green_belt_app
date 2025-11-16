@@ -11,7 +11,11 @@ def show_main_navigation():
     
     # Verificar autenticação
     if not st.session_state.get('authentication_status'):
+        st.error("❌ Usuário não autenticado")
         return False
+    
+    # Debug temporário
+    st.write(f"🔍 Debug: Página atual = {st.session_state.get('current_page', 'dashboard')}")
     
     # Inicializar gerenciador de navegação
     nav_manager = NavigationManager()
@@ -22,23 +26,29 @@ def show_main_navigation():
     # Obter página atual
     current_page = st.session_state.get('current_page', 'dashboard')
     
-    # Roteamento de páginas
+    # Roteamento de páginas com debug
     if current_page == 'dashboard':
+        st.write("🔍 Debug: Carregando dashboard...")
         show_dashboard()
     
     elif current_page == 'projects':
+        st.write("🔍 Debug: Carregando página de projetos...")
         show_projects_page()
     
     elif current_page == 'dmaic':
+        st.write("🔍 Debug: Carregando página DMAIC...")
         show_dmaic_phase()
     
     elif current_page == 'reports':
+        st.write("🔍 Debug: Carregando página de relatórios...")
         show_reports_page()
     
     elif current_page == 'help':
+        st.write("🔍 Debug: Carregando página de ajuda...")
         show_help_page()
     
     else:
+        st.write(f"🔍 Debug: Página desconhecida '{current_page}', redirecionando para dashboard...")
         # Página padrão
         st.session_state.current_page = 'dashboard'
         show_dashboard()
