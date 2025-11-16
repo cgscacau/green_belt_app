@@ -1645,11 +1645,13 @@ def create_msa_charts(df, results):
 
 
 def show_measure_tools(project_data: Dict):
-    """Função principal para mostrar as ferramentas da fase Measure"""
+    """Função principal para mostrar as ferramentas da fase Measure - VERSÃO CORRIGIDA"""
     
     if not project_data:
         st.error("❌ Projeto não encontrado")
         return
+    
+    project_id = project_data.get('id')
     
     # Menu de ferramentas
     st.markdown("### 🔧 Ferramentas da Fase Measure")
@@ -1662,15 +1664,25 @@ def show_measure_tools(project_data: Dict):
         "baseline": "📈 Baseline e Métricas CTQ"
     }
     
-    # Verificar status das ferramentas
+    # CORREÇÃO: Verificar status das ferramentas de forma mais robusta
     measure_data = project_data.get('measure', {})
+    
+    # Debug: mostrar dados do measure para verificação
+    if st.checkbox("🔍 Debug - Mostrar dados Measure", key=f"debug_measure_{project_id}"):
+        st.json(measure_data)
     
     # Usar selectbox para navegação
     tool_names_with_status = []
     tool_keys = list(tool_options.keys())
     
     for key, name in tool_options.items():
-        is_completed = measure_data.get(key, {}).get('completed', False)
+        # CORREÇÃO: Verificação mais robusta do status
+        tool_data = measure_data.get(key, {})
+        is_completed = False
+        
+        if isinstance(tool_data, dict):
+            is_completed = tool_data.get('completed', False)
+        
         status_icon = "✅" if is_completed else "⏳"
         tool_names_with_status.append(f"{status_icon} {name}")
     
@@ -1678,7 +1690,7 @@ def show_measure_tools(project_data: Dict):
         "Selecione uma ferramenta:",
         range(len(tool_names_with_status)),
         format_func=lambda x: tool_names_with_status[x],
-        key=f"measure_tool_selector_{project_data.get('id')}"
+        key=f"measure_tool_selector_{project_id}"
     )
     
     selected_tool = tool_keys[selected_index]
@@ -1695,18 +1707,50 @@ def show_measure_tools(project_data: Dict):
     elif selected_tool == "msa":
         show_msa_analysis(project_data)
     elif selected_tool == "baseline":
-        st.info("🚧 Baseline e Métricas CTQ - Em desenvolvimento")
+        show_baseline_metrics(project_data)  # Vou criar esta função
     
-    # Progresso geral da fase Measure
+    # CORREÇÃO: Progresso geral da fase Measure
     st.divider()
     st.markdown("### 📊 Progresso da Fase Measure")
     
+    # Recarregar dados do projeto para ter informações atualizadas
+    if 'current_project' in st.session_state:
+        current_project = st.session_state.current_project
+        updated_measure_data = current_project.get('measure', {})
+    else:
+        updated_measure_data = measure_data
+    
     total_tools = len(tool_options)
-    completed_tools = sum(1 for tool_key in tool_options.keys() 
-                        if measure_data.get(tool_key, {}).get('completed', False))
+    completed_tools = 0
+    
+    # Contar ferramentas concluídas
+    tool_status = {}
+    for tool_key in tool_options.keys():
+        tool_data = updated_measure_data.get(tool_key, {})
+        is_completed = False
+        
+        if isinstance(tool_data, dict):
+            is_completed = tool_data.get('completed', False)
+        
+        tool_status[tool_key] = is_completed
+        if is_completed:
+            completed_tools += 1
     
     progress = (completed_tools / total_tools) * 100
     
+    # Mostrar detalhes do progresso
+    st.markdown("#### 📋 Status das Ferramentas:")
+    
+    cols = st.columns(len(tool_options))
+    for i, (key, name) in enumerate(tool_options.items()):
+        with cols[i]:
+            status = tool_status[key]
+            if status:
+                st.success(f"✅ {name.split(' ', 1)[1]}")  # Remove emoji do nome
+            else:
+                st.info(f"⏳ {name.split(' ', 1)[1]}")
+    
+    # Barra de progresso principal
     col_prog1, col_prog2 = st.columns([3, 1])
     
     with col_prog1:
@@ -1719,6 +1763,306 @@ def show_measure_tools(project_data: Dict):
         else:
             st.info(f"⏳ {progress:.0f}%")
     
+    # Mensagem de conclusão
     if progress == 100:
         st.success("🎉 **Parabéns! Fase Measure concluída com sucesso!**")
         st.info("✨ Você pode avançar para a fase **Analyze** usando a navegação das fases.")
+        
+        # Atualizar status da fase no projeto
+        if 'current_project' in st.session_state:
+            if 'phases_status' not in st.session_state.current_project:
+                st.session_state.current_project['phases_status'] = {}
+            
+            st.session_state.current_project['phases_status']['measure'] = {
+                'completed': True,
+                'completion_date': datetime.now().isoformat(),
+                'progress': 100
+            }
+    
+    # Botão para forçar atualização do progresso
+    if st.button("🔄 Atualizar Progresso", key=f"refresh_progress_{project_id}"):
+        st.rerun()
+
+
+def show_baseline_metrics(project_data: Dict):
+    """Baseline e Métricas CTQ - Critical to Quality"""
+    
+    project_id = project_data.get('id')
+    project_manager = ProjectManager()
+    
+    st.markdown("## 📈 Baseline e Métricas CTQ")
+    st.markdown("Estabeleça as métricas Critical to Quality e o baseline atual do processo.")
+    
+    # Inicializar dados
+    baseline_key = f"baseline_metrics_{project_id}"
+    if baseline_key not in st.session_state:
+        existing_data = project_data.get('measure', {}).get('baseline', {}).get('data', {})
+        st.session_state[baseline_key] = existing_data if existing_data else {}
+    
+    baseline_data = st.session_state[baseline_key]
+    
+    # Status atual
+    is_completed = project_data.get('measure', {}).get('baseline', {}).get('completed', False)
+    if is_completed:
+        st.success("✅ Baseline e métricas CTQ finalizados")
+    else:
+        st.info("⏳ Baseline em desenvolvimento")
+    
+    # Seção 1: Métricas CTQ
+    st.markdown("### 🎯 Métricas Critical to Quality (CTQ)")
+    
+    # Inicializar lista de CTQs
+    if 'ctq_metrics' not in baseline_data or baseline_data['ctq_metrics'] is None:
+        baseline_data['ctq_metrics'] = []
+        st.session_state[baseline_key] = baseline_data
+    
+    # Adicionar nova métrica CTQ
+    with st.expander("➕ Adicionar Nova Métrica CTQ"):
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            ctq_name = st.text_input("Nome da Métrica CTQ", key=f"ctq_name_{project_id}")
+            ctq_unit = st.text_input("Unidade de Medida", key=f"ctq_unit_{project_id}")
+        
+        with col2:
+            ctq_target = st.number_input("Meta/Target", key=f"ctq_target_{project_id}")
+            ctq_baseline = st.number_input("Valor Baseline Atual", key=f"ctq_baseline_{project_id}")
+        
+        with col3:
+            ctq_frequency = st.selectbox("Frequência de Medição", 
+                                       ["Diária", "Semanal", "Mensal", "Por Lote", "Contínua"], 
+                                       key=f"ctq_frequency_{project_id}")
+            ctq_priority = st.selectbox("Prioridade", ["Alta", "Média", "Baixa"], key=f"ctq_priority_{project_id}")
+        
+        ctq_description = st.text_area("Descrição da Métrica", key=f"ctq_description_{project_id}")
+        
+        if st.button("➕ Adicionar CTQ", key=f"add_ctq_{project_id}"):
+            if ctq_name.strip():
+                new_ctq = {
+                    'id': len(baseline_data['ctq_metrics']) + 1,
+                    'name': ctq_name.strip(),
+                    'unit': ctq_unit,
+                    'target': ctq_target,
+                    'baseline': ctq_baseline,
+                    'frequency': ctq_frequency,
+                    'priority': ctq_priority,
+                    'description': ctq_description,
+                    'created_at': datetime.now().isoformat()
+                }
+                
+                baseline_data['ctq_metrics'].append(new_ctq)
+                st.session_state[baseline_key] = baseline_data
+                st.success(f"✅ Métrica '{ctq_name}' adicionada!")
+                st.rerun()
+    
+    # Mostrar CTQs cadastradas
+    if baseline_data['ctq_metrics'] and len(baseline_data['ctq_metrics']) > 0:
+        st.markdown("#### 📊 Métricas CTQ Cadastradas")
+        
+        for i, ctq in enumerate(baseline_data['ctq_metrics']):
+            with st.expander(f"**{ctq['name']}** - {ctq['priority']} Prioridade"):
+                col_a, col_b, col_c = st.columns([2, 2, 1])
+                
+                with col_a:
+                    st.write(f"**Unidade:** {ctq.get('unit', 'N/A')}")
+                    st.write(f"**Baseline Atual:** {ctq.get('baseline', 'N/A')}")
+                    st.write(f"**Meta:** {ctq.get('target', 'N/A')}")
+                
+                with col_b:
+                    st.write(f"**Frequência:** {ctq['frequency']}")
+                    st.write(f"**Descrição:** {ctq.get('description', 'N/A')}")
+                    
+                    # Calcular gap
+                    if ctq.get('target') and ctq.get('baseline'):
+                        gap = ctq['target'] - ctq['baseline']
+                        st.write(f"**Gap para Meta:** {gap:.2f}")
+                
+                with col_c:
+                    if st.button("🗑️ Remover", key=f"remove_ctq_{i}_{project_id}"):
+                        baseline_data['ctq_metrics'].pop(i)
+                        st.session_state[baseline_key] = baseline_data
+                        st.rerun()
+    
+    # Seção 2: Dados de Baseline
+    st.markdown("### 📊 Dados de Baseline")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        baseline_period = st.text_input(
+            "Período de Coleta do Baseline",
+            value=baseline_data.get('baseline_period', ''),
+            placeholder="Ex: Janeiro 2024 - Março 2024",
+            key=f"baseline_period_{project_id}"
+        )
+        
+        sample_size = st.number_input(
+            "Tamanho da Amostra",
+            value=baseline_data.get('sample_size', 30),
+            min_value=1,
+            key=f"baseline_sample_size_{project_id}"
+        )
+    
+    with col2:
+        data_source = st.text_input(
+            "Fonte dos Dados",
+            value=baseline_data.get('data_source', ''),
+            placeholder="Ex: Sistema ERP, Planilhas de controle...",
+            key=f"baseline_data_source_{project_id}"
+        )
+        
+        collection_method = st.selectbox(
+            "Método de Coleta",
+            ["Automático", "Manual", "Semi-automático", "Histórico"],
+            index=["Automático", "Manual", "Semi-automático", "Histórico"].index(baseline_data.get('collection_method', 'Manual')),
+            key=f"baseline_collection_method_{project_id}"
+        )
+    
+    # Seção 3: Resumo das Métricas
+    if baseline_data['ctq_metrics']:
+        st.markdown("### 📈 Resumo das Métricas CTQ")
+        
+        # Criar DataFrame para visualização
+        metrics_summary = []
+        for ctq in baseline_data['ctq_metrics']:
+            metrics_summary.append({
+                'Métrica': ctq['name'],
+                'Baseline': ctq.get('baseline', 0),
+                'Meta': ctq.get('target', 0),
+                'Unidade': ctq.get('unit', ''),
+                'Prioridade': ctq['priority'],
+                'Gap': ctq.get('target', 0) - ctq.get('baseline', 0) if ctq.get('target') and ctq.get('baseline') else 0
+            })
+        
+        if metrics_summary:
+            df_metrics = pd.DataFrame(metrics_summary)
+            st.dataframe(df_metrics, use_container_width=True)
+            
+            # Gráfico de baseline vs meta
+            try:
+                fig = go.Figure()
+                
+                fig.add_trace(go.Bar(
+                    name='Baseline',
+                    x=df_metrics['Métrica'],
+                    y=df_metrics['Baseline'],
+                    marker_color='lightblue'
+                ))
+                
+                fig.add_trace(go.Bar(
+                    name='Meta',
+                    x=df_metrics['Métrica'],
+                    y=df_metrics['Meta'],
+                    marker_color='green'
+                ))
+                
+                fig.update_layout(
+                    title="Baseline vs Meta - Métricas CTQ",
+                    xaxis_title="Métricas",
+                    yaxis_title="Valores",
+                    barmode='group',
+                    height=400
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+            except Exception as e:
+                st.warning(f"⚠️ Erro ao criar gráfico: {str(e)}")
+    
+    # Observações e notas
+    st.markdown("### 📝 Observações e Notas")
+    
+    observations = st.text_area(
+        "Observações sobre o Baseline",
+        value=baseline_data.get('observations', ''),
+        placeholder="Registre observações importantes sobre os dados coletados, limitações, contexto, etc.",
+        height=100,
+        key=f"baseline_observations_{project_id}"
+    )
+    
+    # Botões de ação
+    st.divider()
+    
+    col_save1, col_save2 = st.columns([1, 1])
+    
+    with col_save1:
+        save_baseline = st.button("💾 Salvar Baseline", use_container_width=True, key=f"save_baseline_{project_id}")
+    
+    with col_save2:
+        finalize_baseline = st.button("✅ Finalizar Baseline", use_container_width=True, type="primary", key=f"finalize_baseline_{project_id}")
+    
+    # Processar ações
+    if save_baseline or finalize_baseline:
+        # Coletar dados atuais
+        current_data = {
+            'ctq_metrics': baseline_data.get('ctq_metrics', []),
+            'baseline_period': st.session_state.get(f"baseline_period_{project_id}", ''),
+            'sample_size': st.session_state.get(f"baseline_sample_size_{project_id}", 30),
+            'data_source': st.session_state.get(f"baseline_data_source_{project_id}", ''),
+            'collection_method': st.session_state.get(f"baseline_collection_method_{project_id}", 'Manual'),
+            'observations': st.session_state.get(f"baseline_observations_{project_id}", ''),
+            'last_saved': datetime.now().isoformat()
+        }
+        
+        # Validação para finalizar
+        if finalize_baseline:
+            if not current_data['ctq_metrics'] or len(current_data['ctq_metrics']) == 0:
+                st.error("❌ Adicione pelo menos uma métrica CTQ para finalizar")
+                st.stop()
+            
+            if not current_data['baseline_period'].strip():
+                st.error("❌ Informe o período de coleta do baseline")
+                st.stop()
+        
+        # Salvar
+        st.session_state[baseline_key] = current_data
+        
+        # Salvar no Firebase
+        update_data = {
+            f'measure.baseline.data': current_data,
+            f'measure.baseline.completed': finalize_baseline,
+            f'measure.baseline.updated_at': datetime.now().isoformat(),
+            'updated_at': datetime.now().isoformat()
+        }
+        
+        with st.spinner("💾 Salvando..."):
+            try:
+                success = project_manager.update_project(project_id, update_data)
+                
+                if success:
+                    # Atualizar session_state do projeto
+                    if 'current_project' in st.session_state:
+                        if 'measure' not in st.session_state.current_project:
+                            st.session_state.current_project['measure'] = {}
+                        if 'baseline' not in st.session_state.current_project['measure']:
+                            st.session_state.current_project['measure']['baseline'] = {}
+                        
+                        st.session_state.current_project['measure']['baseline']['data'] = current_data
+                        st.session_state.current_project['measure']['baseline']['completed'] = finalize_baseline
+                    
+                    if finalize_baseline:
+                        st.success("✅ Baseline e métricas CTQ finalizados!")
+                        st.balloons()
+                        
+                        # Mostrar resumo
+                        st.markdown("### 📊 Resumo Final")
+                        col_sum1, col_sum2, col_sum3 = st.columns(3)
+                        
+                        with col_sum1:
+                            st.metric("Métricas CTQ", len(current_data['ctq_metrics']))
+                        
+                        with col_sum2:
+                            high_priority = sum(1 for ctq in current_data['ctq_metrics'] if ctq.get('priority') == 'Alta')
+                            st.metric("Alta Prioridade", high_priority)
+                        
+                        with col_sum3:
+                            st.metric("Tamanho da Amostra", current_data['sample_size'])
+                        
+                    else:
+                        st.success("💾 Baseline salvo com sucesso!")
+                
+                else:
+                    st.error("❌ Erro ao salvar no Firebase")
+                    
+            except Exception as e:
+                st.error(f"❌ Erro ao salvar: {str(e)}")
