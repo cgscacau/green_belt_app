@@ -1,6 +1,8 @@
 import streamlit as st
 import time
 from datetime import datetime
+from src.pages.define_tools import show_define_tools
+
 
 def show_dmaic_phase():
     """Página das fases DMAIC - Com navegação corrigida"""
@@ -161,7 +163,8 @@ def show_phase_content(phase, project):
         st.error(f"Fase '{phase}' não reconhecida")
 
 def show_define_phase(project):
-    """Conteúdo da fase Define"""
+    """Conteúdo da fase Define com ferramentas funcionais"""
+    show_define_tools(project)
     
     st.markdown("### 🎯 Fase Define (Definir)")
     
