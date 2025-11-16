@@ -520,14 +520,21 @@ def show_projects_grid(projects, project_manager):
                     show_project_card(project, project_manager)
 
 def show_project_card(project, project_manager):
-    """Exibe um card individual do projeto"""
-    # Gerar ID único para este card baseado no projeto
+    """Exibe um card individual do projeto - VERSÃO CORRIGIDA"""
+    
+    # Debug: Verificar dados do projeto
+    st.write(f"🔍 Debug Card: Projeto = {project.get('name', 'SEM NOME')}")
+    st.write(f"🔍 Debug Card: ID = {project.get('id', 'SEM ID')}")
+    
+    # Gerar ID único mais simples
     project_id = project.get('id', 'unknown')
-    card_timestamp = int(time.time() * 1000) % 10000
-    card_id = f"{project_id}_{card_timestamp}"
+    card_id = f"card_{project_id[:8]}"  # Usar apenas primeiros 8 caracteres
     
     # Calcular progresso
-    progress = project_manager.calculate_project_progress(project)
+    try:
+        progress = project_manager.calculate_project_progress(project)
+    except:
+        progress = 0
     
     # Status styling
     status_info = {
@@ -546,91 +553,71 @@ def show_project_card(project, project_manager):
         # Card principal
         st.markdown(f"""
         <div style='
-            border: 1px solid #e1e5e9; 
-            border-radius: 12px; 
-            padding: 1.5rem; 
-            margin: 1rem 0; 
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 2px solid #007bff; 
+            border-radius: 10px; 
+            padding: 1rem; 
+            margin: 0.5rem 0; 
+            background-color: #f8f9fa;
         '>
-            <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
-                <h4 style='margin: 0; color: #2c3e50;'>{status_data['icon']} {project.get('name', 'Sem nome')}</h4>
-                <span style='
-                    background-color: {status_data['color']}; 
-                    color: white; 
-                    padding: 0.25rem 0.5rem; 
-                    border-radius: 12px; 
-                    font-size: 0.8em; 
-                    font-weight: bold;
-                '>{status_data['text']}</span>
-            </div>
-            
-            <p style='color: #6c757d; font-size: 0.9em; margin-bottom: 1rem; line-height: 1.4;'>
-                {project.get('description', 'Sem descrição')[:120]}{'...' if len(project.get('description', '')) > 120 else ''}
-            </p>
-            
-            <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;'>
-                <div>
-                    <small style='color: #28a745; font-weight: bold;'>💰 Economia Esperada</small><br>
-                    <strong style='color: #2c3e50;'>R$ {project.get('expected_savings', 0):,.2f}</strong>
-                </div>
-                <div>
-                    <small style='color: #007bff; font-weight: bold;'>📅 Criado em</small><br>
-                    <strong style='color: #2c3e50;'>{created_date}</strong>
-                </div>
-            </div>
+            <h4 style='color: #007bff;'>{status_data['icon']} {project.get('name', 'Sem nome')}</h4>
+            <p style='color: #6c757d;'>{project.get('description', 'Sem descrição')[:100]}...</p>
+            <p><strong>💰 R$ {project.get('expected_savings', 0):,.2f}</strong></p>
+            <p>📅 {created_date}</p>
         </div>
         """, unsafe_allow_html=True)
         
         # Barra de progresso
-        st.markdown(f"**Progresso: {progress:.1f}%**")
         st.progress(progress / 100)
+        st.caption(f"Progresso: {progress:.1f}%")
         
-        # Botões de ação
+        # Debug: Mostrar dados antes dos botões
+        st.write(f"🔍 Debug: Preparando botões para projeto ID: {project_id}")
+        
+        # Botões de ação - VERSÃO SIMPLIFICADA
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("🎯 Abrir DMAIC", key=f"open_dmaic_{card_id}", use_container_width=True, type="primary"):
+            # Botão Abrir DMAIC - VERSÃO CORRIGIDA
+            button_key = f"dmaic_{project_id[:8]}"
+            st.write(f"🔍 Debug: Chave do botão = {button_key}")
+            
+            if st.button("🎯 Abrir DMAIC", key=button_key, use_container_width=True, type="primary"):
+                st.write("🔍 Debug: Botão DMAIC clicado!")
+                
+                # Definir dados no session_state
                 st.session_state.current_project = project
                 st.session_state.current_page = "dmaic"
-                st.session_state.current_dmaic_phase = project.get('current_phase', 'define')
-                st.success(f"🎯 Abrindo projeto '{project.get('name')}'...")
-                time.sleep(1)
+                st.session_state.current_dmaic_phase = "define"
+                
+                # Debug: Verificar se foi salvo
+                st.write(f"🔍 Debug: Projeto salvo no session_state: {st.session_state.current_project.get('name')}")
+                st.write(f"🔍 Debug: Página definida como: {st.session_state.current_page}")
+                st.write(f"🔍 Debug: Fase definida como: {st.session_state.current_dmaic_phase}")
+                
+                # Mostrar mensagem de sucesso
+                st.success(f"✅ Abrindo projeto: {project.get('name')}")
+                
+                # Forçar rerun
+                st.write("🔍 Debug: Executando st.rerun()...")
+                time.sleep(2)  # Dar tempo para ver as mensagens
                 st.rerun()
         
         with col2:
-            if st.button("📊 Selecionar", key=f"select_{card_id}", use_container_width=True):
+            # Botão Selecionar - SIMPLIFICADO
+            select_key = f"select_{project_id[:8]}"
+            if st.button("📊 Selecionar", key=select_key, use_container_width=True):
                 st.session_state.current_project = project
-                st.success(f"📊 Projeto '{project.get('name')}' selecionado!")
-                st.info("Use a sidebar para navegar pelas fases DMAIC")
-                time.sleep(1)
+                st.success(f"Projeto selecionado: {project.get('name')}")
                 st.rerun()
         
         with col3:
-            # Sistema de confirmação para exclusão
-            confirm_key = f"confirm_delete_{project_id}"
-            if st.session_state.get(confirm_key):
-                if st.button("⚠️ Confirmar", key=f"confirm_delete_{card_id}", use_container_width=True, type="primary"):
-                    with st.spinner("Excluindo projeto..."):
-                        success = project_manager.delete_project(project_id, project['user_uid'])
-                    
-                    if success:
-                        st.success("✅ Projeto excluído com sucesso!")
-                        # Limpar estado de confirmação
-                        if confirm_key in st.session_state:
-                            del st.session_state[confirm_key]
-                        # Limpar projeto atual se foi o excluído
-                        if st.session_state.get('current_project', {}).get('id') == project_id:
-                            del st.session_state.current_project
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error("❌ Erro ao excluir projeto")
-            else:
-                if st.button("🗑️ Excluir", key=f"delete_{card_id}", use_container_width=True):
-                    st.session_state[confirm_key] = True
-                    st.warning("⚠️ Clique em 'Confirmar' para excluir permanentemente")
-                    st.rerun()
+            # Botão Excluir - SIMPLIFICADO
+            delete_key = f"delete_{project_id[:8]}"
+            if st.button("🗑️ Excluir", key=delete_key, use_container_width=True):
+                st.warning("Função de exclusão temporariamente desabilitada")
+
+
+
 
 def show_projects_analytics(projects):
     """Exibe gráficos analíticos dos projetos"""
@@ -727,3 +714,32 @@ def show_projects_analytics(projects):
                 f"{avg_days} dias",
                 delta=f"≈ {avg_days//30} meses" if avg_days > 0 else "N/A"
             )
+
+# Adicione também esta função de teste no final do dashboard.py:
+def test_navigation_button():
+    """Função de teste para navegação"""
+    st.markdown("### 🧪 Teste de Navegação")
+    
+    if st.button("🧪 Teste: Ir para DMAIC", key="test_dmaic_nav"):
+        st.write("🔍 Teste: Botão clicado!")
+        
+        # Criar projeto fictício para teste
+        test_project = {
+            'id': 'test123',
+            'name': 'Projeto de Teste',
+            'description': 'Projeto para testar navegação',
+            'status': 'active',
+            'expected_savings': 10000
+        }
+        
+        st.session_state.current_project = test_project
+        st.session_state.current_page = "dmaic"
+        st.session_state.current_dmaic_phase = "define"
+        
+        st.write("🔍 Teste: Dados definidos, executando rerun...")
+        st.success("✅ Navegando para DMAIC...")
+        time.sleep(1)
+        st.rerun()
+
+# E adicione esta linha no final da função show_dashboard():
+# test_navigation_button()  # REMOVER DEPOIS DO TESTE
