@@ -1,29 +1,39 @@
 import streamlit as st
 import time
+from datetime import datetime
 
 def show_dmaic_phase():
-    """Página das fases DMAIC"""
+    """Página das fases DMAIC - Versão Corrigida"""
+    
+    # Debug: Verificar se chegou aqui
+    st.write("🔍 Debug: Função show_dmaic_phase() foi chamada")
     
     current_phase = st.session_state.get('current_dmaic_phase', 'define')
     current_project = st.session_state.get('current_project')
     
-    # Gerar timestamp único para chaves
-    timestamp = int(time.time() * 1000) % 10000
+    st.write(f"🔍 Debug: Fase atual = {current_phase}")
+    st.write(f"🔍 Debug: Projeto carregado = {bool(current_project)}")
     
     if not current_project:
         st.error("❌ Nenhum projeto selecionado!")
+        st.write("🔍 Debug: Projeto não encontrado no session_state")
         
         col1, col2 = st.columns([1, 1])
         with col1:
-            if st.button("🏠 Voltar ao Dashboard", key=f"back_dashboard_{timestamp}", use_container_width=True, type="primary"):
+            if st.button("🏠 Voltar ao Dashboard", key="back_dashboard_error", use_container_width=True, type="primary"):
                 st.session_state.current_page = 'dashboard'
+                st.write("🔍 Debug: Navegando para dashboard...")
                 st.rerun()
         
         with col2:
-            if st.button("📊 Ver Projetos", key=f"view_projects_{timestamp}", use_container_width=True):
+            if st.button("📊 Ver Projetos", key="view_projects_error", use_container_width=True):
                 st.session_state.current_page = 'dashboard'
+                st.write("🔍 Debug: Navegando para dashboard...")
                 st.rerun()
         return
+    
+    # Se chegou aqui, temos um projeto
+    st.write(f"🔍 Debug: Projeto encontrado: {current_project.get('name')}")
     
     # Header da fase
     phase_icons = {
@@ -48,10 +58,23 @@ def show_dmaic_phase():
     st.title(f"{icon} {name}")
     st.caption(f"Projeto: **{current_project.get('name', 'Sem nome')}**")
     
+    # Informações do projeto
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Economia Esperada", f"R$ {current_project.get('expected_savings', 0):,.2f}")
+    
+    with col2:
+        created_date = current_project.get('created_at', '')[:10] if current_project.get('created_at') else 'N/A'
+        st.metric("Criado em", created_date)
+    
+    with col3:
+        st.metric("Status", current_project.get('status', 'active').title())
+    
     st.divider()
     
     # Navegação entre fases
-    st.markdown("### 🔄 Navegação Rápida entre Fases")
+    st.markdown("### 🔄 Navegação entre Fases DMAIC")
     
     phase_buttons = st.columns(5)
     phases = ['define', 'measure', 'analyze', 'improve', 'control']
@@ -63,137 +86,135 @@ def show_dmaic_phase():
             
             if st.button(
                 f"{phase_icons[phase]} {phase.title()}", 
-                key=f"quick_nav_{phase}_{timestamp}",
+                key=f"quick_nav_{phase}_{int(time.time())}",
                 use_container_width=True,
                 type=button_type,
                 disabled=is_current
             ):
                 st.session_state.current_dmaic_phase = phase
+                st.write(f"🔍 Debug: Mudando para fase {phase}")
                 st.rerun()
     
     st.divider()
     
-    # Conteúdo da fase atual
-    st.info(f"🚧 Fase {current_phase.upper()} - será implementada nas próximas etapas")
+    # Conteúdo específico da fase atual
+    show_phase_content(current_phase, current_project)
+
+def show_phase_content(phase, project):
+    """Mostra conteúdo específico de cada fase"""
     
-    # Descrições das fases
-    phase_descriptions = {
-        'define': """
-        ### 🎯 Fase Define (Definir)
-        
-        **Objetivo:** Definir claramente o problema, objetivos e escopo do projeto.
-        
-        **Ferramentas principais:**
-        - Project Charter
-        - Mapeamento de Stakeholders  
-        - Voice of Customer (VOC)
-        - Diagrama SIPOC
-        - Timeline do projeto
-        
-        **Entregáveis:**
-        - Charter do projeto aprovado
-        - Definição clara do problema
-        - Objetivos SMART definidos
-        - Equipe do projeto formada
-        """,
-        
-        'measure': """
-        ### 📏 Fase Measure (Medir)
-        
-        **Objetivo:** Medir o desempenho atual do processo e estabelecer baseline.
-        
-        **Ferramentas principais:**
-        - Plano de coleta de dados
-        - Análise de sistemas de medição (MSA)
-        - Estudos de capacidade
-        - Métricas CTQ (Critical to Quality)
-        
-        **Entregáveis:**
-        - Baseline do processo atual
-        - Dados coletados e validados
-        - Capacidade do processo medida
-        - Sistema de medição validado
-        """,
-        
-        'analyze': """
-        ### 🔍 Fase Analyze (Analisar)
-        
-        **Objetivo:** Analisar dados para identificar causas raiz dos problemas.
-        
-        **Ferramentas principais:**
-        - Diagrama de Ishikawa
-        - 5 Porquês
-        - Análise de Pareto
-        - Testes de hipóteses
-        - Análises estatísticas
-        
-        **Entregáveis:**
-        - Causas raiz identificadas
-        - Hipóteses testadas estatisticamente
-        - Oportunidades de melhoria priorizadas
-        """,
-        
-        'improve': """
-        ### ⚡ Fase Improve (Melhorar)
-        
-        **Objetivo:** Desenvolver e implementar soluções para as causas raiz.
-        
-        **Ferramentas principais:**
-        - Brainstorming de soluções
-        - Matriz de priorização
-        - Plano de ação
-        - Testes piloto
-        - Análise de risco
-        
-        **Entregáveis:**
-        - Soluções implementadas
-        - Resultados do piloto validados
-        - Plano de implementação completo
-        """,
-        
-        'control': """
-        ### 🎛️ Fase Control (Controlar)
-        
-        **Objetivo:** Controlar e sustentar as melhorias implementadas.
-        
-        **Ferramentas principais:**
-        - Cartas de controle
-        - Plano de controle
-        - Procedimentos padronizados
-        - Sistema de monitoramento
-        
-        **Entregáveis:**
-        - Sistema de controle implementado
-        - Documentação atualizada
-        - Processo transferido para operação
-        - Benefícios sustentados
-        """
-    }
+    if phase == 'define':
+        show_define_phase(project)
+    elif phase == 'measure':
+        show_measure_phase(project)
+    elif phase == 'analyze':
+        show_analyze_phase(project)
+    elif phase == 'improve':
+        show_improve_phase(project)
+    elif phase == 'control':
+        show_control_phase(project)
+    else:
+        st.error(f"Fase '{phase}' não reconhecida")
+
+def show_define_phase(project):
+    """Conteúdo da fase Define"""
     
-    # Mostrar descrição da fase atual
-    if current_phase in phase_descriptions:
-        st.markdown(phase_descriptions[current_phase])
+    st.markdown("### 🎯 Fase Define (Definir)")
     
-    # Progresso da fase
-    st.markdown("### 📊 Progresso desta Fase")
+    st.markdown("""
+    **Objetivo:** Definir claramente o problema, objetivos e escopo do projeto.
     
-    # Simular progresso (será implementado com dados reais)
-    import random
-    random.seed(hash(current_project.get('id', '')) + hash(current_phase))  # Progresso consistente
-    progress = random.randint(0, 100)
+    **Nesta fase você deve:**
+    - ✅ Criar o Project Charter
+    - ✅ Identificar stakeholders
+    - ✅ Capturar Voice of Customer (VOC)
+    - ✅ Desenvolver diagrama SIPOC
+    - ✅ Definir timeline detalhado
+    """)
+    
+    # Ferramentas da fase Define
+    st.markdown("### 🔧 Ferramentas Disponíveis")
+    
+    tool_col1, tool_col2, tool_col3 = st.columns(3)
+    
+    with tool_col1:
+        if st.button("📋 Project Charter", use_container_width=True, key="charter_tool"):
+            st.session_state.current_tool = 'charter'
+            st.info("🚧 Ferramenta Project Charter será implementada na próxima atualização")
+    
+    with tool_col2:
+        if st.button("👥 Stakeholders", use_container_width=True, key="stakeholders_tool"):
+            st.session_state.current_tool = 'stakeholders'
+            st.info("🚧 Ferramenta Stakeholders será implementada na próxima atualização")
+    
+    with tool_col3:
+        if st.button("🗣️ Voice of Customer", use_container_width=True, key="voc_tool"):
+            st.session_state.current_tool = 'voc'
+            st.info("🚧 Ferramenta VOC será implementada na próxima atualização")
+    
+    # Progresso da fase Define
+    st.markdown("### 📊 Progresso da Fase Define")
+    
+    # Simular progresso baseado nos dados do projeto
+    define_data = project.get('define', {})
+    total_tools = 5  # Charter, Stakeholders, VOC, SIPOC, Timeline
+    completed_tools = sum(1 for tool_data in define_data.values() if isinstance(tool_data, dict) and tool_data.get('completed', False))
+    
+    progress = (completed_tools / total_tools) * 100
+    
     st.progress(progress / 100)
-    st.caption(f"Progresso: {progress}% concluído")
+    st.caption(f"Progresso: {progress:.1f}% ({completed_tools}/{total_tools} ferramentas concluídas)")
+    
+    # Lista de ferramentas e status
+    st.markdown("### ✅ Status das Ferramentas")
+    
+    tools_status = [
+        ("📋 Project Charter", define_data.get('charter', {}).get('completed', False)),
+        ("👥 Stakeholders", define_data.get('stakeholders', {}).get('completed', False)),
+        ("🗣️ Voice of Customer", define_data.get('voc', {}).get('completed', False)),
+        ("📊 SIPOC", define_data.get('sipoc', {}).get('completed', False)),
+        ("📅 Timeline", define_data.get('timeline', {}).get('completed', False))
+    ]
+    
+    for tool_name, completed in tools_status:
+        status_icon = "✅" if completed else "⏳"
+        status_text = "Concluído" if completed else "Pendente"
+        st.markdown(f"{status_icon} **{tool_name}** - {status_text}")
     
     # Próximos passos
-    with st.expander("🚀 Próximos Passos"):
-        st.markdown(f"""
-        **Para a fase {current_phase.upper()}:**
+    if progress < 100:
+        st.markdown("### 🚀 Próximos Passos")
+        st.info("""
+        **Para avançar na fase Define:**
         
-        1. ✅ Completar ferramentas obrigatórias
-        2. 📊 Revisar análises realizadas  
-        3. 📋 Documentar resultados
-        4. ✔️ Validar com stakeholders
-        5. ➡️ Avançar para próxima fase
+        1. 📋 Complete o Project Charter com objetivos claros
+        2. 👥 Identifique todos os stakeholders relevantes
+        3. 🗣️ Capture a Voice of Customer (VOC)
+        4. 📊 Desenvolva o diagrama SIPOC
+        5. 📅 Defina o timeline detalhado do projeto
         
-        **Tempo estimado:** 2-4 semanas
+        **Tempo estimado:** 2-3 semanas
         """)
+    else:
+        st.success("🎉 Parabéns! Fase Define concluída!")
+        st.info("Você pode avançar para a fase **Measure** usando os botões acima.")
+
+def show_measure_phase(project):
+    """Conteúdo da fase Measure"""
+    st.markdown("### 📏 Fase Measure (Medir)")
+    st.info("🚧 Conteúdo da fase Measure será implementado na próxima etapa")
+
+def show_analyze_phase(project):
+    """Conteúdo da fase Analyze"""
+    st.markdown("### 🔍 Fase Analyze (Analisar)")
+    st.info("🚧 Conteúdo da fase Analyze será implementado em etapas futuras")
+
+def show_improve_phase(project):
+    """Conteúdo da fase Improve"""
+    st.markdown("### ⚡ Fase Improve (Melhorar)")
+    st.info("🚧 Conteúdo da fase Improve será implementado em etapas futuras")
+
+def show_control_phase(project):
+    """Conteúdo da fase Control"""
+    st.markdown("### 🎛️ Fase Control (Controlar)")
+    st.info("🚧 Conteúdo da fase Control será implementado em etapas futuras")
