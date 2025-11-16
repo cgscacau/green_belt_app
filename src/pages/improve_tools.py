@@ -16,10 +16,16 @@ try:
     from src.utils.project_manager import ProjectManager
 except ImportError:
     try:
-        from src.core.project_manager import ProjectManager
+        from utils.project_manager import ProjectManager
     except ImportError:
-        st.error("❌ Não foi possível importar ProjectManager")
-        st.stop()
+        try:
+            import sys
+            import os
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+            from src.utils.project_manager import ProjectManager
+        except ImportError:
+            st.error("❌ Não foi possível importar ProjectManager. Verifique se o arquivo existe em src/utils/project_manager.py")
+            st.stop()
 
 
 class ImprovePhaseManager:
@@ -4172,54 +4178,54 @@ def show_improve_phase():
     
     project_data = st.session_state.current_project
     
-    # Inicializar gerenciador da fase
-    improve_manager = ImprovePhaseManager(project_data)
-    
-    # Menu de ferramentas
-    st.markdown("## 🛠️ Ferramentas da Fase Improve")
-    
-    tools = [
-        ("💡 Desenvolvimento de Soluções", "solution_development", SolutionDevelopmentTool),
-        ("📋 Plano de Ação", "action_plan", ActionPlanTool),
-        ("🧪 Implementação Piloto", "pilot_implementation", PilotImplementationTool),
-        ("🚀 Implementação em Larga Escala", "full_implementation", FullScaleImplementationTool)
-    ]
-    
-    # Mostrar status das ferramentas
-    col1, col2, col3, col4 = st.columns(4)
-    
-    for i, (tool_name, tool_key, tool_class) in enumerate(tools):
-        col = [col1, col2, col3, col4][i]
-        with col:
-            is_completed = improve_manager.is_tool_completed(tool_key)
-            if is_completed:
-                st.success(f"✅ {tool_name.split(' ', 1)[1]}")
-            else:
-                st.info(f"⏳ {tool_name.split(' ', 1)[1]}")
-    
-    # Seleção de ferramenta
-    selected_tool = st.selectbox(
-        "Selecione uma ferramenta:",
-        tools,
-        format_func=lambda x: x[0]
-    )
-    
-    if selected_tool:
-        tool_name, tool_key, tool_class = selected_tool
+    try:
+        # Inicializar gerenciador da fase
+        improve_manager = ImprovePhaseManager(project_data)
         
-        st.divider()
+        # Menu de ferramentas
+        st.markdown("## 🛠️ Ferramentas da Fase Improve")
         
-        # Instanciar e mostrar ferramenta
-        tool_instance = tool_class(improve_manager)
-        tool_instance.show()
+        tools = [
+            ("💡 Desenvolvimento de Soluções", "solution_development", SolutionDevelopmentTool),
+            ("📋 Plano de Ação", "action_plan", ActionPlanTool),
+            ("🧪 Implementação Piloto", "pilot_implementation", PilotImplementationTool),
+            ("🚀 Implementação em Larga Escala", "full_implementation", FullScaleImplementationTool)
+        ]
+        
+        # Mostrar status das ferramentas
+        col1, col2, col3, col4 = st.columns(4)
+        
+        for i, (tool_name, tool_key, tool_class) in enumerate(tools):
+            col = [col1, col2, col3, col4][i]
+            with col:
+                is_completed = improve_manager.is_tool_completed(tool_key)
+                if is_completed:
+                    st.success(f"✅ {tool_name.split(' ', 1)[1]}")
+                else:
+                    st.info(f"⏳ {tool_name.split(' ', 1)[1]}")
+        
+        # Seleção de ferramenta
+        selected_tool = st.selectbox(
+            "Selecione uma ferramenta:",
+            tools,
+            format_func=lambda x: x[0]
+        )
+        
+        if selected_tool:
+            tool_name, tool_key, tool_class = selected_tool
+            
+            st.divider()
+            
+            # Instanciar e mostrar ferramenta
+            tool_instance = tool_class(improve_manager)
+            tool_instance.show()
+    
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar a fase Improve: {str(e)}")
+        st.info("💡 Verifique se todos os módulos necessários estão instalados e se o ProjectManager está configurado corretamente")
 
 
+# Esta linha deve estar no final do arquivo
 if __name__ == "__main__":
     show_improve_phase()
-             
 
-
-
-
-
-              
