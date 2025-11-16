@@ -2620,4 +2620,2117 @@ def show_analyze_tools(project_data: Dict):
         statistical_analysis = StatisticalAnalysis(manager)
         statistical_analysis.show()
     
-    elif selected_tool == "root_cause
+    elif selected_tool == "root_cause_analysis":
+        root_cause_analysis = RootCauseAnalysis(manager)
+        root_cause_analysis.show()
+    
+    elif selected_tool == "hypothesis_testing":
+        hypothesis_testing = HypothesisTestingTool(manager)
+        hypothesis_testing.show()
+    
+    elif selected_tool == "process_analysis":
+        process_analysis = ProcessAnalysisTool(manager)
+        process_analysis.show()
+    
+    # Progresso geral da fase Analyze
+    st.divider()
+    _show_analyze_progress(manager, tool_options, analyze_data)
+
+
+class HypothesisTestingTool:
+    """Classe para teste de hipóteses com interface melhorada"""
+    
+    def __init__(self, manager: AnalyzePhaseManager):
+        self.manager = manager
+        self.project_id = manager.project_id
+        self.data = manager.initialize_session_data('hypothesis_testing', {
+            'hypotheses': [],
+            'tests_performed': []
+        })
+    
+    def show(self):
+        """Interface principal do teste de hipóteses"""
+        st.markdown("## 🧪 Teste de Hipóteses")
+        st.markdown("Valide estatisticamente as hipóteses sobre as causas identificadas na análise de causa raiz.")
+        
+        # Verificar dados disponíveis
+        df = self.manager.get_uploaded_data()
+        if df is None:
+            self._show_no_data_warning()
+            return
+        
+        # Status da ferramenta
+        self._show_status()
+        
+        # Interface principal
+        tab1, tab2, tab3 = st.tabs([
+            "📝 Formulação de Hipóteses",
+            "🧪 Execução de Testes",
+            "📊 Resultados e Conclusões"
+        ])
+        
+        with tab1:
+            self._show_hypothesis_formulation()
+        
+        with tab2:
+            self._show_hypothesis_testing(df)
+        
+        with tab3:
+            self._show_results_summary()
+        
+        # Botões de ação
+        self._show_action_buttons()
+    
+    def _show_no_data_warning(self):
+        """Aviso quando não há dados"""
+        st.warning("⚠️ **Dados não encontrados**")
+        st.info("Carregue os dados na fase **Measure** para realizar testes de hipóteses.")
+        
+        if st.button("📊 Ir para Measure", key=f"goto_measure_hyp_{self.project_id}"):
+            st.session_state['navigate_to'] = 'measure'
+            st.rerun()
+    
+    def _show_status(self):
+        """Status da ferramenta"""
+        if self.manager.is_tool_completed('hypothesis_testing'):
+            st.success("✅ **Teste de hipóteses concluído**")
+        else:
+            st.info("⏳ **Teste em desenvolvimento**")
+    
+    def _show_hypothesis_formulation(self):
+        """Formulação de hipóteses"""
+        st.markdown("### 📝 Formulação de Hipóteses")
+        st.markdown("Defina hipóteses claras baseadas nas causas identificadas na análise de causa raiz.")
+        
+        # Adicionar nova hipótese
+        with st.expander("➕ Adicionar Nova Hipótese"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                h0 = st.text_area(
+                    "Hipótese Nula (H₀):",
+                    placeholder="Ex: A média do processo é igual a 50",
+                    height=80,
+                    key=f"new_h0_{self.project_id}"
+                )
+            
+            with col2:
+                h1 = st.text_area(
+                    "Hipótese Alternativa (H₁):",
+                    placeholder="Ex: A média do processo é diferente de 50",
+                    height=80,
+                    key=f"new_h1_{self.project_id}"
+                )
+            
+            col3, col4, col5 = st.columns(3)
+            
+            with col3:
+                alpha = st.selectbox(
+                    "Nível de Significância (α):",
+                    [0.01, 0.05, 0.10],
+                    index=1,
+                    key=f"new_alpha_{self.project_id}"
+                )
+            
+            with col4:
+                test_type = st.selectbox(
+                    "Tipo de Teste:",
+                    ["Teste t (1 amostra)", "Teste t (2 amostras)", "ANOVA", "Qui-quadrado", "Mann-Whitney"],
+                    key=f"new_test_type_{self.project_id}"
+                )
+            
+            with col5:
+                st.markdown("<br><br>", unsafe_allow_html=True)
+                if st.button("➕ Adicionar Hipótese", key=f"add_hypothesis_{self.project_id}"):
+                    if h0.strip() and h1.strip():
+                        self.data['hypotheses'].append({
+                            'id': len(self.data['hypotheses']) + 1,
+                            'h0': h0.strip(),
+                            'h1': h1.strip(),
+                            'alpha': alpha,
+                            'test_type': test_type,
+                            'status': 'Não testada',
+                            'created_at': datetime.now().isoformat()
+                        })
+                        st.rerun()
+        
+        # Mostrar hipóteses existentes
+        if self.data['hypotheses']:
+            st.markdown("#### 📋 Hipóteses Definidas")
+            
+            for i, hypothesis in enumerate(self.data['hypotheses']):
+                with st.expander(f"**Hipótese {hypothesis['id']}** - {hypothesis['status']}"):
+                    self._show_hypothesis_item(i, hypothesis)
+    
+    def _show_hypothesis_item(self, index: int, hypothesis: Dict):
+        """Mostra item individual de hipótese"""
+        col1, col2, col3 = st.columns([2, 2, 1])
+        
+        with col1:
+            h0_edit = st.text_area(
+                "H₀:",
+                value=hypothesis['h0'],
+                height=60,
+                key=f"edit_h0_{index}_{self.project_id}"
+            )
+            
+            h1_edit = st.text_area(
+                "H₁:",
+                value=hypothesis['h1'],
+                height=60,
+                key=f"edit_h1_{index}_{self.project_id}"
+            )
+        
+        with col2:
+            alpha_edit = st.selectbox(
+                "α:",
+                [0.01, 0.05, 0.10],
+                index=[0.01, 0.05, 0.10].index(hypothesis['alpha']),
+                key=f"edit_alpha_{index}_{self.project_id}"
+            )
+            
+            test_type_edit = st.selectbox(
+                "Tipo de Teste:",
+                ["Teste t (1 amostra)", "Teste t (2 amostras)", "ANOVA", "Qui-quadrado", "Mann-Whitney"],
+                index=["Teste t (1 amostra)", "Teste t (2 amostras)", "ANOVA", "Qui-quadrado", "Mann-Whitney"].index(hypothesis['test_type']),
+                key=f"edit_test_type_{index}_{self.project_id}"
+            )
+            
+            # Status
+            status_color = {
+                'Não testada': 'info',
+                'Testada': 'success',
+                'Rejeitada': 'error',
+                'Não rejeitada': 'success'
+            }
+            
+            status = hypothesis.get('status', 'Não testada')
+            getattr(st, status_color.get(status, 'info'))(f"**Status:** {status}")
+        
+        with col3:
+            st.markdown("<br><br>", unsafe_allow_html=True)
+            if st.button("🗑️ Remover", key=f"remove_hypothesis_{index}_{self.project_id}"):
+                self.data['hypotheses'].pop(index)
+                st.rerun()
+        
+        # Atualizar dados
+        self.data['hypotheses'][index].update({
+            'h0': h0_edit,
+            'h1': h1_edit,
+            'alpha': alpha_edit,
+            'test_type': test_type_edit
+        })
+    
+    def _show_hypothesis_testing(self, df: pd.DataFrame):
+        """Interface para execução de testes"""
+        st.markdown("### 🧪 Execução de Testes")
+        
+        if not self.data['hypotheses']:
+            st.info("💡 Primeiro defina as hipóteses na aba anterior")
+            return
+        
+        # Seletor de hipótese para testar
+        hypothesis_options = [
+            f"Hipótese {h['id']}: {h['h0'][:50]}..." if len(h['h0']) > 50 else f"Hipótese {h['id']}: {h['h0']}"
+            for h in self.data['hypotheses']
+        ]
+        
+        selected_hyp_idx = st.selectbox(
+            "Selecione a hipótese para testar:",
+            range(len(hypothesis_options)),
+            format_func=lambda x: hypothesis_options[x],
+            key=f"select_hypothesis_{self.project_id}"
+        )
+        
+        selected_hypothesis = self.data['hypotheses'][selected_hyp_idx]
+        
+        # Mostrar detalhes da hipótese selecionada
+        st.markdown("#### 📋 Hipótese Selecionada")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.info(f"**H₀:** {selected_hypothesis['h0']}")
+        
+        with col2:
+            st.info(f"**H₁:** {selected_hypothesis['h1']}")
+        
+        # Interface específica baseada no tipo de teste
+        test_type = selected_hypothesis['test_type']
+        
+        if test_type == "Teste t (1 amostra)":
+            self._execute_one_sample_ttest(df, selected_hypothesis, selected_hyp_idx)
+        elif test_type == "Teste t (2 amostras)":
+            self._execute_two_sample_ttest(df, selected_hypothesis, selected_hyp_idx)
+        elif test_type == "ANOVA":
+            self._execute_anova_test(df, selected_hypothesis, selected_hyp_idx)
+        elif test_type == "Mann-Whitney":
+            self._execute_mannwhitney_test(df, selected_hypothesis, selected_hyp_idx)
+        else:
+            st.info(f"🚧 {test_type} será implementado em breve")
+    
+    def _execute_one_sample_ttest(self, df: pd.DataFrame, hypothesis: Dict, hyp_index: int):
+        """Executa teste t para uma amostra"""
+        st.markdown("#### 📊 Configuração do Teste t (1 amostra)")
+        
+        numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+        
+        if not numeric_columns:
+            st.error("❌ Nenhuma coluna numérica encontrada")
+            return
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            test_variable = st.selectbox(
+                "Variável a testar:",
+                numeric_columns,
+                key=f"t1_var_{hyp_index}_{self.project_id}"
+            )
+        
+        with col2:
+            mu0 = st.number_input(
+                "Valor de referência (μ₀):",
+                value=0.0,
+                key=f"t1_mu0_{hyp_index}_{self.project_id}"
+            )
+        
+        if st.button(f"🧪 Executar Teste", key=f"run_t1_{hyp_index}_{self.project_id}"):
+            data_test = df[test_variable].dropna()
+            
+            if len(data_test) == 0:
+                st.error("❌ Nenhum dado válido encontrado")
+                return
+            
+            try:
+                # Executar teste
+                t_stat, p_value = stats.ttest_1samp(data_test, mu0)
+                
+                # Salvar resultado
+                test_result = {
+                    'hypothesis_id': hypothesis['id'],
+                    'test_type': 'Teste t (1 amostra)',
+                    'variable': test_variable,
+                    'mu0': mu0,
+                    'sample_size': len(data_test),
+                    'sample_mean': data_test.mean(),
+                    'sample_std': data_test.std(),
+                    't_statistic': t_stat,
+                    'p_value': p_value,
+                    'alpha': hypothesis['alpha'],
+                    'conclusion': 'Rejeitar H₀' if p_value < hypothesis['alpha'] else 'Não rejeitar H₀',
+                    'executed_at': datetime.now().isoformat()
+                }
+                
+                self.data['tests_performed'].append(test_result)
+                
+                # Atualizar status da hipótese
+                self.data['hypotheses'][hyp_index]['status'] = 'Testada'
+                
+                # Mostrar resultados
+                self._show_test_results(test_result)
+                
+            except Exception as e:
+                st.error(f"❌ Erro na execução do teste: {str(e)}")
+    
+    def _execute_two_sample_ttest(self, df: pd.DataFrame, hypothesis: Dict, hyp_index: int):
+        """Executa teste t para duas amostras"""
+        st.markdown("#### 📊 Configuração do Teste t (2 amostras)")
+        
+        numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+        categorical_columns = df.select_dtypes(include=['object']).columns.tolist()
+        
+        if not numeric_columns:
+            st.error("❌ Nenhuma coluna numérica encontrada")
+            return
+        
+        # Escolher abordagem
+        approach = st.radio(
+            "Abordagem:",
+            ["Duas variáveis numéricas", "Uma variável por grupos"],
+            key=f"t2_approach_{hyp_index}_{self.project_id}"
+        )
+        
+        if approach == "Duas variáveis numéricas":
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                var1 = st.selectbox(
+                    "Variável 1:",
+                    numeric_columns,
+                    key=f"t2_var1_{hyp_index}_{self.project_id}"
+                )
+            
+            with col2:
+                var2_options = [col for col in numeric_columns if col != var1]
+                if var2_options:
+                    var2 = st.selectbox(
+                        "Variável 2:",
+                        var2_options,
+                        key=f"t2_var2_{hyp_index}_{self.project_id}"
+                    )
+                    
+                    if st.button(f"🧪 Executar Teste", key=f"run_t2_{hyp_index}_{self.project_id}"):
+                        self._run_two_var_ttest(df, var1, var2, hypothesis, hyp_index)
+        
+        else:  # Por grupos
+            if not categorical_columns:
+                st.warning("⚠️ Nenhuma variável categórica encontrada")
+                return
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                response_var = st.selectbox(
+                    "Variável Resposta:",
+                    numeric_columns,
+                    key=f"t2_response_{hyp_index}_{self.project_id}"
+                )
+            
+            with col2:
+                group_var = st.selectbox(
+                    "Variável de Grupo:",
+                    categorical_columns,
+                    key=f"t2_group_{hyp_index}_{self.project_id}"
+                )
+            
+            # Selecionar grupos
+            unique_groups = df[group_var].dropna().unique()
+            selected_groups = st.multiselect(
+                "Selecione 2 grupos:",
+                unique_groups,
+                max_selections=2,
+                key=f"t2_groups_{hyp_index}_{self.project_id}"
+            )
+            
+            if len(selected_groups) == 2:
+                if st.button(f"🧪 Executar Teste", key=f"run_t2_groups_{hyp_index}_{self.project_id}"):
+                    self._run_grouped_ttest(df, response_var, group_var, selected_groups, hypothesis, hyp_index)
+    
+    def _run_two_var_ttest(self, df: pd.DataFrame, var1: str, var2: str, hypothesis: Dict, hyp_index: int):
+        """Executa teste t entre duas variáveis"""
+        data1 = df[var1].dropna()
+        data2 = df[var2].dropna()
+        
+        if len(data1) == 0 or len(data2) == 0:
+            st.error("❌ Dados insuficientes")
+            return
+        
+        try:
+            # Teste de Levene para igualdade de variâncias
+            levene_stat, levene_p = stats.levene(data1, data2)
+            equal_var = levene_p > 0.05
+            
+            # Teste t
+            t_stat, p_value = stats.ttest_ind(data1, data2, equal_var=equal_var)
+            
+            # Salvar resultado
+            test_result = {
+                'hypothesis_id': hypothesis['id'],
+                'test_type': 'Teste t (2 amostras)',
+                'variables': [var1, var2],
+                'sample_sizes': [len(data1), len(data2)],
+                'sample_means': [data1.mean(), data2.mean()],
+                'sample_stds': [data1.std(), data2.std()],
+                'levene_p': levene_p,
+                'equal_variances': equal_var,
+                't_statistic': t_stat,
+                'p_value': p_value,
+                'alpha': hypothesis['alpha'],
+                'conclusion': 'Rejeitar H₀' if p_value < hypothesis['alpha'] else 'Não rejeitar H₀',
+                'executed_at': datetime.now().isoformat()
+            }
+            
+            self.data['tests_performed'].append(test_result)
+            self.data['hypotheses'][hyp_index]['status'] = 'Testada'
+            
+            self._show_test_results(test_result)
+            
+        except Exception as e:
+            st.error(f"❌ Erro no teste: {str(e)}")
+    
+    def _run_grouped_ttest(self, df: pd.DataFrame, response_var: str, group_var: str, 
+                          selected_groups: List[str], hypothesis: Dict, hyp_index: int):
+        """Executa teste t por grupos"""
+        group1_data = df[df[group_var] == selected_groups[0]][response_var].dropna()
+        group2_data = df[df[group_var] == selected_groups[1]][response_var].dropna()
+        
+        if len(group1_data) == 0 or len(group2_data) == 0:
+            st.error("❌ Dados insuficientes nos grupos")
+            return
+        
+        try:
+            t_stat, p_value = stats.ttest_ind(group1_data, group2_data)
+            
+            test_result = {
+                'hypothesis_id': hypothesis['id'],
+                'test_type': 'Teste t (grupos)',
+                'response_variable': response_var,
+                'group_variable': group_var,
+                'groups': selected_groups,
+                'sample_sizes': [len(group1_data), len(group2_data)],
+                'sample_means': [group1_data.mean(), group2_data.mean()],
+                'sample_stds': [group1_data.std(), group2_data.std()],
+                't_statistic': t_stat,
+                'p_value': p_value,
+                'alpha': hypothesis['alpha'],
+                'conclusion': 'Rejeitar H₀' if p_value < hypothesis['alpha'] else 'Não rejeitar H₀',
+                'executed_at': datetime.now().isoformat()
+            }
+            
+            self.data['tests_performed'].append(test_result)
+            self.data['hypotheses'][hyp_index]['status'] = 'Testada'
+            
+            self._show_test_results(test_result)
+            
+        except Exception as e:
+            st.error(f"❌ Erro no teste: {str(e)}")
+    
+    def _execute_anova_test(self, df: pd.DataFrame, hypothesis: Dict, hyp_index: int):
+        """Executa teste ANOVA"""
+        st.markdown("#### 📊 Configuração da ANOVA")
+        
+        numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+        categorical_columns = df.select_dtypes(include=['object']).columns.tolist()
+        
+        if not categorical_columns:
+            st.warning("⚠️ Necessário variável categórica para ANOVA")
+            return
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            response_var = st.selectbox(
+                "Variável Resposta:",
+                numeric_columns,
+                key=f"anova_response_{hyp_index}_{self.project_id}"
+            )
+        
+        with col2:
+            factor_var = st.selectbox(
+                "Fator (Categórica):",
+                categorical_columns,
+                key=f"anova_factor_{hyp_index}_{self.project_id}"
+            )
+        
+        if st.button(f"🧪 Executar ANOVA", key=f"run_anova_{hyp_index}_{self.project_id}"):
+            try:
+                # Preparar grupos
+                groups = []
+                group_names = []
+                
+                for group_name in df[factor_var].dropna().unique():
+                    group_data = df[df[factor_var] == group_name][response_var].dropna()
+                    if len(group_data) > 0:
+                        groups.append(group_data)
+                        group_names.append(str(group_name))
+                
+                if len(groups) < 2:
+                    st.error("❌ Necessário pelo menos 2 grupos")
+                    return
+                
+                # ANOVA
+                f_stat, p_value = stats.f_oneway(*groups)
+                
+                test_result = {
+                    'hypothesis_id': hypothesis['id'],
+                    'test_type': 'ANOVA',
+                    'response_variable': response_var,
+                    'factor_variable': factor_var,
+                    'groups': group_names,
+                    'group_sizes': [len(group) for group in groups],
+                    'group_means': [group.mean() for group in groups],
+                    'f_statistic': f_stat,
+                    'p_value': p_value,
+                    'alpha': hypothesis['alpha'],
+                    'conclusion': 'Rejeitar H₀' if p_value < hypothesis['alpha'] else 'Não rejeitar H₀',
+                    'executed_at': datetime.now().isoformat()
+                }
+                
+                self.data['tests_performed'].append(test_result)
+                self.data['hypotheses'][hyp_index]['status'] = 'Testada'
+                
+                self._show_test_results(test_result)
+                
+            except Exception as e:
+                st.error(f"❌ Erro na ANOVA: {str(e)}")
+    
+    def _execute_mannwhitney_test(self, df: pd.DataFrame, hypothesis: Dict, hyp_index: int):
+        """Executa teste de Mann-Whitney U"""
+        st.markdown("#### 📊 Configuração do Mann-Whitney U")
+        
+        numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+        categorical_columns = df.select_dtypes(include=['object']).columns.tolist()
+        
+        if not categorical_columns:
+            st.warning("⚠️ Necessário variável categórica")
+            return
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            response_var = st.selectbox(
+                "Variável Resposta:",
+                numeric_columns,
+                key=f"mw_response_{hyp_index}_{self.project_id}"
+            )
+        
+        with col2:
+            group_var = st.selectbox(
+                "Variável de Grupo:",
+                categorical_columns,
+                key=f"mw_group_{hyp_index}_{self.project_id}"
+            )
+        
+        # Selecionar grupos
+        unique_groups = df[group_var].dropna().unique()
+        selected_groups = st.multiselect(
+            "Selecione 2 grupos:",
+            unique_groups,
+            max_selections=2,
+            key=f"mw_groups_{hyp_index}_{self.project_id}"
+        )
+        
+        if len(selected_groups) == 2:
+            if st.button(f"🧪 Executar Mann-Whitney", key=f"run_mw_{hyp_index}_{self.project_id}"):
+                try:
+                    group1_data = df[df[group_var] == selected_groups[0]][response_var].dropna()
+                    group2_data = df[df[group_var] == selected_groups[1]][response_var].dropna()
+                    
+                    if len(group1_data) == 0 or len(group2_data) == 0:
+                        st.error("❌ Dados insuficientes")
+                        return
+                    
+                    # Mann-Whitney U
+                    u_stat, p_value = stats.mannwhitneyu(group1_data, group2_data, alternative='two-sided')
+                    
+                    test_result = {
+                        'hypothesis_id': hypothesis['id'],
+                        'test_type': 'Mann-Whitney U',
+                        'response_variable': response_var,
+                        'group_variable': group_var,
+                        'groups': selected_groups,
+                        'sample_sizes': [len(group1_data), len(group2_data)],
+                        'medians': [group1_data.median(), group2_data.median()],
+                        'u_statistic': u_stat,
+                        'p_value': p_value,
+                        'alpha': hypothesis['alpha'],
+                        'conclusion': 'Rejeitar H₀' if p_value < hypothesis['alpha'] else 'Não rejeitar H₀',
+                        'executed_at': datetime.now().isoformat()
+                    }
+                    
+                    self.data['tests_performed'].append(test_result)
+                    self.data['hypotheses'][hyp_index]['status'] = 'Testada'
+                    
+                    self._show_test_results(test_result)
+                    
+                except Exception as e:
+                    st.error(f"❌ Erro no teste: {str(e)}")
+    
+    def _show_test_results(self, result: Dict):
+        """Mostra resultados do teste"""
+        st.markdown("#### 📊 Resultados do Teste")
+        
+        # Métricas principais
+        if result['test_type'] == 'Teste t (1 amostra)':
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Estatística t", f"{result['t_statistic']:.4f}")
+            
+            with col2:
+                st.metric("p-valor", f"{result['p_value']:.6f}")
+            
+            with col3:
+                st.metric("Média da Amostra", f"{result['sample_mean']:.4f}")
+            
+            with col4:
+                if result['p_value'] < result['alpha']:
+                    st.error("❌ Rejeitar H₀")
+                else:
+                    st.success("✅ Não rejeitar H₀")
+        
+        elif 'ANOVA' in result['test_type']:
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Estatística F", f"{result['f_statistic']:.4f}")
+            
+            with col2:
+                st.metric("p-valor", f"{result['p_value']:.6f}")
+            
+            with col3:
+                if result['p_value'] < result['alpha']:
+                    st.error("❌ Diferença significativa")
+                else:
+                    st.success("✅ Sem diferença significativa")
+        
+        # Interpretação
+        st.markdown("**📋 Interpretação:**")
+        
+        if result['p_value'] < result['alpha']:
+            st.write(f"Com p-valor = {result['p_value']:.6f} < α = {result['alpha']}, "
+                    f"rejeitamos H₀ ao nível de {result['alpha']*100}% de significância.")
+        else:
+            st.write(f"Com p-valor = {result['p_value']:.6f} ≥ α = {result['alpha']}, "
+                    f"não rejeitamos H₀ ao nível de {result['alpha']*100}% de significância.")
+        
+        st.success("✅ Teste executado e resultado salvo!")
+    
+    def _show_results_summary(self):
+        """Resumo de todos os resultados"""
+        st.markdown("### 📊 Resultados e Conclusões")
+        
+        if not self.data['tests_performed']:
+            st.info("💡 Nenhum teste executado ainda")
+            return
+        
+        # Resumo geral
+        st.markdown("#### 📈 Resumo Geral")
+        
+        total_tests = len(self.data['tests_performed'])
+        rejected_h0 = sum(1 for test in self.data['tests_performed'] if test['conclusion'] == 'Rejeitar H₀')
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total de Testes", total_tests)
+        
+        with col2:
+            st.metric("H₀ Rejeitadas", rejected_h0)
+        
+        with col3:
+            st.metric("H₀ Não Rejeitadas", total_tests - rejected_h0)
+        
+        # Tabela de resultados
+        st.markdown("#### 📋 Detalhes dos Testes")
+        
+        results_summary = []
+        for test in self.data['tests_performed']:
+            results_summary.append({
+                'Hipótese': f"H{test['hypothesis_id']}",
+                'Tipo de Teste': test['test_type'],
+                'p-valor': f"{test['p_value']:.6f}",
+                'α': test['alpha'],
+                'Conclusão': test['conclusion'],
+                'Data': test['executed_at'][:10]
+            })
+        
+        df_results = pd.DataFrame(results_summary)
+        st.dataframe(df_results, use_container_width=True)
+        
+        # Insights e recomendações
+        st.markdown("#### 💡 Insights e Recomendações")
+        
+        insights = []
+        
+        if rejected_h0 > 0:
+            insights.append(f"🔍 **{rejected_h0} hipótese(s) rejeitada(s)** - Evidência estatística encontrada")
+        
+        if total_tests - rejected_h0 > 0:
+            insights.append(f"✅ **{total_tests - rejected_h0} hipótese(s) não rejeitada(s)** - Sem evidência suficiente")
+        
+        # Análise por tipo de teste
+        test_types = {}
+        for test in self.data['tests_performed']:
+            test_type = test['test_type']
+            if test_type not in test_types:
+                test_types[test_type] = {'total': 0, 'rejected': 0}
+            test_types[test_type]['total'] += 1
+            if test['conclusion'] == 'Rejeitar H₀':
+                test_types[test_type]['rejected'] += 1
+        
+        for test_type, counts in test_types.items():
+            rejection_rate = (counts['rejected'] / counts['total']) * 100
+            insights.append(f"📊 **{test_type}**: {counts['rejected']}/{counts['total']} rejeitadas ({rejection_rate:.1f}%)")
+        
+        for insight in insights:
+            st.write(insight)
+        
+        # Próximos passos
+        st.markdown("#### 🚀 Próximos Passos")
+        
+        next_steps = [
+            "📊 **Revisar hipóteses rejeitadas** - Investigar as causas validadas estatisticamente",
+            "🔍 **Analisar hipóteses não rejeitadas** - Considerar coleta de mais dados ou reformulação",
+            "💡 **Desenvolver soluções** baseadas nas evidências encontradas",
+            "📈 **Planejar implementação** das melhorias na fase Improve",
+            "📋 **Documentar aprendizados** para futuras análises"
+        ]
+        
+        for step in next_steps:
+            st.write(step)
+    
+    def _show_action_buttons(self):
+        """Botões de ação"""
+        st.divider()
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("💾 Salvar Testes", key=f"save_hypothesis_{self.project_id}"):
+                success = self.manager.save_tool_data('hypothesis_testing', self.data, False)
+                if success:
+                    st.success("💾 Testes de hipóteses salvos!")
+                else:
+                    st.error("❌ Erro ao salvar")
+        
+        with col2:
+            if st.button("✅ Finalizar Teste de Hipóteses", key=f"complete_hypothesis_{self.project_id}"):
+                if self.data['hypotheses'] and self.data['tests_performed']:
+                    success = self.manager.save_tool_data('hypothesis_testing', self.data, True)
+                    if success:
+                        st.success("✅ Teste de hipóteses finalizado!")
+                        st.balloons()
+                    else:
+                        st.error("❌ Erro ao finalizar")
+                else:
+                    st.error("❌ Defina hipóteses e execute pelo menos um teste")
+
+
+class ProcessAnalysisTool:
+    """Classe para análise do processo com ferramentas avançadas"""
+    
+    def __init__(self, manager: AnalyzePhaseManager):
+        self.manager = manager
+        self.project_id = manager.project_id
+        self.data = manager.initialize_session_data('process_analysis', {
+            'process_steps': [],
+            'bottlenecks': [],
+            'cycle_time_analysis': {},
+            'value_stream_data': [],
+            'waste_analysis': {}
+        })
+    
+    def show(self):
+        """Interface principal da análise de processo"""
+        st.markdown("## ⚙️ Análise do Processo")
+        st.markdown("Analise o processo atual para identificar gargalos, desperdícios e oportunidades de melhoria.")
+        
+        # Status da ferramenta
+        self._show_status()
+        
+        # Interface principal
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "🔄 Mapeamento do Processo",
+            "⏱️ Análise de Tempo",
+            "🚧 Gargalos",
+            "🗑️ Análise de Desperdícios",
+            "📊 Relatório"
+        ])
+        
+        with tab1:
+            self._show_process_mapping()
+        
+        with tab2:
+            self._show_time_analysis()
+        
+        with tab3:
+            self._show_bottleneck_analysis()
+        
+        with tab4:
+            self._show_waste_analysis()
+        
+        with tab5:
+            self._show_process_report()
+        
+        # Botões de ação
+        self._show_action_buttons()
+    
+    def _show_status(self):
+        """Status da ferramenta"""
+        if self.manager.is_tool_completed('process_analysis'):
+            st.success("✅ **Análise do processo concluída**")
+        else:
+            st.info("⏳ **Análise em desenvolvimento**")
+    
+    def _show_process_mapping(self):
+        """Mapeamento do fluxo do processo"""
+        st.markdown("### 🔄 Mapeamento do Fluxo do Processo")
+        st.markdown("Mapeie todas as etapas do processo para identificar oportunidades de melhoria.")
+        
+        # Adicionar nova etapa
+        with st.expander("➕ Adicionar Nova Etapa"):
+            self._show_add_step_interface()
+        
+        # Mostrar etapas existentes
+        if self.data['process_steps']:
+            self._show_existing_steps()
+            self._show_process_summary()
+            self._show_process_visualization()
+    
+    def _show_add_step_interface(self):
+        """Interface para adicionar nova etapa"""
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            step_name = st.text_input(
+                "Nome da Etapa:",
+                key=f"step_name_{self.project_id}",
+                placeholder="Ex: Inspeção de qualidade"
+            )
+            
+            step_type = st.selectbox(
+                "Tipo de Atividade:",
+                ["Operação", "Inspeção", "Transporte", "Espera", "Estoque", "Retrabalho"],
+                key=f"step_type_{self.project_id}"
+            )
+        
+        with col2:
+            step_time = st.number_input(
+                "Tempo (minutos):",
+                min_value=0.0,
+                value=0.0,
+                step=0.1,
+                key=f"step_time_{self.project_id}"
+            )
+            
+            step_resources = st.text_input(
+                "Recursos Necessários:",
+                key=f"step_resources_{self.project_id}",
+                placeholder="Ex: 1 operador, equipamento X"
+            )
+        
+        with col3:
+            step_value = st.selectbox(
+                "Agrega Valor?",
+                ["Sim", "Não", "Necessário"],
+                key=f"step_value_{self.project_id}",
+                help="Sim: Agrega valor ao cliente | Não: Desperdício | Necessário: Não agrega valor mas é obrigatório"
+            )
+            
+            step_cost = st.number_input(
+                "Custo Estimado (R$):",
+                min_value=0.0,
+                value=0.0,
+                key=f"step_cost_{self.project_id}"
+            )
+        
+        # Campos adicionais
+        step_description = st.text_area(
+            "Descrição Detalhada:",
+            key=f"step_description_{self.project_id}",
+            placeholder="Descreva o que acontece nesta etapa..."
+        )
+        
+        col4, col5 = st.columns(2)
+        
+        with col4:
+            step_problems = st.text_area(
+                "Problemas Identificados:",
+                key=f"step_problems_{self.project_id}",
+                placeholder="Quais problemas ocorrem nesta etapa?"
+            )
+        
+        with col5:
+            step_frequency = st.selectbox(
+                "Frequência de Problemas:",
+                ["Nunca", "Raramente", "Às vezes", "Frequentemente", "Sempre"],
+                key=f"step_frequency_{self.project_id}"
+            )
+        
+        if st.button("➕ Adicionar Etapa", key=f"add_step_{self.project_id}"):
+            if step_name.strip():
+                new_step = {
+                    'id': len(self.data['process_steps']) + 1,
+                    'name': step_name.strip(),
+                    'type': step_type,
+                    'time': step_time,
+                    'cost': step_cost,
+                    'resources': step_resources,
+                    'value_add': step_value,
+                    'description': step_description,
+                    'problems': step_problems,
+                    'problem_frequency': step_frequency,
+                    'order': len(self.data['process_steps']) + 1
+                }
+                
+                self.data['process_steps'].append(new_step)
+                st.success(f"✅ Etapa '{step_name}' adicionada!")
+                st.rerun()
+            else:
+                st.error("❌ Nome da etapa é obrigatório")
+    
+    def _show_existing_steps(self):
+        """Mostra etapas existentes"""
+        st.markdown("#### 📋 Etapas Mapeadas")
+        
+        for i, step in enumerate(self.data['process_steps']):
+            # Determinar cor baseada no tipo de atividade
+            type_colors = {
+                'Operação': 'success',
+                'Inspeção': 'info',
+                'Transporte': 'warning',
+                'Espera': 'error',
+                'Estoque': 'error',
+                'Retrabalho': 'error'
+            }
+            
+            color = type_colors.get(step['type'], 'info')
+            
+            with st.expander(f"**{step['order']}. {step['name']}** ({step['type']}) - {step['time']} min"):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                
+                with col1:
+                    st.write(f"**Tipo:** {step['type']}")
+                    st.write(f"**Tempo:** {step['time']} minutos")
+                    st.write(f"**Custo:** R$ {step['cost']:.2f}")
+                    st.write(f"**Agrega Valor:** {step['value_add']}")
+                
+                with col2:
+                    st.write(f"**Recursos:** {step['resources']}")
+                    if step['description']:
+                        st.write(f"**Descrição:** {step['description']}")
+                    if step['problems']:
+                        st.write(f"**Problemas:** {step['problems']}")
+                        st.write(f"**Frequência:** {step['problem_frequency']}")
+                
+                with col3:
+                    # Botões de ação
+                    if st.button("📝 Editar", key=f"edit_step_{i}_{self.project_id}"):
+                        st.info("💡 Funcionalidade de edição será implementada")
+                    
+                    if st.button("🗑️ Remover", key=f"remove_step_{i}_{self.project_id}"):
+                        self.data['process_steps'].pop(i)
+                        # Reordenar
+                        for j, remaining_step in enumerate(self.data['process_steps']):
+                            remaining_step['order'] = j + 1
+                        st.rerun()
+                    
+                    if st.button("⬆️ Subir", key=f"move_up_{i}_{self.project_id}"):
+                        if i > 0:
+                            self.data['process_steps'][i], self.data['process_steps'][i-1] = \
+                                self.data['process_steps'][i-1], self.data['process_steps'][i]
+                            # Atualizar ordem
+                            for j, step_item in enumerate(self.data['process_steps']):
+                                step_item['order'] = j + 1
+                            st.rerun()
+                    
+                    if st.button("⬇️ Descer", key=f"move_down_{i}_{self.project_id}"):
+                        if i < len(self.data['process_steps']) - 1:
+                            self.data['process_steps'][i], self.data['process_steps'][i+1] = \
+                                self.data['process_steps'][i+1], self.data['process_steps'][i]
+                            # Atualizar ordem
+                            for j, step_item in enumerate(self.data['process_steps']):
+                                step_item['order'] = j + 1
+                            st.rerun()
+    
+    def _show_process_summary(self):
+        """Resumo do processo mapeado"""
+        st.markdown("#### 📊 Resumo do Processo")
+        
+        # Calcular métricas
+        total_time = sum(step['time'] for step in self.data['process_steps'])
+        total_cost = sum(step['cost'] for step in self.data['process_steps'])
+        
+        value_add_time = sum(step['time'] for step in self.data['process_steps'] if step['value_add'] == 'Sim')
+        necessary_time = sum(step['time'] for step in self.data['process_steps'] if step['value_add'] == 'Necessário')
+        waste_time = sum(step['time'] for step in self.data['process_steps'] if step['value_add'] == 'Não')
+        
+        # Métricas principais
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Total de Etapas", len(self.data['process_steps']))
+        
+        with col2:
+            st.metric("Tempo Total", f"{total_time:.1f} min")
+        
+        with col3:
+            st.metric("Custo Total", f"R$ {total_cost:.2f}")
+        
+        with col4:
+            efficiency = (value_add_time / total_time * 100) if total_time > 0 else 0
+            st.metric("Eficiência (VA)", f"{efficiency:.1f}%")
+        
+        # Análise de valor agregado
+        st.markdown("#### 💎 Análise de Valor Agregado")
+        
+        col5, col6, col7 = st.columns(3)
+        
+        with col5:
+            st.metric("Tempo que Agrega Valor", f"{value_add_time:.1f} min")
+            va_steps = sum(1 for step in self.data['process_steps'] if step['value_add'] == 'Sim')
+            st.caption(f"{va_steps} etapas")
+        
+        with col6:
+            st.metric("Tempo Necessário", f"{necessary_time:.1f} min")
+            nec_steps = sum(1 for step in self.data['process_steps'] if step['value_add'] == 'Necessário')
+            st.caption(f"{nec_steps} etapas")
+        
+        with col7:
+            st.metric("Desperdício", f"{waste_time:.1f} min")
+            waste_steps = sum(1 for step in self.data['process_steps'] if step['value_add'] == 'Não')
+            st.caption(f"{waste_steps} etapas")
+        
+        # Análise por tipo de atividade
+        type_analysis = {}
+        for step in self.data['process_steps']:
+            step_type = step['type']
+            if step_type not in type_analysis:
+                type_analysis[step_type] = {'count': 0, 'time': 0, 'cost': 0}
+            
+            type_analysis[step_type]['count'] += 1
+            type_analysis[step_type]['time'] += step['time']
+            type_analysis[step_type]['cost'] += step['cost']
+        
+        if type_analysis:
+            st.markdown("#### 📊 Análise por Tipo de Atividade")
+            
+            type_df = pd.DataFrame([
+                {
+                    'Tipo': tipo,
+                    'Quantidade': dados['count'],
+                    'Tempo Total (min)': dados['time'],
+                    'Custo Total (R$)': dados['cost'],
+                    '% do Tempo': f"{(dados['time']/total_time*100):.1f}%" if total_time > 0 else "0%"
+                }
+                for tipo, dados in type_analysis.items()
+            ])
+            
+            st.dataframe(type_df, use_container_width=True)
+    
+    def _show_process_visualization(self):
+        """Visualizações do processo"""
+        st.markdown("#### 📈 Visualizações do Processo")
+        
+        # Gráfico de tempo por etapa
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            step_names = [f"{step['order']}. {step['name'][:20]}..." if len(step['name']) > 20 
+                         else f"{step['order']}. {step['name']}" for step in self.data['process_steps']]
+            step_times = [step['time'] for step in self.data['process_steps']]
+            
+            fig_time = px.bar(
+                x=step_names,
+                y=step_times,
+                title="Tempo por Etapa do Processo",
+                labels={'x': 'Etapas', 'y': 'Tempo (min)'}
+            )
+            fig_time.update_xaxes(tickangle=45)
+            fig_time.update_layout(height=400)
+            st.plotly_chart(fig_time, use_container_width=True)
+        
+        with col2:
+            # Gráfico de pizza - valor agregado
+            if self.data['process_steps']:
+                value_add_time = sum(step['time'] for step in self.data['process_steps'] if step['value_add'] == 'Sim')
+                necessary_time = sum(step['time'] for step in self.data['process_steps'] if step['value_add'] == 'Necessário')
+                waste_time = sum(step['time'] for step in self.data['process_steps'] if step['value_add'] == 'Não')
+                
+                if value_add_time + necessary_time + waste_time > 0:
+                    fig_pie = px.pie(
+                        values=[value_add_time, necessary_time, waste_time],
+                        names=['Agrega Valor', 'Necessário', 'Desperdício'],
+                        title="Distribuição do Tempo por Tipo",
+                        color_discrete_sequence=['green', 'yellow', 'red']
+                    )
+                    fig_pie.update_layout(height=400)
+                    st.plotly_chart(fig_pie, use_container_width=True)
+    
+    def _show_time_analysis(self):
+        """Análise detalhada de tempos"""
+        st.markdown("### ⏱️ Análise de Tempo de Ciclo")
+        
+        # Verificar se há dados de tempo nos dados carregados
+        df = self.manager.get_uploaded_data()
+        
+        if df is not None:
+            self._show_data_time_analysis(df)
+        
+        # Análise baseada no processo mapeado
+        if self.data['process_steps']:
+            self._show_mapped_process_time_analysis()
+    
+    def _show_data_time_analysis(self, df: pd.DataFrame):
+        """Análise de tempo baseada nos dados carregados"""
+        st.markdown("#### 📊 Análise de Dados de Tempo")
+        
+        # Procurar colunas de tempo
+        time_columns = [col for col in df.select_dtypes(include=[np.number]).columns 
+                       if any(keyword in col.lower() for keyword in ['time', 'tempo', 'cycle', 'ciclo', 'duration', 'duracao'])]
+        
+        if not time_columns:
+            st.info("💡 Nenhuma coluna de tempo identificada nos dados")
+            return
+        
+        selected_time_col = st.selectbox(
+            "Selecione a coluna de tempo para análise:",
+            time_columns,
+            key=f"time_col_analysis_{self.project_id}"
+        )
+        
+        if selected_time_col:
+            time_data = df[selected_time_col].dropna()
+            
+            if len(time_data) == 0:
+                st.warning("⚠️ Nenhum dado de tempo válido encontrado")
+                return
+            
+            # Estatísticas de tempo
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Tempo Médio", f"{time_data.mean():.2f}")
+            
+            with col2:
+                st.metric("Mediana", f"{time_data.median():.2f}")
+            
+            with col3:
+                st.metric("Desvio Padrão", f"{time_data.std():.2f}")
+            
+            with col4:
+                cv = (time_data.std() / time_data.mean()) * 100 if time_data.mean() != 0 else 0
+                st.metric("Coef. Variação", f"{cv:.1f}%")
+            
+            # Gráficos de tempo
+            col_a, col_b = st.columns(2)
+            
+            with col_a:
+                # Histograma
+                fig_hist = px.histogram(
+                    x=time_data,
+                    nbins=30,
+                    title=f"Distribuição dos Tempos - {selected_time_col}"
+                )
+                st.plotly_chart(fig_hist, use_container_width=True)
+            
+            with col_b:
+                # Gráfico de controle
+                fig_control = px.line(
+                    x=range(len(time_data)),
+                    y=time_data,
+                    title=f"Gráfico de Controle - {selected_time_col}"
+                )
+                
+                # Limites de controle
+                mean_time = time_data.mean()
+                std_time = time_data.std()
+                
+                fig_control.add_hline(y=mean_time, line_dash="solid", line_color="green", annotation_text="Média")
+                fig_control.add_hline(y=mean_time + 3*std_time, line_dash="dash", line_color="red", annotation_text="UCL")
+                fig_control.add_hline(y=mean_time - 3*std_time, line_dash="dash", line_color="red", annotation_text="LCL")
+                
+                st.plotly_chart(fig_control, use_container_width=True)
+            
+            # Análise de estabilidade
+            st.markdown("#### 📊 Análise de Estabilidade do Processo")
+            
+            # Pontos fora de controle
+            ucl = mean_time + 3 * std_time
+            lcl = max(0, mean_time - 3 * std_time)  # Tempo não pode ser negativo
+            
+            out_of_control = time_data[(time_data > ucl) | (time_data < lcl)]
+            
+            col_stab1, col_stab2, col_stab3 = st.columns(3)
+            
+            with col_stab1:
+                st.metric("Pontos Fora de Controle", len(out_of_control))
+            
+            with col_stab2:
+                stability_pct = (1 - len(out_of_control) / len(time_data)) * 100
+                st.metric("Estabilidade", f"{stability_pct:.1f}%")
+            
+            with col_stab3:
+                if cv < 15:
+                    st.success("Baixa Variabilidade")
+                elif cv < 30:
+                    st.warning("Variabilidade Moderada")
+                else:
+                    st.error("Alta Variabilidade")
+    
+    def _show_mapped_process_time_analysis(self):
+        """Análise de tempo do processo mapeado"""
+        st.markdown("#### ⚙️ Análise do Processo Mapeado")
+        
+        # Análise de gargalos por tempo
+        sorted_steps = sorted(self.data['process_steps'], key=lambda x: x['time'], reverse=True)
+        
+        st.markdown("**🔍 Etapas com Maior Tempo (Top 5):**")
+        
+        for i, step in enumerate(sorted_steps[:5], 1):
+            total_time = sum(s['time'] for s in self.data['process_steps'])
+            percentage = (step['time'] / total_time * 100) if total_time > 0 else 0
+            
+            col_step1, col_step2, col_step3 = st.columns([2, 1, 1])
+            
+            with col_step1:
+                st.write(f"**{i}. {step['name']}**")
+            
+            with col_step2:
+                st.write(f"{step['time']:.1f} min")
+            
+            with col_step3:
+                st.write(f"{percentage:.1f}%")
+        
+        # Análise de tempo cumulativo
+        cumulative_times = []
+        cumulative_sum = 0
+        
+        for step in self.data['process_steps']:
+            cumulative_sum += step['time']
+            cumulative_times.append(cumulative_sum)
+        
+        if len(cumulative_times) > 1:
+            fig_cumulative = go.Figure()
+            
+            fig_cumulative.add_trace(go.Scatter(
+                x=[f"{step['order']}. {step['name'][:15]}..." if len(step['name']) > 15 
+                   else f"{step['order']}. {step['name']}" for step in self.data['process_steps']],
+                y=cumulative_times,
+                mode='lines+markers',
+                name='Tempo Cumulativo'
+            ))
+            
+            fig_cumulative.update_layout(
+                title="Tempo Cumulativo do Processo",
+                xaxis_title="Etapas",
+                yaxis_title="Tempo Cumulativo (min)",
+                height=400
+            )
+            
+            fig_cumulative.update_xaxes(tickangle=45)
+            
+            st.plotly_chart(fig_cumulative, use_container_width=True)
+    
+    def _show_bottleneck_analysis(self):
+        """Análise de gargalos"""
+        st.markdown("### 🚧 Análise de Gargalos")
+        st.markdown("Identifique e analise os gargalos que limitam a capacidade do processo.")
+        
+        # Identificação automática de gargalos baseada no processo mapeado
+        if self.data['process_steps']:
+            self._show_automatic_bottleneck_detection()
+        
+        # Interface para adicionar gargalos manualmente
+        self._show_manual_bottleneck_entry()
+        
+        # Análise de gargalos identificados
+        if self.data.get('bottlenecks'):
+            self._show_bottleneck_analysis_results()
+    
+    def _show_automatic_bottleneck_detection(self):
+        """Detecção automática de gargalos"""
+        st.markdown("#### 🔍 Detecção Automática de Gargalos")
+        
+        # Analisar etapas com maior tempo
+        sorted_by_time = sorted(self.data['process_steps'], key=lambda x: x['time'], reverse=True)
+        total_time = sum(step['time'] for step in self.data['process_steps'])
+        
+        # Critérios para identificar gargalos
+        potential_bottlenecks = []
+        
+        for step in sorted_by_time:
+            time_percentage = (step['time'] / total_time * 100) if total_time > 0 else 0
+            
+            # Critérios: tempo > 20% do total OU problemas frequentes OU não agrega valor
+            is_bottleneck = (
+                time_percentage > 20 or
+                step.get('problem_frequency') in ['Frequentemente', 'Sempre'] or
+                (step['value_add'] == 'Não' and step['time'] > 0)
+            )
+            
+            if is_bottleneck:
+                potential_bottlenecks.append({
+                    'step': step,
+                    'time_percentage': time_percentage,
+                    'reasons': []
+                })
+                
+                # Identificar razões
+                if time_percentage > 20:
+                    potential_bottlenecks[-1]['reasons'].append(f"Alto tempo ({time_percentage:.1f}% do total)")
+                
+                if step.get('problem_frequency') in ['Frequentemente', 'Sempre']:
+                    potential_bottlenecks[-1]['reasons'].append(f"Problemas {step['problem_frequency'].lower()}")
+                
+                if step['value_add'] == 'Não':
+                    potential_bottlenecks[-1]['reasons'].append("Não agrega valor (desperdício)")
+        
+        if potential_bottlenecks:
+            st.success(f"🔍 {len(potential_bottlenecks)} gargalo(s) potencial(is) detectado(s)")
+            
+            for i, bottleneck in enumerate(potential_bottlenecks, 1):
+                step = bottleneck['step']
+                reasons = bottleneck['reasons']
+                
+                with st.expander(f"**Gargalo {i}: {step['name']}** - {step['time']} min"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write(f"**Tempo:** {step['time']} min ({bottleneck['time_percentage']:.1f}% do total)")
+                        st.write(f"**Tipo:** {step['type']}")
+                        st.write(f"**Agrega Valor:** {step['value_add']}")
+                    
+                    with col2:
+                        st.write("**Razões para ser gargalo:**")
+                        for reason in reasons:
+                            st.write(f"• {reason}")
+                        
+                        if step.get('problems'):
+                            st.write(f"**Problemas:** {step['problems']}")
+                    
+                    # Botão para adicionar aos gargalos manuais
+                    if st.button(f"➕ Adicionar aos Gargalos", key=f"add_auto_bottleneck_{i}_{self.project_id}"):
+                        # Verificar se já existe
+                        existing = any(
+                            b.get('name') == step['name'] for b in self.data.get('bottlenecks', [])
+                        )
+                        
+                        if not existing:
+                            if 'bottlenecks' not in self.data:
+                                self.data['bottlenecks'] = []
+                            
+                            self.data['bottlenecks'].append({
+                                'name': step['name'],
+                                'location': f"Etapa {step['order']}",
+                                'impact': 'Alto' if bottleneck['time_percentage'] > 30 else 'Médio',
+                                'frequency': step.get('problem_frequency', 'Às vezes'),
+                                'description': f"Gargalo detectado automaticamente. {'; '.join(reasons)}",
+                                'time': step['time'],
+                                'type': 'Automático'
+                            })
+                            
+                            st.success("✅ Gargalo adicionado!")
+                            st.rerun()
+                        else:
+                            st.info("💡 Este gargalo já foi adicionado")
+        else:
+            st.info("✅ Nenhum gargalo crítico detectado automaticamente")
+    
+    def _show_manual_bottleneck_entry(self):
+        """Interface para adicionar gargalos manualmente"""
+        st.markdown("#### ➕ Adicionar Gargalos Manualmente")
+        
+        with st.expander("Adicionar Novo Gargalo"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                bottleneck_name = st.text_input(
+                    "Nome do Gargalo:",
+                    key=f"bottleneck_name_{self.project_id}",
+                    placeholder="Ex: Aprovação gerencial"
+                )
+                
+                bottleneck_location = st.text_input(
+                    "Localização/Etapa:",
+                    key=f"bottleneck_location_{self.project_id}",
+                    placeholder="Ex: Entre etapas 3 e 4"
+                )
+            
+            with col2:
+                bottleneck_impact = st.selectbox(
+                    "Nível de Impacto:",
+                    ["Alto", "Médio", "Baixo"],
+                    key=f"bottleneck_impact_{self.project_id}"
+                )
+                
+                bottleneck_frequency = st.selectbox(
+                    "Frequência:",
+                    ["Sempre", "Frequentemente", "Às vezes", "Raramente"],
+                    key=f"bottleneck_frequency_{self.project_id}"
+                )
+            
+            bottleneck_description = st.text_area(
+                "Descrição Detalhada:",
+                key=f"bottleneck_description_{self.project_id}",
+                placeholder="Descreva o gargalo, suas causas e impactos..."
+            )
+            
+            col3, col4 = st.columns(2)
+            
+            with col3:
+                bottleneck_time = st.number_input(
+                    "Tempo de Atraso (min):",
+                    min_value=0.0,
+                    value=0.0,
+                    key=f"bottleneck_time_{self.project_id}"
+                )
+            
+            with col4:
+                bottleneck_cost = st.number_input(
+                    "Custo do Impacto (R$):",
+                    min_value=0.0,
+                    value=0.0,
+                    key=f"bottleneck_cost_{self.project_id}"
+                )
+            
+            if st.button("➕ Adicionar Gargalo", key=f"add_manual_bottleneck_{self.project_id}"):
+                if bottleneck_name.strip():
+                    if 'bottlenecks' not in self.data:
+                        self.data['bottlenecks'] = []
+                    
+                    self.data['bottlenecks'].append({
+                        'name': bottleneck_name.strip(),
+                        'location': bottleneck_location,
+                        'impact': bottleneck_impact,
+                        'frequency': bottleneck_frequency,
+                        'description': bottleneck_description,
+                        'time': bottleneck_time,
+                        'cost': bottleneck_cost,
+                        'type': 'Manual'
+                    })
+                    
+                    st.success(f"✅ Gargalo '{bottleneck_name}' adicionado!")
+                    st.rerun()
+                else:
+                    st.error("❌ Nome do gargalo é obrigatório")
+    
+    def _show_bottleneck_analysis_results(self):
+        """Análise dos gargalos identificados"""
+        st.markdown("#### 📊 Análise dos Gargalos Identificados")
+        
+        # Lista de gargalos
+        for i, bottleneck in enumerate(self.data['bottlenecks']):
+            with st.expander(f"**{bottleneck['name']}** - {bottleneck['impact']} Impacto"):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                
+                with col1:
+                    st.write(f"**Localização:** {bottleneck['location']}")
+                    st.write(f"**Impacto:** {bottleneck['impact']}")
+                    st.write(f"**Frequência:** {bottleneck['frequency']}")
+                    st.write(f"**Tipo:** {bottleneck.get('type', 'Manual')}")
+                
+                with col2:
+                    if bottleneck.get('time', 0) > 0:
+                        st.write(f"**Tempo de Atraso:** {bottleneck['time']} min")
+                    if bottleneck.get('cost', 0) > 0:
+                        st.write(f"**Custo do Impacto:** R$ {bottleneck['cost']:.2f}")
+                    if bottleneck['description']:
+                        st.write(f"**Descrição:** {bottleneck['description']}")
+                
+                with col3:
+                    if st.button("🗑️ Remover", key=f"remove_bottleneck_{i}_{self.project_id}"):
+                        self.data['bottlenecks'].pop(i)
+                        st.rerun()
+        
+        # Matriz de priorização
+        if len(self.data['bottlenecks']) > 1:
+            self._show_bottleneck_prioritization()
+    
+    def _show_bottleneck_prioritization(self):
+        """Matriz de priorização de gargalos"""
+        st.markdown("#### 🎯 Matriz de Priorização de Gargalos")
+        
+        # Mapear valores para scores
+        impact_map = {"Alto": 3, "Médio": 2, "Baixo": 1}
+        freq_map = {"Sempre": 4, "Frequentemente": 3, "Às vezes": 2, "Raramente": 1}
+        
+        bottleneck_names = [b['name'] for b in self.data['bottlenecks']]
+        impact_scores = [impact_map[b['impact']] for b in self.data['bottlenecks']]
+        freq_scores = [freq_map[b['frequency']] for b in self.data['bottlenecks']]
+        
+        # Gráfico de dispersão
+        fig_matrix = px.scatter(
+            x=freq_scores,
+            y=impact_scores,
+            text=bottleneck_names,
+            labels={'x': 'Frequência', 'y': 'Impacto'},
+            title="Matriz de Priorização de Gargalos"
+        )
+        
+        fig_matrix.update_traces(textposition="top center", marker=dict(size=15))
+        fig_matrix.update_xaxes(
+            range=[0.5, 4.5],
+            tickvals=[1, 2, 3, 4],
+            ticktext=['Raramente', 'Às vezes', 'Frequentemente', 'Sempre']
+        )
+        fig_matrix.update_yaxes(
+            range=[0.5, 3.5],
+            tickvals=[1, 2, 3],
+            ticktext=['Baixo', 'Médio', 'Alto']
+        )
+        
+        # Adicionar linhas de referência
+        fig_matrix.add_hline(y=2.5, line_dash="dash", line_color="orange", opacity=0.5)
+        fig_matrix.add_vline(x=2.5, line_dash="dash", line_color="orange", opacity=0.5)
+        
+        fig_matrix.update_layout(height=500)
+        st.plotly_chart(fig_matrix, use_container_width=True)
+        
+        # Classificação por prioridade
+        priority_bottlenecks = []
+        
+        for i, bottleneck in enumerate(self.data['bottlenecks']):
+            priority_score = impact_scores[i] * freq_scores[i]
+            
+            if impact_scores[i] >= 3 and freq_scores[i] >= 3:
+                priority = "Crítica"
+            elif impact_scores[i] >= 2 and freq_scores[i] >= 2:
+                priority = "Alta"
+            elif impact_scores[i] >= 2 or freq_scores[i] >= 2:
+                priority = "Média"
+            else:
+                priority = "Baixa"
+            
+            priority_bottlenecks.append({
+                'Nome': bottleneck['name'],
+                'Impacto': bottleneck['impact'],
+                'Frequência': bottleneck['frequency'],
+                'Score': priority_score,
+                'Prioridade': priority
+            })
+        
+        # Ordenar por score
+        priority_bottlenecks.sort(key=lambda x: x['Score'], reverse=True)
+        
+        st.markdown("#### 📋 Classificação por Prioridade")
+        
+        priority_df = pd.DataFrame(priority_bottlenecks)
+        
+        # Colorir por prioridade
+        def color_priority(val):
+            if val == 'Crítica':
+                return 'background-color: #ffcccc'
+            elif val == 'Alta':
+                return 'background-color: #ffe6cc'
+            elif val == 'Média':
+                return 'background-color: #ffffcc'
+            else:
+                return 'background-color: #e6ffe6'
+        
+        styled_df = priority_df.style.applymap(color_priority, subset=['Prioridade'])
+        st.dataframe(styled_df, use_container_width=True)
+        
+        # Recomendações
+        critical_count = sum(1 for b in priority_bottlenecks if b['Prioridade'] == 'Crítica')
+        high_count = sum(1 for b in priority_bottlenecks if b['Prioridade'] == 'Alta')
+        
+        st.markdown("#### 🎯 Recomendações")
+        
+        if critical_count > 0:
+            st.error(f"🚨 **{critical_count} gargalo(s) crítico(s)** - Ação imediata necessária")
+        
+        if high_count > 0:
+            st.warning(f"⚠️ **{high_count} gargalo(s) de alta prioridade** - Planejar ações prioritárias")
+        
+        recommendations = [
+            "🎯 **Foque nos gargalos críticos e de alta prioridade**",
+            "📊 **Monitore os gargalos regularmente** para detectar mudanças",
+            "💡 **Desenvolva soluções específicas** para cada gargalo identificado",
+            "⚡ **Implemente melhorias rápidas** nos gargalos de maior impacto"
+        ]
+        
+        for rec in recommendations:
+            st.write(rec)
+    
+    def _show_waste_analysis(self):
+        """Análise de desperdícios (8 Wastes do Lean)"""
+        st.markdown("### 🗑️ Análise de Desperdícios")
+        st.markdown("Identifique e categorize os desperdícios usando os 8 tipos do Lean Manufacturing.")
+        
+        # Os 8 desperdícios do Lean
+        waste_types = {
+            'Transporte': 'Movimentação desnecessária de materiais ou informações',
+            'Estoque': 'Excesso de materiais, informações ou trabalho em processo',
+            'Movimento': 'Movimentação desnecessária de pessoas',
+            'Espera': 'Tempo perdido aguardando algo',
+            'Superprodução': 'Produzir mais do que o necessário',
+            'Superprocessamento': 'Processos mais complexos que o necessário',
+            'Defeitos': 'Erros que requerem retrabalho ou correção',
+            'Talento': 'Subutilização das habilidades e conhecimentos das pessoas'
+        }
+        
+        # Inicializar dados de desperdício
+        if 'waste_analysis' not in self.data:
+            self.data['waste_analysis'] = {}
+        
+        # Interface para cada tipo de desperdício
+        st.markdown("#### 🔍 Identificação de Desperdícios por Categoria")
+        
+        total_waste_time = 0
+        total_waste_cost = 0
+        
+        for waste_type, description in waste_types.items():
+            with st.expander(f"**{waste_type}** - {description}"):
+                self._show_waste_category_analysis(waste_type, description)
+                
+                # Somar desperdícios identificados
+                if waste_type in self.data['waste_analysis']:
+                    for waste_item in self.data['waste_analysis'][waste_type]:
+                        total_waste_time += waste_item.get('time_impact', 0)
+                        total_waste_cost += waste_item.get('cost_impact', 0)
+        
+        # Resumo geral dos desperdícios
+        if total_waste_time > 0 or total_waste_cost > 0:
+            self._show_waste_summary(total_waste_time, total_waste_cost)
+    
+    def _show_waste_category_analysis(self, waste_type: str, description: str):
+        """Análise de uma categoria específica de desperdício"""
+        if waste_type not in self.data['waste_analysis']:
+            self.data['waste_analysis'][waste_type] = []
+        
+        # Adicionar novo desperdício nesta categoria
+        st.markdown(f"**Adicionar {waste_type}:**")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            waste_name = st.text_input(
+                "Nome/Descrição:",
+                key=f"waste_name_{waste_type}_{self.project_id}",
+                placeholder=f"Descreva o {waste_type.lower()} identificado..."
+            )
+            
+            waste_location = st.text_input(
+                "Localização:",
+                key=f"waste_location_{waste_type}_{self.project_id}",
+                placeholder="Onde ocorre este desperdício?"
+            )
+        
+        with col2:
+            waste_frequency = st.selectbox(
+                "Frequência:",
+                ["Sempre", "Frequentemente", "Às vezes", "Raramente"],
+                key=f"waste_frequency_{waste_type}_{self.project_id}"
+            )
+            
+            waste_severity = st.selectbox(
+                "Severidade:",
+                ["Alta", "Média", "Baixa"],
+                key=f"waste_severity_{waste_type}_{self.project_id}"
+            )
+        
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            time_impact = st.number_input(
+                "Impacto em Tempo (min/dia):",
+                min_value=0.0,
+                value=0.0,
+                key=f"waste_time_{waste_type}_{self.project_id}"
+            )
+        
+        with col4:
+            cost_impact = st.number_input(
+                "Impacto em Custo (R$/dia):",
+                min_value=0.0,
+                value=0.0,
+                key=f"waste_cost_{waste_type}_{self.project_id}"
+            )
+        
+        waste_cause = st.text_area(
+            "Causa Raiz:",
+            key=f"waste_cause_{waste_type}_{self.project_id}",
+            placeholder="Qual a causa deste desperdício?"
+        )
+        
+        if st.button(f"➕ Adicionar {waste_type}", key=f"add_waste_{waste_type}_{self.project_id}"):
+            if waste_name.strip():
+                self.data['waste_analysis'][waste_type].append({
+                    'name': waste_name.strip(),
+                    'location': waste_location,
+                    'frequency': waste_frequency,
+                    'severity': waste_severity,
+                    'time_impact': time_impact,
+                    'cost_impact': cost_impact,
+                    'cause': waste_cause,
+                    'identified_at': datetime.now().isoformat()
+                })
+                
+                st.success(f"✅ {waste_type} '{waste_name}' adicionado!")
+                st.rerun()
+        
+        # Mostrar desperdícios existentes nesta categoria
+        if self.data['waste_analysis'][waste_type]:
+            st.markdown(f"**{waste_type}s Identificados:**")
+            
+            for i, waste_item in enumerate(self.data['waste_analysis'][waste_type]):
+                col_w1, col_w2, col_w3 = st.columns([3, 2, 1])
+                
+                with col_w1:
+                    st.write(f"**{waste_item['name']}**")
+                    if waste_item['location']:
+                        st.write(f"*Local:* {waste_item['location']}")
+                    if waste_item['cause']:
+                        st.write(f"*Causa:* {waste_item['cause']}")
+                
+                with col_w2:
+                    st.write(f"*Frequência:* {waste_item['frequency']}")
+                    st.write(f"*Severidade:* {waste_item['severity']}")
+                    if waste_item['time_impact'] > 0:
+                        st.write(f"*Tempo:* {waste_item['time_impact']} min/dia")
+                    if waste_item['cost_impact'] > 0:
+                        st.write(f"*Custo:* R$ {waste_item['cost_impact']:.2f}/dia")
+                
+                with col_w3:
+                    if st.button("🗑️", key=f"remove_waste_{waste_type}_{i}_{self.project_id}"):
+                        self.data['waste_analysis'][waste_type].pop(i)
+                        st.rerun()
+                
+                st.divider()
+    
+    def _show_waste_summary(self, total_time: float, total_cost: float):
+        """Resumo geral dos desperdícios"""
+        st.markdown("#### 📊 Resumo dos Desperdícios Identificados")
+        
+        # Métricas gerais
+        col1, col2, col3, col4 = st.columns(4)
+        
+        total_wastes = sum(len(wastes) for wastes in self.data['waste_analysis'].values())
+        categories_with_waste = sum(1 for wastes in self.data['waste_analysis'].values() if len(wastes) > 0)
+        
+        with col1:
+            st.metric("Total de Desperdícios", total_wastes)
+        
+        with col2:
+            st.metric("Categorias Afetadas", f"{categories_with_waste}/8")
+        
+        with col3:
+            st.metric("Impacto Tempo/Dia", f"{total_time:.1f} min")
+        
+        with col4:
+            st.metric("Impacto Custo/Dia", f"R$ {total_cost:.2f}")
+        
+        # Análise por categoria
+        category_analysis = []
+        
+        for waste_type, wastes in self.data['waste_analysis'].items():
+            if wastes:
+                category_time = sum(w.get('time_impact', 0) for w in wastes)
+                category_cost = sum(w.get('cost_impact', 0) for w in wastes)
+                high_severity = sum(1 for w in wastes if w.get('severity') == 'Alta')
+                
+                category_analysis.append({
+                    'Categoria': waste_type,
+                    'Quantidade': len(wastes),
+                    'Tempo/Dia (min)': category_time,
+                    'Custo/Dia (R$)': category_cost,
+                    'Alta Severidade': high_severity
+                })
+        
+        if category_analysis:
+            st.markdown("#### 📋 Análise por Categoria")
+            
+            category_df = pd.DataFrame(category_analysis)
+            category_df = category_df.sort_values('Custo/Dia (R$)', ascending=False)
+            
+            st.dataframe(category_df, use_container_width=True)
+            
+            # Gráfico de desperdícios por categoria
+            if len(category_analysis) > 1:
+                col_chart1, col_chart2 = st.columns(2)
+                
+                with col_chart1:
+                    fig_waste_qty = px.bar(
+                        category_df,
+                        x='Categoria',
+                        y='Quantidade',
+                        title="Quantidade de Desperdícios por Categoria"
+                    )
+                    fig_waste_qty.update_xaxes(tickangle=45)
+                    st.plotly_chart(fig_waste_qty, use_container_width=True)
+                
+                with col_chart2:
+                    fig_waste_cost = px.bar(
+                        category_df,
+                        x='Categoria',
+                        y='Custo/Dia (R$)',
+                        title="Impacto em Custo por Categoria"
+                    )
+                    fig_waste_cost.update_xaxes(tickangle=45)
+                    st.plotly_chart(fig_waste_cost, use_container_width=True)
+        
+        # Projeções anuais
+        if total_time > 0 or total_cost > 0:
+            st.markdown("#### 📈 Projeções de Impacto")
+            
+            # Assumindo 250 dias úteis por ano
+            annual_time_hours = (total_time * 250) / 60
+            annual_cost = total_cost * 250
+            
+            col_proj1, col_proj2 = st.columns(2)
+            
+            with col_proj1:
+                st.metric("Tempo Perdido/Ano", f"{annual_time_hours:.0f} horas")
+            
+            with col_proj2:
+                st.metric("Custo Anual", f"R$ {annual_cost:,.2f}")
+            
+            # Potencial de economia
+            if annual_cost > 0:
+                potential_savings = annual_cost * 0.8  # Assumindo 80% de redução possível
+                st.success(f"💰 **Potencial de economia anual:** R$ {potential_savings:,.2f} (80% de redução)")
+    
+    def _show_process_report(self):
+        """Relatório consolidado da análise de processo"""
+        st.markdown("### 📊 Relatório de Análise do Processo")
+        
+        # Resumo executivo
+        st.markdown("#### 📈 Resumo Executivo")
+        
+        # Verificar completude
+        process_mapped = len(self.data.get('process_steps', [])) > 0
+        bottlenecks_identified = len(self.data.get('bottlenecks', [])) > 0
+        waste_identified = any(len(wastes) > 0 for wastes in self.data.get('waste_analysis', {}).values())
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if process_mapped:
+                st.success("✅ Processo Mapeado")
+                st.caption(f"{len(self.data['process_steps'])} etapas")
+            else:
+                st.error("❌ Processo Não Mapeado")
+        
+        with col2:
+            if bottlenecks_identified:
+                st.success("✅ Gargalos Identificados")
+                st.caption(f"{len(self.data['bottlenecks'])} gargalos")
+            else:
+                st.error("❌ Gargalos Não Identificados")
+        
+        with col3:
+            if waste_identified:
+                st.success("✅ Desperdícios Analisados")
+                total_wastes = sum(len(wastes) for wastes in self.data['waste_analysis'].values())
+                st.caption(f"{total_wastes} desperdícios")
+            else:
+                st.error("❌ Desperdícios Não Analisados")
+        
+        # Métricas do processo
+        if process_mapped:
+            st.markdown("#### 📊 Métricas do Processo")
+            
+            total_time = sum(step['time'] for step in self.data['process_steps'])
+            total_cost = sum(step['cost'] for step in self.data['process_steps'])
+            value_add_time = sum(step['time'] for step in self.data['process_steps'] if step['value_add'] == 'Sim')
+            
+            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+            
+            with col_m1:
+                st.metric("Tempo Total", f"{total_time:.1f} min")
+            
+            with col_m2:
+                st.metric("Custo Total", f"R$ {total_cost:.2f}")
+            
+            with col_m3:
+                efficiency = (value_add_time / total_time * 100) if total_time > 0 else 0
+                st.metric("Eficiência", f"{efficiency:.1f}%")
+            
+            with col_m4:
+                st.metric("Etapas", len(self.data['process_steps']))
+        
+        # Principais descobertas
+        st.markdown("#### 🔍 Principais Descobertas")
+        
+        discoveries = []
+        
+        if process_mapped:
+            # Etapa mais demorada
+            longest_step = max(self.data['process_steps'], key=lambda x: x['time'])
+            discoveries.append(f"⏱️ **Etapa mais demorada:** {longest_step['name']} ({longest_step['time']} min)")
+            
+            # Etapas que não agregam valor
+            non_value_steps = [step for step in self.data['process_steps'] if step['value_add'] == 'Não']
+            if non_value_steps:
+                non_value_time = sum(step['time'] for step in non_value_steps)
+                discoveries.append(f"🗑️ **Desperdício identificado:** {len(non_value_steps)} etapas não agregam valor ({non_value_time:.1f} min)")
+        
+        if bottlenecks_identified:
+            critical_bottlenecks = [b for b in self.data['bottlenecks'] if b['impact'] == 'Alto']
+            if critical_bottlenecks:
+                discoveries.append(f"🚧 **Gargalos críticos:** {len(critical_bottlenecks)} identificados")
+        
+        if waste_identified:
+            total_waste_cost = sum(
+                sum(w.get('cost_impact', 0) for w in wastes)
+                for wastes in self.data['waste_analysis'].values()
+            )
+            if total_waste_cost > 0:
+                annual_waste_cost = total_waste_cost * 250
+                discoveries.append(f"💰 **Custo de desperdícios:** R$ {annual_waste_cost:,.2f}/ano")
+        
+        if discoveries:
+            for discovery in discoveries:
+                st.write(discovery)
+        else:
+            st.info("Complete as análises para ver as principais descobertas")
+        
+        # Recomendações prioritárias
+        st.markdown("#### 🎯 Recomendações Prioritárias")
+        
+        recommendations = []
+        
+        if process_mapped and bottlenecks_identified:
+            recommendations.append("🚧 **Eliminar gargalos críticos** identificados na análise")
+        
+        if process_mapped:
+            efficiency = (value_add_time / total_time * 100) if total_time > 0 else 0
+            if efficiency < 50:
+                recommendations.append("⚡ **Melhorar eficiência** - menos de 50% das atividades agregam valor")
+        
+        if waste_identified:
+            recommendations.append("🗑️ **Implementar melhorias Lean** para eliminar desperdícios identificados")
+        
+        recommendations.extend([
+            "📊 **Monitorar métricas** de tempo de ciclo e qualidade",
+            "👥 **Envolver a equipe** no desenvolvimento de soluções",
+            "🔄 **Implementar melhorias incrementais** usando metodologia PDCA"
+        ])
+        
+        for rec in recommendations:
+            st.write(rec)
+        
+        # Próximos passos
+        st.markdown("#### 🚀 Próximos Passos")
+        
+        next_steps = [
+            "💡 **Fase Improve:** Desenvolver soluções para os problemas identificados",
+            "📈 **Definir metas:** Estabelecer objetivos quantitativos de melhoria",
+            "🎯 **Priorizar ações:** Focar nos gargalos e desperdícios de maior impacto",
+            "📋 **Plano de ação:** Criar cronograma detalhado de implementação",
+            "📊 **Métricas de controle:** Definir indicadores para monitorar melhorias"
+        ]
+        
+        for step in next_steps:
+            st.write(step)
+    
+    def _show_action_buttons(self):
+        """Botões de ação"""
+        st.divider()
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("💾 Salvar Análise", key=f"save_process_analysis_{self.project_id}"):
+                success = self.manager.save_tool_data('process_analysis', self.data, False)
+                if success:
+                    st.success("💾 Análise do processo salva!")
+                else:
+                    st.error("❌ Erro ao salvar")
+        
+        with col2:
+            if st.button("✅ Finalizar Análise do Processo", key=f"complete_process_analysis_{self.project_id}"):
+                # Validação
+                has_analysis = (
+                    len(self.data.get('process_steps', [])) > 0 or
+                    len(self.data.get('bottlenecks', [])) > 0 or
+                    any(len(wastes) > 0 for wastes in self.data.get('waste_analysis', {}).values())
+                )
+                
+                if has_analysis:
+                    success = self.manager.save_tool_data('process_analysis', self.data, True)
+                    if success:
+                        st.success("✅ Análise do processo finalizada!")
+                        st.balloons()
+                    else:
+                        st.error("❌ Erro ao finalizar")
+                else:
+                    st.error("❌ Complete pelo menos uma análise (processo, gargalos ou desperdícios)")
+
+
+def _show_analyze_progress(manager: AnalyzePhaseManager, tool_options: Dict, analyze_data: Dict):
+    """Mostra progresso geral da fase Analyze"""
+    st.markdown("### 📊 Progresso da Fase Analyze")
+    
+    # Recarregar dados atualizados
+    if 'current_project' in st.session_state:
+        updated_analyze_data = st.session_state.current_project.get('analyze', {})
+    else:
+        updated_analyze_data = analyze_data
+    
+    total_tools = len(tool_options)
+    completed_tools = 0
+    
+    # Status das ferramentas
+    st.markdown("#### 📋 Status das Ferramentas")
+    
+    cols = st.columns(len(tool_options))
+    
+    for i, (key, (icon, name)) in enumerate(tool_options.items()):
+        is_completed = manager.is_tool_completed(key)
+        
+        if is_completed:
+            completed_tools += 1
+        
+        with cols[i]:
+            if is_completed:
+                st.success(f"✅ {name}")
+            else:
+                st.info(f"⏳ {name}")
+    
+    # Barra de progresso
+    progress = (completed_tools / total_tools) * 100
+    
+    col_prog1, col_prog2 = st.columns([3, 1])
+    
+    with col_prog1:
+        st.progress(progress / 100)
+        st.caption(f"{completed_tools}/{total_tools} ferramentas concluídas ({progress:.1f}%)")
+    
+    with col_prog2:
+        if progress == 100:
+            st.success("🎉 Completo!")
+        else:
+            st.info(f"⏳ {progress:.0f}%")
+    
+    # Conclusão da fase
+    if progress == 100:
+        st.success("🎉 **Parabéns! Fase Analyze concluída com sucesso!**")
+        st.info("✨ Você pode avançar para a fase **Improve** usando a navegação das fases.")
+        
+        # Resumo das principais descobertas
+        st.markdown("### 🎯 Principais Descobertas da Análise")
+        
+        discoveries = []
+        
+        # Verificar descobertas de cada ferramenta
+        if manager.is_tool_completed('root_cause_analysis'):
+            rca_data = updated_analyze_data.get('root_cause_analysis', {}).get('data', {})
+            if rca_data.get('root_cause_final'):
+                discoveries.append(f"🔍 **Causa Raiz:** {rca_data['root_cause_final']}")
+        
+        if manager.is_tool_completed('statistical_analysis'):
+            discoveries.append("📊 **Análise Estatística:** Padrões e tendências identificados nos dados")
+        
+        if manager.is_tool_completed('hypothesis_testing'):
+            hyp_data = updated_analyze_data.get('hypothesis_testing', {}).get('data', {})
+            tests_performed = len(hyp_data.get('tests_performed', []))
+            if tests_performed > 0:
+                discoveries.append(f"🧪 **Hipóteses:** {tests_performed} teste(s) estatístico(s) executado(s)")
+        
+        if manager.is_tool_completed('process_analysis'):
+            proc_data = updated_analyze_data.get('process_analysis', {}).get('data', {})
+            process_steps = len(proc_data.get('process_steps', []))
+            bottlenecks = len(proc_data.get('bottlenecks', []))
+            if process_steps > 0 or bottlenecks > 0:
+                discoveries.append(f"⚙️ **Processo:** {process_steps} etapas mapeadas, {bottlenecks} gargalo(s) identificado(s)")
+        
+        if discoveries:
+            for discovery in discoveries:
+                st.write(discovery)
+        else:
+            st.info("Complete as ferramentas para ver um resumo das descobertas")
+        
+        # Preparação para próxima fase
+        st.markdown("### 🚀 Preparação para a Fase Improve")
+        
+        preparation_items = [
+            "💡 **Priorize as causas raiz** identificadas para desenvolvimento de soluções",
+            "📊 **Use as evidências estatísticas** para fundamentar as melhorias",
+            "🎯 **Foque nos gargalos críticos** para máximo impacto",
+            "📈 **Defina metas quantitativas** baseadas na análise realizada"
+        ]
+        
+        for item in preparation_items:
+            st.write(item)
+    
+    # Debug opcional
+    with st.expander("🔍 Debug - Dados da Fase Analyze"):
+        st.json(updated_analyze_data)
+    
+    
+
+
+
+
+
+
+
+
+
+
+
+    
