@@ -99,7 +99,7 @@ def render_top_navigation():
             else:
                 # Outros itens (apenas visual)
                 st.button(item, key=f"nav_item_{i}", disabled=True, use_container_width=True)
-
+##############################################################################################################################################################################
 def render_sidebar_navigation(current_project=None):
     """Renderiza a navegação na sidebar"""
     with st.sidebar:
@@ -175,44 +175,50 @@ def render_sidebar_navigation(current_project=None):
             
             st.divider()
             
-            # Fases DMAIC
+            # Fases DMAIC com progresso dinâmico
             st.markdown("### 🔄 Fases DMAIC")
             
             current_phase = st.session_state.get('current_phase', 'define')
             
+            # Calcular progresso real de cada fase
+            phases_progress = _calculate_phases_progress(current_project)
+            
             phases = [
-                ('define', '🎯', 'Define', 20),
-                ('measure', '📊', 'Measure', 50),
-                ('analyze', '🔍', 'Analyze', 25),
-                ('improve', '⚡', 'Improve', 0),
-                ('control', '✅', 'Control', 0)
+                ('define', '🎯', 'Define', phases_progress.get('define', 0)),
+                ('measure', '📊', 'Measure', phases_progress.get('measure', 0)),
+                ('analyze', '🔍', 'Analyze', phases_progress.get('analyze', 0)),
+                ('improve', '⚡', 'Improve', phases_progress.get('improve', 0)),
+                ('control', '✅', 'Control', phases_progress.get('control', 0))
             ]
             
             for phase_key, icon, phase_name, progress in phases:
                 # Estilo baseado na fase atual
-                if phase_key == current_phase:
-                    button_type = "primary"
-                else:
-                    button_type = "secondary"
+                button_type = "primary" if phase_key == current_phase else "secondary"
                 
                 # Botão da fase
                 if st.button(
                     f"{icon} {phase_name}",
                     key=f"phase_{phase_key}",
                     use_container_width=True,
-                    type=button_type if phase_key == current_phase else "secondary"
+                    type=button_type
                 ):
                     st.session_state.current_phase = phase_key
                     st.session_state.current_page = 'dmaic'
                     st.rerun()
                 
-                # Barra de progresso
-                if progress > 0:
-                    st.progress(progress / 100)
-                    st.caption(f"{progress}%")
+                # Barra de progresso com cores dinâmicas
+                progress_value = progress / 100
+                st.progress(progress_value)
+                
+                # Caption com cor baseada no progresso
+                if progress == 100:
+                    st.success(f"✅ {progress:.0f}%")
+                elif progress >= 50:
+                    st.warning(f"⚠️ {progress:.0f}%")
+                elif progress > 0:
+                    st.info(f"🔄 {progress:.0f}%")
                 else:
-                    st.progress(0)
-                    st.caption("0%")
+                    st.caption(f"⏳ {progress:.0f}%")
         
         st.divider()
         
@@ -229,3 +235,107 @@ def render_sidebar_navigation(current_project=None):
                     del st.session_state[key]
             
             st.rerun()
+
+
+def _calculate_phases_progress(project_data: Dict) -> Dict:
+    """Calcula progresso real de cada fase baseado nas ferramentas concluídas"""
+    progress = {}
+    
+    try:
+        # DEFINE - Ferramentas da fase Define
+        define_data = project_data.get('define', {})
+        define_tools = ['charter', 'stakeholders', 'voc', 'sipoc', 'timeline']
+        define_completed = 0
+        
+        for tool in define_tools:
+            tool_data = define_data.get(tool, {})
+            if isinstance(tool_data, dict) and tool_data.get('completed', False):
+                define_completed += 1
+        
+        progress['define'] = (define_completed / len(define_tools)) * 100
+        
+        # MEASURE - Ferramentas da fase Measure
+        measure_data = project_data.get('measure', {})
+        measure_tools = ['data_collection_plan', 'file_upload', 'process_capability', 'msa', 'baseline_data']
+        measure_completed = 0
+        
+        for tool in measure_tools:
+            tool_data = measure_data.get(tool, {})
+            if isinstance(tool_data, dict) and tool_data.get('completed', False):
+                measure_completed += 1
+        
+        progress['measure'] = (measure_completed / len(measure_tools)) * 100
+        
+        # ANALYZE - Ferramentas da fase Analyze
+        analyze_data = project_data.get('analyze', {})
+        analyze_tools = ['statistical_analysis', 'root_cause_analysis', 'hypothesis_testing', 'process_analysis']
+        analyze_completed = 0
+        
+        for tool in analyze_tools:
+            tool_data = analyze_data.get(tool, {})
+            if isinstance(tool_data, dict) and tool_data.get('completed', False):
+                analyze_completed += 1
+        
+        progress['analyze'] = (analyze_completed / len(analyze_tools)) * 100 if analyze_tools else 0
+        
+        # IMPROVE - Ferramentas da fase Improve
+        improve_data = project_data.get('improve', {})
+        improve_tools = ['solutions', 'action_plan', 'pilot_results', 'implementation', 'validation']
+        improve_completed = 0
+        
+        for tool in improve_tools:
+            tool_data = improve_data.get(tool, {})
+            if isinstance(tool_data, dict) and tool_data.get('completed', False):
+                improve_completed += 1
+        
+        progress['improve'] = (improve_completed / len(improve_tools)) * 100
+        
+        # CONTROL - Ferramentas da fase Control
+        control_data = project_data.get('control', {})
+        control_tools = ['control_plan', 'spc_charts', 'documentation', 'handover']
+        control_completed = 0
+        
+        for tool in control_tools:
+            tool_data = control_data.get(tool, {})
+            if isinstance(tool_data, dict) and tool_data.get('completed', False):
+                control_completed += 1
+        
+        progress['control'] = (control_completed / len(control_tools)) * 100
+        
+    except Exception as e:
+        # Em caso de erro, retornar valores padrão
+        st.error(f"Erro no cálculo de progresso: {str(e)}")
+        progress = {
+            'define': 0,
+            'measure': 0,
+            'analyze': 0,
+            'improve': 0,
+            'control': 0
+        }
+    
+    return progress
+
+
+def _get_phase_status_color(progress: float) -> str:
+    """Retorna cor baseada no progresso da fase"""
+    if progress == 100:
+        return "success"
+    elif progress >= 75:
+        return "warning"
+    elif progress >= 25:
+        return "info"
+    else:
+        return "secondary"
+
+
+def _get_phase_status_icon(progress: float) -> str:
+    """Retorna ícone baseado no progresso da fase"""
+    if progress == 100:
+        return "✅"
+    elif progress >= 50:
+        return "🔄"
+    elif progress > 0:
+        return "⏳"
+    else:
+        return "⭕"
+
