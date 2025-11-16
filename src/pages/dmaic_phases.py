@@ -322,7 +322,10 @@ def show_define_phase(project):
                 st.rerun()
 
 def show_measure_phase(project):
-    """Conteúdo da fase Measure"""
+    """Conteúdo da fase Measure com ferramentas funcionais"""
+    from src.pages.measure_tools import show_measure_tools
+    show_measure_tools(project)
+    
     st.markdown("### 📏 Fase Measure (Medir)")
     
     st.info("""
