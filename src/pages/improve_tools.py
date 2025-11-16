@@ -289,139 +289,237 @@ class SolutionDevelopmentTool:
                                 st.success(f"✅ Ideia convertida em solução!")
                                 st.rerun()
     
-    def _show_solutions_management(self, solution_data: Dict):
-        """Gerenciamento de soluções"""
-        st.markdown("#### 💡 Catálogo de Soluções")
+def _show_solutions_management(self, solution_data: Dict):
+    """Gerenciamento de soluções"""
+    st.markdown("#### 💡 Catálogo de Soluções")
+    
+    # Adicionar nova solução
+    with st.expander("➕ Adicionar Nova Solução"):
+        col1, col2 = st.columns(2)
         
-        # Adicionar nova solução
-        with st.expander("➕ Adicionar Nova Solução"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                sol_name = st.text_input(
-                    "Nome da Solução:",
-                    key=f"solution_name_{self.project_id}",
-                    placeholder="Ex: Implementação de setup rápido (SMED)"
-                )
-                
-                sol_type = st.selectbox(
-                    "Tipo de Solução:",
-                    ["Melhoria de Processo", "Tecnologia", "Treinamento", "Mudança Organizacional", 
-                     "Automação", "Padronização", "Redesign", "Eliminação"],
-                    key=f"solution_type_{self.project_id}"
-                )
-                
-                sol_complexity = st.selectbox(
-                    "Complexidade:",
-                    ["Baixa", "Média", "Alta"],
-                    key=f"solution_complexity_{self.project_id}"
-                )
-            
-            with col2:
-                sol_cost = st.number_input(
-                    "Custo Estimado (R$):",
-                    min_value=0.0,
-                    value=0.0,
-                    key=f"solution_cost_{self.project_id}"
-                )
-                
-                sol_time = st.number_input(
-                    "Tempo de Implementação (dias):",
-                    min_value=1,
-                    max_value=365,
-                    value=30,
-                    key=f"solution_time_{self.project_id}"
-                )
-                
-                sol_impact = st.selectbox(
-                    "Impacto Esperado:",
-                    ["Baixo", "Médio", "Alto"],
-                    key=f"solution_impact_{self.project_id}"
-                )
-            
-            sol_description = st.text_area(
-                "Descrição Detalhada:",
-                key=f"solution_description_{self.project_id}",
-                placeholder="Descreva como a solução funcionará e como resolverá o problema...",
-                height=100
+        with col1:
+            sol_name = st.text_input(
+                "Nome da Solução:",
+                key=f"solution_name_{self.project_id}",
+                placeholder="Ex: Implementação de setup rápido (SMED)"
             )
             
-            sol_requirements = st.text_area(
-                "Recursos/Pré-requisitos:",
-                key=f"solution_requirements_{self.project_id}",
-                placeholder="Liste recursos necessários, aprovações, etc..."
+            sol_type = st.selectbox(
+                "Tipo de Solução:",
+                ["Melhoria de Processo", "Tecnologia", "Treinamento", "Mudança Organizacional", 
+                 "Automação", "Padronização", "Redesign", "Eliminação"],
+                key=f"solution_type_{self.project_id}"
             )
             
-            if st.button("💡 Adicionar Solução", key=f"add_solution_{self.project_id}"):
-                if sol_name.strip() and sol_description.strip():
-                    solution_data['solutions'].append({
-                        'name': sol_name,
-                        'description': sol_description,
-                        'type': sol_type,
-                        'complexity': sol_complexity,
-                        'cost_estimate': float(sol_cost),
-                        'implementation_time': int(sol_time),
-                        'expected_impact': sol_impact,
-                        'requirements': sol_requirements,
-                        'status': 'Proposta',
-                        'created_at': datetime.now().isoformat(),
-                        'evaluation_score': 0
-                    })
-                    
-                    st.success(f"✅ Solução '{sol_name}' adicionada!")
-                    st.rerun()
-                else:
-                    st.error("❌ Preencha nome e descrição")
+            sol_complexity = st.selectbox(
+                "Complexidade:",
+                ["Baixa", "Média", "Alta"],
+                key=f"solution_complexity_{self.project_id}"
+            )
         
-        # Mostrar soluções existentes
-        if solution_data['solutions']:
-            st.markdown("#### 📊 Soluções Propostas")
+        with col2:
+            sol_cost = st.number_input(
+                "Custo Estimado (R$):",
+                min_value=0.0,
+                value=0.0,
+                key=f"solution_cost_{self.project_id}"
+            )
             
-            # Filtros
-            col_filter1, col_filter2, col_filter3 = st.columns(3)
+            sol_time = st.number_input(
+                "Tempo de Implementação (dias):",
+                min_value=1,
+                max_value=365,
+                value=30,
+                key=f"solution_time_{self.project_id}"
+            )
             
-            with col_filter1:
-                type_filter = st.selectbox(
-                    "Filtrar por Tipo:",
-                    ["Todos"] + list(set([sol['type'] for sol in solution_data['solutions']])),
-                    key=f"type_filter_{self.project_id}"
-                )
-            
-            with col_filter2:
-                complexity_filter = st.selectbox(
-                    "Filtrar por Complexidade:",
-                    ["Todos", "Baixa", "Média", "Alta"],
-                    key=f"complexity_filter_{self.project_id}"
-                )
-            
-            with col_filter3:
-                impact_filter = st.selectbox(
-                    "Filtrar por Impacto:",
-                    ["Todos", "Baixo", "Médio", "Alto"],
-                    key=f"impact_filter_{self.project_id}"
-                )
-            
-            # Aplicar filtros
-            filtered_solutions = solution_data['solutions']
-            
-            if type_filter != "Todos":
-                filtered_solutions = [sol for sol in filtered_solutions if sol['type'] == type_filter]
-            
-            if complexity_filter != "Todos":
-                filtered_solutions = [sol for sol in filtered_solutions if sol['complexity'] == complexity_filter]
-            
-            if impact_filter != "Todos":
-                filtered_solutions = [sol for sol in filtered_solutions if sol['expected_impact'] == impact_filter]
-            
-            # Mostrar soluções filtradas
-            for i, solution in enumerate(filtered_solutions):
-                original_index = solution_data['solutions'].index(solution)
+            sol_impact = st.selectbox(
+                "Impacto Esperado:",
+                ["Baixo", "Médio", "Alto"],
+                key=f"solution_impact_{self.project_id}"
+            )
+        
+        sol_description = st.text_area(
+            "Descrição Detalhada:",
+            key=f"solution_description_{self.project_id}",
+            placeholder="Descreva como a solução funcionará e como resolverá o problema...",
+            height=100
+        )
+        
+        sol_requirements = st.text_area(
+            "Recursos/Pré-requisitos:",
+            key=f"solution_requirements_{self.project_id}",
+            placeholder="Liste recursos necessários, aprovações, etc..."
+        )
+        
+        if st.button("💡 Adicionar Solução", key=f"add_solution_{self.project_id}"):
+            if sol_name.strip() and sol_description.strip():
+                if 'solutions' not in solution_data:
+                    solution_data['solutions'] = []
                 
-                with st.expander(f"**{solution['name']}** ({solution['type']}) - {solution['status']}"):
-                    col1, col2, col3 = st.columns([3, 2, 1])
+                solution_data['solutions'].append({
+                    'name': sol_name,
+                    'description': sol_description,
+                    'type': sol_type,
+                    'complexity': sol_complexity,
+                    'cost_estimate': float(sol_cost),
+                    'implementation_time': int(sol_time),
+                    'expected_impact': sol_impact,
+                    'requirements': sol_requirements,
+                    'status': 'Proposta',
+                    'created_at': datetime.now().isoformat(),
+                    'evaluation_score': 0
+                })
+                
+                st.success(f"✅ Solução '{sol_name}' adicionada!")
+                st.rerun()
+            else:
+                st.error("❌ Preencha nome e descrição")
+    
+    # Mostrar soluções existentes
+    if solution_data.get('solutions'):
+        st.markdown("#### 📊 Soluções Propostas")
+        
+        # Filtros
+        col_filter1, col_filter2, col_filter3 = st.columns(3)
+        
+        with col_filter1:
+            type_filter = st.selectbox(
+                "Filtrar por Tipo:",
+                ["Todos"] + list(set([sol['type'] for sol in solution_data['solutions']])),
+                key=f"type_filter_{self.project_id}"
+            )
+        
+        with col_filter2:
+            complexity_filter = st.selectbox(
+                "Filtrar por Complexidade:",
+                ["Todos", "Baixa", "Média", "Alta"],
+                key=f"complexity_filter_{self.project_id}"
+            )
+        
+        with col_filter3:
+            impact_filter = st.selectbox(
+                "Filtrar por Impacto:",
+                ["Todos", "Baixo", "Médio", "Alto"],
+                key=f"impact_filter_{self.project_id}"
+            )
+        
+        # Aplicar filtros
+        filtered_solutions = solution_data['solutions']
+        
+        if type_filter != "Todos":
+            filtered_solutions = [sol for sol in filtered_solutions if sol['type'] == type_filter]
+        
+        if complexity_filter != "Todos":
+            filtered_solutions = [sol for sol in filtered_solutions if sol['complexity'] == complexity_filter]
+        
+        if impact_filter != "Todos":
+            filtered_solutions = [sol for sol in filtered_solutions if sol['expected_impact'] == impact_filter]
+        
+        # Mostrar soluções filtradas com capacidade de edição
+        for i, solution in enumerate(filtered_solutions):
+            original_index = solution_data['solutions'].index(solution)
+            
+            with st.expander(f"**{solution['name']}** ({solution['type']}) - {solution['status']}"):
+                
+                # Modo de edição
+                edit_mode = st.checkbox(f"✏️ Editar", key=f"edit_mode_{original_index}_{self.project_id}")
+                
+                if edit_mode:
+                    # Campos editáveis
+                    col1, col2 = st.columns(2)
                     
                     with col1:
-                        st.write(f"**Descrição:** {solution['description']}")
+                        new_name = st.text_input(
+                            "Nome:",
+                            value=solution.get('name', ''),
+                            key=f"edit_name_{original_index}_{self.project_id}"
+                        )
+                        
+                        new_type = st.selectbox(
+                            "Tipo:",
+                            ["Melhoria de Processo", "Tecnologia", "Treinamento", "Mudança Organizacional", 
+                             "Automação", "Padronização", "Redesign", "Eliminação"],
+                            index=["Melhoria de Processo", "Tecnologia", "Treinamento", "Mudança Organizacional", 
+                                   "Automação", "Padronização", "Redesign", "Eliminação"].index(solution.get('type', 'Melhoria de Processo')),
+                            key=f"edit_type_{original_index}_{self.project_id}"
+                        )
+                        
+                        new_complexity = st.selectbox(
+                            "Complexidade:",
+                            ["Baixa", "Média", "Alta"],
+                            index=["Baixa", "Média", "Alta"].index(solution.get('complexity', 'Média')),
+                            key=f"edit_complexity_{original_index}_{self.project_id}"
+                        )
+                    
+                    with col2:
+                        new_cost = st.number_input(
+                            "Custo (R$):",
+                            min_value=0.0,
+                            value=float(solution.get('cost_estimate', 0)),
+                            key=f"edit_cost_{original_index}_{self.project_id}"
+                        )
+                        
+                        new_time = st.number_input(
+                            "Tempo (dias):",
+                            min_value=1,
+                            max_value=365,
+                            value=int(solution.get('implementation_time', 30)),
+                            key=f"edit_time_{original_index}_{self.project_id}"
+                        )
+                        
+                        new_impact = st.selectbox(
+                            "Impacto:",
+                            ["Baixo", "Médio", "Alto"],
+                            index=["Baixo", "Médio", "Alto"].index(solution.get('expected_impact', 'Médio')),
+                            key=f"edit_impact_{original_index}_{self.project_id}"
+                        )
+                    
+                    new_description = st.text_area(
+                        "Descrição:",
+                        value=solution.get('description', ''),
+                        key=f"edit_description_{original_index}_{self.project_id}",
+                        height=100
+                    )
+                    
+                    new_requirements = st.text_area(
+                        "Recursos/Pré-requisitos:",
+                        value=solution.get('requirements', ''),
+                        key=f"edit_requirements_{original_index}_{self.project_id}",
+                        height=80
+                    )
+                    
+                    # Botões de ação para edição
+                    col_btn1, col_btn2 = st.columns(2)
+                    
+                    with col_btn1:
+                        if st.button("💾 Salvar Alterações", key=f"save_edit_{original_index}_{self.project_id}"):
+                            # Atualizar solução
+                            solution_data['solutions'][original_index].update({
+                                'name': new_name,
+                                'type': new_type,
+                                'complexity': new_complexity,
+                                'cost_estimate': new_cost,
+                                'implementation_time': new_time,
+                                'expected_impact': new_impact,
+                                'description': new_description,
+                                'requirements': new_requirements,
+                                'updated_at': datetime.now().isoformat()
+                            })
+                            
+                            st.success("✅ Solução atualizada!")
+                            st.rerun()
+                    
+                    with col_btn2:
+                        if st.button("❌ Cancelar", key=f"cancel_edit_{original_index}_{self.project_id}"):
+                            st.rerun()
+                
+                else:
+                    # Modo visualização
+                    col1, col2, col3 = st.columns([2, 2, 1])
+                    
+                    with col1:
+                        st.write(f"**Descrição:** {solution.get('description', 'N/A')}")
                         if solution.get('requirements'):
                             st.write(f"**Recursos:** {solution['requirements']}")
                         if solution.get('source'):
@@ -437,6 +535,7 @@ class SolutionDevelopmentTool:
                             st.write(f"**Score:** {solution['evaluation_score']:.1f}/10")
                     
                     with col3:
+                        # Status
                         new_status = st.selectbox(
                             "Status:",
                             ["Proposta", "Em Avaliação", "Aprovada", "Rejeitada", "Implementando"],
@@ -446,34 +545,37 @@ class SolutionDevelopmentTool:
                         
                         solution_data['solutions'][original_index]['status'] = new_status
                         
-                        if st.button("🗑️", key=f"remove_solution_{original_index}_{self.project_id}"):
+                        # Botão remover
+                        if st.button("🗑️ Remover", key=f"remove_solution_{original_index}_{self.project_id}"):
                             solution_data['solutions'].pop(original_index)
+                            st.success("✅ Solução removida!")
                             st.rerun()
+        
+        # Resumo estatístico
+        if solution_data['solutions']:
+            st.markdown("#### 📈 Resumo das Soluções")
             
-            # Resumo estatístico
-            if solution_data['solutions']:
-                st.markdown("#### 📈 Resumo das Soluções")
-                
-                total_solutions = len(solution_data['solutions'])
-                total_cost = sum(sol['cost_estimate'] for sol in solution_data['solutions'])
-                avg_time = sum(sol['implementation_time'] for sol in solution_data['solutions']) / total_solutions
-                
-                col_stats1, col_stats2, col_stats3, col_stats4 = st.columns(4)
-                
-                with col_stats1:
-                    st.metric("Total de Soluções", total_solutions)
-                
-                with col_stats2:
-                    st.metric("Custo Total", f"R$ {total_cost:,.2f}")
-                
-                with col_stats3:
-                    st.metric("Tempo Médio", f"{avg_time:.0f} dias")
-                
-                with col_stats4:
-                    approved = len([sol for sol in solution_data['solutions'] if sol['status'] == 'Aprovada'])
-                    st.metric("Aprovadas", approved)
-        else:
-            st.info("📝 Nenhuma solução cadastrada ainda. Adicione soluções ou converta ideias do brainstorming.")
+            total_solutions = len(solution_data['solutions'])
+            total_cost = sum(sol['cost_estimate'] for sol in solution_data['solutions'])
+            avg_time = sum(sol['implementation_time'] for sol in solution_data['solutions']) / total_solutions
+            
+            col_stats1, col_stats2, col_stats3, col_stats4 = st.columns(4)
+            
+            with col_stats1:
+                st.metric("Total de Soluções", total_solutions)
+            
+            with col_stats2:
+                st.metric("Custo Total", f"R$ {total_cost:,.2f}")
+            
+            with col_stats3:
+                st.metric("Tempo Médio", f"{avg_time:.0f} dias")
+            
+            with col_stats4:
+                approved = len([sol for sol in solution_data['solutions'] if sol['status'] == 'Aprovada'])
+                st.metric("Aprovadas", approved)
+    else:
+        st.info("📝 Nenhuma solução cadastrada ainda. Adicione soluções ou converta ideias do brainstorming.")
+
     
     def _show_solution_evaluation(self, solution_data: Dict):
         """Avaliação de soluções"""
