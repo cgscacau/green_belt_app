@@ -151,6 +151,9 @@ def show_file_upload_analysis(project_data: Dict):
     # Status do upload
     is_completed = project_data.get('measure', {}).get('file_upload', {}).get('completed', False)
     
+    # Chave única para o file_uploader
+    uploader_key = f"main_file_uploader_{project_id}"
+    
     if existing_data is not None and is_completed:
         st.success("✅ **Dados já carregados e salvos no projeto**")
         
@@ -173,7 +176,8 @@ def show_file_upload_analysis(project_data: Dict):
                 st.metric("📅 Upload", upload_date)
         
         # Opção para substituir dados
-        if st.checkbox("🔄 Substituir dados existentes", key=f"replace_data_{project_id}"):
+        replace_checkbox_key = f"replace_data_checkbox_{project_id}"
+        if st.checkbox("🔄 Substituir dados existentes", key=replace_checkbox_key):
             st.warning("⚠️ **Atenção:** Isso substituirá os dados atuais e pode afetar análises já realizadas.")
             show_upload_interface = True
         else:
@@ -187,11 +191,11 @@ def show_file_upload_analysis(project_data: Dict):
     if show_upload_interface:
         st.markdown("### 📤 Upload de Arquivo")
         
-        # Upload
+        # Upload com chave única
         uploaded_file = st.file_uploader(
             "Escolha um arquivo de dados",
             type=['csv', 'xlsx', 'xls'],
-            key=f"file_upload_{project_id}",
+            key=uploader_key,
             help="Formatos suportados: CSV, Excel (.xlsx, .xls)"
         )
         
@@ -329,7 +333,7 @@ def _show_data_analysis(df: pd.DataFrame, project_id: str, upload_info: Dict = N
                 "Selecione colunas numéricas:",
                 numeric_columns,
                 default=numeric_columns[:5],  # Máximo 5 para não sobrecarregar
-                key=f"selected_numeric_{project_id}"
+                key=f"selected_numeric_analysis_{project_id}"
             )
             
             if selected_numeric:
@@ -361,7 +365,7 @@ def _show_data_analysis(df: pd.DataFrame, project_id: str, upload_info: Dict = N
             selected_categorical = st.selectbox(
                 "Selecione uma coluna categórica:",
                 categorical_columns,
-                key=f"selected_categorical_{project_id}"
+                key=f"selected_categorical_analysis_{project_id}"
             )
             
             if selected_categorical:
@@ -390,13 +394,13 @@ def _show_data_analysis(df: pd.DataFrame, project_id: str, upload_info: Dict = N
         chart_type = st.selectbox(
             "Tipo de Gráfico:",
             ["Histograma", "Box Plot", "Scatter Plot", "Correlação", "Série Temporal"],
-            key=f"chart_type_{project_id}"
+            key=f"chart_type_analysis_{project_id}"
         )
         
         if chart_type == "Histograma":
-            col_to_plot = st.selectbox("Coluna:", numeric_columns, key=f"hist_col_{project_id}")
+            col_to_plot = st.selectbox("Coluna:", numeric_columns, key=f"hist_col_analysis_{project_id}")
             
-            bins = st.slider("Número de bins:", 10, 100, 30, key=f"hist_bins_{project_id}")
+            bins = st.slider("Número de bins:", 10, 100, 30, key=f"hist_bins_analysis_{project_id}")
             
             fig = px.histogram(df, x=col_to_plot, nbins=bins, title=f"Histograma - {col_to_plot}")
             fig.update_layout(height=500)
@@ -407,7 +411,7 @@ def _show_data_analysis(df: pd.DataFrame, project_id: str, upload_info: Dict = N
                 "Colunas:", 
                 numeric_columns, 
                 default=numeric_columns[:3],
-                key=f"box_cols_{project_id}"
+                key=f"box_cols_analysis_{project_id}"
             )
             
             if cols_to_plot:
@@ -423,11 +427,11 @@ def _show_data_analysis(df: pd.DataFrame, project_id: str, upload_info: Dict = N
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    x_col = st.selectbox("Eixo X:", numeric_columns, key=f"scatter_x_{project_id}")
+                    x_col = st.selectbox("Eixo X:", numeric_columns, key=f"scatter_x_analysis_{project_id}")
                 
                 with col2:
                     y_options = [col for col in numeric_columns if col != x_col]
-                    y_col = st.selectbox("Eixo Y:", y_options, key=f"scatter_y_{project_id}")
+                    y_col = st.selectbox("Eixo Y:", y_options, key=f"scatter_y_analysis_{project_id}")
                 
                 fig = px.scatter(df, x=x_col, y=y_col, title=f"Scatter: {x_col} vs {y_col}")
                 fig.update_layout(height=500)
@@ -441,7 +445,7 @@ def _show_data_analysis(df: pd.DataFrame, project_id: str, upload_info: Dict = N
                     "Colunas para correlação:",
                     numeric_columns,
                     default=numeric_columns[:5],
-                    key=f"corr_cols_{project_id}"
+                    key=f"corr_cols_analysis_{project_id}"
                 )
                 
                 if len(corr_cols) >= 2:
@@ -460,7 +464,7 @@ def _show_data_analysis(df: pd.DataFrame, project_id: str, upload_info: Dict = N
                 st.warning("⚠️ Necessário pelo menos 2 colunas numéricas")
         
         elif chart_type == "Série Temporal":
-            time_col = st.selectbox("Coluna para série temporal:", numeric_columns, key=f"time_col_{project_id}")
+            time_col = st.selectbox("Coluna para série temporal:", numeric_columns, key=f"time_col_analysis_{project_id}")
             
             fig = px.line(x=range(len(df)), y=df[time_col], title=f"Série Temporal - {time_col}")
             fig.update_xaxes(title="Observação")
@@ -479,13 +483,14 @@ def _show_data_analysis(df: pd.DataFrame, project_id: str, upload_info: Dict = N
         
         with col1:
             # Download dos dados processados
-            if st.button("📥 Download CSV", key=f"download_csv_{project_id}"):
+            if st.button("📥 Preparar Download", key=f"prep_download_{project_id}"):
                 csv = df.to_csv(index=False)
                 st.download_button(
                     label="📥 Baixar arquivo CSV",
                     data=csv,
                     file_name=f"dados_processados_{project_id}.csv",
-                    mime="text/csv"
+                    mime="text/csv",
+                    key=f"download_csv_{project_id}"
                 )
         
         with col2:
@@ -655,7 +660,7 @@ def show_process_capability(project_data: Dict):
         selected_column = st.selectbox(
             "Variável para análise:",
             numeric_columns,
-            key=f"cap_col_{project_id}",
+            key=f"capability_col_{project_id}",
             help="Selecione a variável crítica para qualidade (CTQ)"
         )
     
@@ -663,7 +668,7 @@ def show_process_capability(project_data: Dict):
         spec_type = st.selectbox(
             "Tipo de Especificação:",
             ["Bilateral", "Superior apenas", "Inferior apenas"],
-            key=f"spec_type_{project_id}",
+            key=f"capability_spec_type_{project_id}",
             help="Bilateral: LSL e USL | Superior: apenas USL | Inferior: apenas LSL"
         )
     
@@ -704,7 +709,7 @@ def show_process_capability(project_data: Dict):
             lsl = st.number_input(
                 "LSL (Limite Inferior de Especificação):",
                 value=float(mean_val - 3*std_val),
-                key=f"lsl_{project_id}",
+                key=f"capability_lsl_{project_id}",
                 help="Valor mínimo aceitável"
             )
         else:
@@ -715,14 +720,14 @@ def show_process_capability(project_data: Dict):
             usl = st.number_input(
                 "USL (Limite Superior de Especificação):",
                 value=float(mean_val + 3*std_val),
-                key=f"usl_{project_id}",
+                key=f"capability_usl_{project_id}",
                 help="Valor máximo aceitável"
             )
         else:
             usl = None
     
     # Executar análise
-    if st.button("🔍 Analisar Capacidade", key=f"analyze_cap_{project_id}", type="primary"):
+    if st.button("🔍 Analisar Capacidade", key=f"analyze_capability_{project_id}", type="primary"):
         
         with st.spinner("Calculando índices de capacidade..."):
             # Calcular índices
@@ -843,7 +848,7 @@ def show_process_capability(project_data: Dict):
             st.plotly_chart(fig, use_container_width=True)
             
             # Salvar resultados
-            if st.button("💾 Salvar Análise de Capacidade", key=f"save_cap_{project_id}"):
+            if st.button("💾 Salvar Análise de Capacidade", key=f"save_capability_{project_id}"):
                 cap_data = {
                     'variable': selected_column,
                     'spec_type': spec_type,
@@ -935,14 +940,14 @@ def show_msa_analysis(project_data: Dict):
     # Configuração básica
     col1, col2, col3 = st.columns(3)
     with col1:
-        num_operators = st.number_input("Operadores", min_value=2, max_value=5, value=3, key=f"ops_{project_id}")
+        num_operators = st.number_input("Operadores", min_value=2, max_value=5, value=3, key=f"msa_ops_{project_id}")
     with col2:
-        num_parts = st.number_input("Peças", min_value=5, max_value=20, value=10, key=f"parts_{project_id}")
+        num_parts = st.number_input("Peças", min_value=5, max_value=20, value=10, key=f"msa_parts_{project_id}")
     with col3:
-        num_trials = st.number_input("Repetições", min_value=2, max_value=5, value=3, key=f"trials_{project_id}")
+        num_trials = st.number_input("Repetições", min_value=2, max_value=5, value=3, key=f"msa_trials_{project_id}")
     
     # Gerar template
-    if st.button("📥 Gerar Template MSA", key=f"gen_template_{project_id}"):
+    if st.button("📥 Gerar Template MSA", key=f"gen_msa_template_{project_id}"):
         template_data = []
         for op in range(1, num_operators + 1):
             for part in range(1, num_parts + 1):
@@ -962,11 +967,12 @@ def show_msa_analysis(project_data: Dict):
             "📥 Download Template",
             csv,
             f"MSA_Template_{project_data.get('name', 'Projeto')}.csv",
-            "text/csv"
+            "text/csv",
+            key=f"download_msa_template_{project_id}"
         )
     
     # Upload MSA
-    msa_file = st.file_uploader("Upload dados MSA", type=['csv', 'xlsx'], key=f"msa_upload_{project_id}")
+    msa_file = st.file_uploader("Upload dados MSA", type=['csv', 'xlsx'], key=f"msa_file_upload_{project_id}")
     
     if msa_file:
         try:
@@ -1005,7 +1011,7 @@ def show_msa_analysis(project_data: Dict):
                         st.metric("Medições", len(msa_df))
                     
                     # Salvar MSA
-                    if st.button("💾 Salvar MSA", key=f"save_msa_{project_id}"):
+                    if st.button("💾 Salvar MSA", key=f"save_msa_analysis_{project_id}"):
                         msa_data = {
                             'num_operators': num_operators,
                             'num_parts': num_parts,
@@ -1036,7 +1042,7 @@ def show_baseline_metrics(project_data: Dict):
     st.markdown("## 📈 Baseline e Métricas CTQ")
     
     # Inicializar dados
-    baseline_key = f"baseline_{project_id}"
+    baseline_key = f"baseline_metrics_{project_id}"
     if baseline_key not in st.session_state:
         existing_data = project_data.get('measure', {}).get('baseline_data', {}).get('data', {})
         st.session_state[baseline_key] = existing_data if existing_data else {'ctq_metrics': []}
@@ -1056,13 +1062,13 @@ def show_baseline_metrics(project_data: Dict):
     with st.expander("➕ Adicionar Métrica CTQ"):
         col1, col2 = st.columns(2)
         with col1:
-            ctq_name = st.text_input("Nome da Métrica", key=f"ctq_name_{project_id}")
-            ctq_baseline = st.number_input("Valor Baseline", key=f"ctq_baseline_{project_id}")
+            ctq_name = st.text_input("Nome da Métrica", key=f"baseline_ctq_name_{project_id}")
+            ctq_baseline = st.number_input("Valor Baseline", key=f"baseline_ctq_baseline_{project_id}")
         with col2:
-            ctq_target = st.number_input("Meta", key=f"ctq_target_{project_id}")
-            ctq_unit = st.text_input("Unidade", key=f"ctq_unit_{project_id}")
+            ctq_target = st.number_input("Meta", key=f"baseline_ctq_target_{project_id}")
+            ctq_unit = st.text_input("Unidade", key=f"baseline_ctq_unit_{project_id}")
         
-        if st.button("➕ Adicionar CTQ", key=f"add_ctq_{project_id}"):
+        if st.button("➕ Adicionar CTQ", key=f"add_baseline_ctq_{project_id}"):
             if ctq_name.strip():
                 baseline_data['ctq_metrics'].append({
                     'name': ctq_name.strip(),
@@ -1084,7 +1090,7 @@ def show_baseline_metrics(project_data: Dict):
             with col3:
                 st.write(f"Meta: {ctq['target']} {ctq['unit']}")
             with col4:
-                if st.button("🗑️", key=f"remove_ctq_{i}_{project_id}"):
+                if st.button("🗑️", key=f"remove_baseline_ctq_{i}_{project_id}"):
                     baseline_data['ctq_metrics'].pop(i)
                     st.session_state[baseline_key] = baseline_data
                     st.rerun()
@@ -1095,19 +1101,19 @@ def show_baseline_metrics(project_data: Dict):
         baseline_period = st.text_input(
             "Período do Baseline",
             value=baseline_data.get('baseline_period', ''),
-            key=f"baseline_period_{project_id}"
+            key=f"baseline_period_input_{project_id}"
         )
     with col2:
         data_source = st.text_input(
             "Fonte dos Dados",
             value=baseline_data.get('data_source', ''),
-            key=f"baseline_source_{project_id}"
+            key=f"baseline_data_source_{project_id}"
         )
     
     # Botões
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("💾 Salvar", key=f"save_baseline_{project_id}"):
+        if st.button("💾 Salvar", key=f"save_baseline_metrics_{project_id}"):
             _save_tool_data(project_id, 'baseline_data', {
                 'ctq_metrics': baseline_data['ctq_metrics'],
                 'baseline_period': baseline_period,
@@ -1116,7 +1122,7 @@ def show_baseline_metrics(project_data: Dict):
             st.success("💾 Salvo!")
     
     with col2:
-        if st.button("✅ Finalizar", key=f"complete_baseline_{project_id}"):
+        if st.button("✅ Finalizar", key=f"complete_baseline_metrics_{project_id}"):
             if baseline_data['ctq_metrics'] and baseline_period.strip():
                 _save_tool_data(project_id, 'baseline_data', {
                     'ctq_metrics': baseline_data['ctq_metrics'],
@@ -1201,7 +1207,7 @@ def show_measure_tools(project_data: Dict):
         "Selecione uma ferramenta para usar:",
         range(len(tool_names_with_status)),
         format_func=lambda x: tool_names_with_status[x],
-        key=f"measure_tool_selector_{project_id}",
+        key=f"measure_main_tool_selector_{project_id}",
         help="Escolha a ferramenta que deseja usar na fase Measure"
     )
     
@@ -1228,7 +1234,7 @@ def show_measure_tools(project_data: Dict):
             st.info("Use 'Upload e Análise de Dados'")
         
         # Botão de sincronização manual
-        if st.button("🔄 Sincronizar", key=f"sync_sidebar_{project_id}"):
+        if st.button("🔄 Sincronizar", key=f"sync_measure_sidebar_{project_id}"):
             success = project_manager.ensure_project_sync(project_id)
             if success:
                 st.success("✅ Sincronizado!")
