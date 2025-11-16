@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 from typing import Dict, List
-from src.utils.project_manager import ProjectManager, DataSyncManager
+from src.utils.project_manager import ProjectManager
 from scipy import stats
 import warnings
 warnings.filterwarnings('ignore')
@@ -136,11 +136,10 @@ def show_data_collection_plan(project_data: Dict):
 
 
 def show_file_upload_analysis(project_data: Dict):
-    """Upload e Análise de Dados - VERSÃO INTEGRADA COM FIREBASE"""
+    """Upload e Análise de Dados - VERSÃO CORRIGIDA"""
     
     project_id = project_data.get('id')
     project_manager = ProjectManager()
-    sync_manager = DataSyncManager(project_id)
     
     st.markdown("## 📁 Upload e Análise de Dados")
     st.markdown("Faça upload dos dados do processo para análise estatística.")
@@ -618,7 +617,7 @@ def _show_detailed_quality_analysis(df: pd.DataFrame):
 
 
 def show_process_capability(project_data: Dict):
-    """Análise de Capacidade do Processo - VERSÃO MELHORADA"""
+    """Análise de Capacidade do Processo"""
     
     project_id = project_data.get('id')
     project_manager = ProjectManager()
@@ -632,9 +631,6 @@ def show_process_capability(project_data: Dict):
     if df is None:
         st.warning("⚠️ **Dados não encontrados**")
         st.info("Primeiro faça upload dos dados na ferramenta **Upload e Análise de Dados**")
-        
-        if st.button("📁 Ir para Upload de Dados", key=f"goto_upload_{project_id}"):
-            st.rerun()
         return
     
     numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -706,7 +702,7 @@ def show_process_capability(project_data: Dict):
     with col3:
         if spec_type in ["Bilateral", "Inferior apenas"]:
             lsl = st.number_input(
-                "LSL (Limite Superior de Especificação):",
+                "LSL (Limite Inferior de Especificação):",
                 value=float(mean_val - 3*std_val),
                 key=f"lsl_{project_id}",
                 help="Valor mínimo aceitável"
@@ -846,56 +842,6 @@ def show_process_capability(project_data: Dict):
             
             st.plotly_chart(fig, use_container_width=True)
             
-            # Estatísticas detalhadas
-            st.markdown("### 📋 Estatísticas Detalhadas")
-            
-            detailed_stats = {
-                'Métrica': ['Média do Processo', 'Desvio Padrão', 'LSL', 'USL', 'Amplitude Spec.'],
-                'Valor': [
-                    f"{mean_val:.4f}",
-                    f"{std_val:.4f}",
-                    f"{lsl:.4f}" if lsl is not None else "N/A",
-                    f"{usl:.4f}" if usl is not None else "N/A",
-                    f"{usl - lsl:.4f}" if (lsl is not None and usl is not None) else "N/A"
-                ]
-            }
-            
-            if results['defect_rate'] is not None:
-                detailed_stats['Métrica'].extend(['Taxa de Defeitos', 'PPM Defeitos'])
-                detailed_stats['Valor'].extend([
-                    f"{results['defect_rate']:.4f}%",
-                    f"{results['defect_rate'] * 10000:.0f}"
-                ])
-            
-            st.dataframe(pd.DataFrame(detailed_stats), use_container_width=True)
-            
-            # Recomendações
-            st.markdown("### 💡 Recomendações")
-            
-            recommendations = []
-            
-            if results['Cpk'] is not None:
-                if results['Cpk'] < 1.0:
-                    recommendations.extend([
-                        "🔧 **Melhoria urgente necessária** - Processo não capaz",
-                        "📊 **Reduzir variabilidade** do processo",
-                        "🎯 **Centralizar processo** se média estiver deslocada"
-                    ])
-                elif results['Cpk'] < 1.33:
-                    recommendations.extend([
-                        "⚠️ **Monitoramento próximo** recomendado",
-                        "📈 **Considerar melhorias** para aumentar capacidade"
-                    ])
-                else:
-                    recommendations.append("✅ **Manter controle atual** - Processo capaz")
-            
-            if results['Cp'] is not None and results['Cpk'] is not None:
-                if results['Cp'] > results['Cpk'] + 0.1:
-                    recommendations.append("🎯 **Centralizar processo** - Cp >> Cpk indica descentramento")
-            
-            for rec in recommendations:
-                st.write(rec)
-            
             # Salvar resultados
             if st.button("💾 Salvar Análise de Capacidade", key=f"save_cap_{project_id}"):
                 cap_data = {
@@ -926,7 +872,6 @@ def _calculate_capability_advanced(data, lsl=None, usl=None):
     try:
         mean_val = data.mean()
         std_val = data.std()
-        n = len(data)
         
         results = {
             'Cp': None, 'Cpk': None, 'Pp': None, 'Ppk': None,
@@ -971,9 +916,8 @@ def _calculate_capability_advanced(data, lsl=None, usl=None):
         return {'Cp': None, 'Cpk': None, 'Pp': None, 'Ppk': None, 'defect_rate': None}
 
 
-# Manter as outras funções (MSA, baseline) como estavam
 def show_msa_analysis(project_data: Dict):
-    """MSA - Análise do Sistema de Medição - VERSÃO SIMPLIFICADA"""
+    """MSA - Análise do Sistema de Medição"""
     
     project_id = project_data.get('id')
     
@@ -1218,16 +1162,14 @@ def _save_tool_data(project_id: str, tool_name: str, data: dict, completed: bool
 
 
 def show_measure_tools(project_data: Dict):
-    """Função principal para mostrar as ferramentas da fase Measure - VERSÃO INTEGRADA"""
+    """Função principal para mostrar as ferramentas da fase Measure"""
     
     if not project_data:
         st.error("❌ Projeto não encontrado")
         return
     
     project_id = project_data.get('id')
-    
-    # Inicializar gerenciador de sincronização
-    sync_manager = DataSyncManager(project_id)
+    project_manager = ProjectManager()
     
     # Menu de ferramentas
     st.markdown("### 🔧 Ferramentas da Fase Measure")
@@ -1272,11 +1214,11 @@ def show_measure_tools(project_data: Dict):
         st.markdown("### 🔄 Status dos Dados")
         
         # Verificar se há dados carregados
-        has_data = sync_manager.ensure_data_available(show_warnings=False)
+        has_data = project_manager.get_uploaded_data(project_id) is not None
+        upload_info = project_manager.get_upload_info(project_id)
         
         if has_data:
             st.success("✅ Dados disponíveis")
-            upload_info = sync_manager.project_manager.get_upload_info(project_id)
             if upload_info:
                 st.write(f"📄 {upload_info.get('filename', 'N/A')}")
                 shape = upload_info.get('shape', [0, 0])
@@ -1284,6 +1226,15 @@ def show_measure_tools(project_data: Dict):
         else:
             st.warning("⚠️ Sem dados carregados")
             st.info("Use 'Upload e Análise de Dados'")
+        
+        # Botão de sincronização manual
+        if st.button("🔄 Sincronizar", key=f"sync_sidebar_{project_id}"):
+            success = project_manager.ensure_project_sync(project_id)
+            if success:
+                st.success("✅ Sincronizado!")
+                st.rerun()
+            else:
+                st.error("❌ Erro na sincronização")
     
     # Mostrar ferramenta selecionada
     if selected_tool == "data_collection_plan":
@@ -1354,7 +1305,6 @@ def show_measure_tools(project_data: Dict):
         metrics_summary = []
         
         # Dados carregados
-        upload_info = sync_manager.project_manager.get_upload_info(project_id)
         if upload_info:
             shape = upload_info.get('shape', [0, 0])
             metrics_summary.append(f"📊 **Dados:** {shape[0]} observações, {shape[1]} variáveis")
