@@ -2,6 +2,18 @@ import streamlit as st
 from typing import Dict, List
 from datetime import datetime
 
+# Importações das ferramentas das fases
+try:
+    from src.pages.improve_tools import show_improve_phase as show_improve_tools
+except ImportError:
+    try:
+        from pages.improve_tools import show_improve_phase as show_improve_tools
+    except ImportError:
+        def show_improve_tools():
+            st.error("❌ Módulo improve_tools não encontrado")
+            st.info("Verifique se o arquivo improve_tools.py existe na pasta pages")
+
+
 def show_dmaic_phase():
     """Mostrar navegação entre fases DMAIC"""
     
@@ -121,15 +133,22 @@ def show_phase_content(phase: str, project: Dict):
         show_measure_phase(project)
     elif phase == "analyze":
         show_analyze_phase(project)
-    elif phase == "🚀 Improve":
+    elif phase == "improve":
         show_improve_phase(project)
     elif phase == "control":
-        st.info("🚧 Fase Control em desenvolvimento")
+        show_control_phase(project)
 
 
 def show_define_phase(project: Dict):
     """Mostrar fase Define"""
-    from src.pages.define_tools import show_define_tools
+    try:
+        from src.pages.define_tools import show_define_tools
+    except ImportError:
+        try:
+            from pages.define_tools import show_define_tools
+        except ImportError:
+            def show_define_tools(project):
+                st.error("❌ Módulo define_tools não encontrado")
     
     st.markdown("## 🎯 Define - Definir")
     st.markdown("Defina claramente o problema, objetivos, escopo e equipe do projeto.")
@@ -162,7 +181,14 @@ def show_define_phase(project: Dict):
 
 def show_measure_phase(project: Dict):
     """Mostrar fase Measure"""
-    from src.pages.measure_tools import show_measure_tools
+    try:
+        from src.pages.measure_tools import show_measure_tools
+    except ImportError:
+        try:
+            from pages.measure_tools import show_measure_tools
+        except ImportError:
+            def show_measure_tools(project):
+                st.error("❌ Módulo measure_tools não encontrado")
     
     st.markdown("## 📏 Measure - Medir")
     st.markdown("Meça o desempenho atual do processo e colete dados para análise.")
@@ -180,7 +206,14 @@ def show_measure_phase(project: Dict):
 
 def show_analyze_phase(project: Dict):
     """Mostrar fase Analyze"""
-    from src.pages.analyze_tools import show_analyze_tools
+    try:
+        from src.pages.analyze_tools import show_analyze_tools
+    except ImportError:
+        try:
+            from pages.analyze_tools import show_analyze_tools
+        except ImportError:
+            def show_analyze_tools(project):
+                st.error("❌ Módulo analyze_tools não encontrado")
     
     st.markdown("## 🔍 Analyze - Analisar")
     st.markdown("Identifique as causas raiz dos problemas através de análise estatística e ferramentas de qualidade.")
@@ -220,19 +253,24 @@ def show_improve_phase(project: Dict):
     analyze_completed = any(tool.get('completed', False) for tool in analyze_data.values() if isinstance(tool, dict))
     
     if not analyze_completed:
-        st.warning("⚠️ Complete a fase **Analyze** antes de desenvolver soluções")
+        st.warning("⚠️ Recomendamos completar a fase **Analyze** antes de desenvolver soluções")
+        st.info("💡 Você ainda pode usar as ferramentas, mas terá mais contexto após completar a análise")
     
-    st.info("🚧 **Fase Improve em desenvolvimento**")
+    # Mostrar resumo dos insights da fase Analyze (se disponível)
+    if analyze_completed:
+        st.success("✅ **Fase Analyze concluída** - Insights disponíveis para desenvolvimento de soluções")
+        
+        # Mostrar causas raiz identificadas (se houver)
+        rca_data = analyze_data.get('root_cause_analysis', {}).get('data', {})
+        if rca_data.get('root_cause_final'):
+            st.info(f"🎯 **Causa Raiz Principal:** {rca_data['root_cause_final']}")
     
-    st.markdown("""
-    ### 🔧 Ferramentas que serão incluídas:
-    
-    - **💡 Geração de Soluções**: Brainstorming, SCAMPER, Design Thinking
-    - **📊 Matriz de Priorização**: Esforço vs Impacto, Critérios múltiplos
-    - **🧪 Teste Piloto**: Planejamento e execução de pilotos
-    - **📈 Análise Custo-Benefício**: ROI das soluções propostas
-    - **📋 Plano de Implementação**: Cronograma, responsáveis, recursos
-    """)
+    # Chamar as ferramentas da fase Improve
+    try:
+        show_improve_tools()
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar ferramentas da fase Improve: {str(e)}")
+        st.info("Verifique se o módulo improve_tools.py está configurado corretamente")
 
 
 def show_control_phase(project: Dict):
@@ -246,6 +284,18 @@ def show_control_phase(project: Dict):
     
     if not improve_completed:
         st.warning("⚠️ Complete a fase **Improve** antes de estabelecer controles")
+        st.info("💡 A fase Control foca em sustentar as melhorias implementadas")
+    
+    # Mostrar resumo das soluções implementadas (se houver)
+    if improve_completed:
+        st.success("✅ **Fase Improve concluída** - Pronto para estabelecer controles")
+        
+        # Mostrar soluções aprovadas (se houver)
+        solution_data = improve_data.get('solution_development', {}).get('data', {})
+        if solution_data.get('solutions'):
+            approved_solutions = [sol for sol in solution_data['solutions'] if sol.get('status') == 'Aprovada']
+            if approved_solutions:
+                st.info(f"🎯 **{len(approved_solutions)} solução(ões) implementada(s)** - Requer monitoramento")
     
     st.info("🚧 **Fase Control em desenvolvimento**")
     
@@ -253,9 +303,35 @@ def show_control_phase(project: Dict):
     ### 🎯 Ferramentas que serão incluídas:
     
     - **📊 Plano de Controle**: Sistema de monitoramento contínuo
-    - **📈 Gráficos de Controle**: SPC para monitoramento estatístico
+    - **📈 Gráficos de Controle**: SPC para monitoramento estatístico  
     - **📋 Procedimentos Padrão**: Documentação dos novos processos
     - **🎓 Plano de Treinamento**: Capacitação da equipe
     - **📊 Dashboard de KPIs**: Monitoramento visual dos resultados
     - **📝 Documentação Final**: Lições aprendidas e handover
+    - **🔄 Auditoria de Processo**: Verificação da sustentabilidade
+    - **📈 Relatório de Benefícios**: Comprovação dos resultados
     """)
+    
+    # Placeholder para ferramentas futuras
+    st.markdown("---")
+    st.markdown("### 🔧 Ferramentas Disponíveis")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("📊 Plano de Controle", disabled=True):
+            st.info("Em desenvolvimento")
+        
+        if st.button("📈 Gráficos de Controle", disabled=True):
+            st.info("Em desenvolvimento")
+    
+    with col2:
+        if st.button("📋 Documentação Final", disabled=True):
+            st.info("Em desenvolvimento")
+        
+        if st.button("📊 Dashboard de KPIs", disabled=True):
+            st.info("Em desenvolvimento")
+
+
+if __name__ == "__main__":
+    show_dmaic_phase()
