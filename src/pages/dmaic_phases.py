@@ -122,7 +122,7 @@ def show_phase_content(phase: str, project: Dict):
     elif phase == "analyze":
         show_analyze_phase(project)
     elif phase == "improve":
-        st.info("🚧 Fase Improve em desenvolvimento")
+        show_improve_phase()
     elif phase == "control":
         st.info("🚧 Fase Control em desenvolvimento")
 
