@@ -13,6 +13,17 @@ except ImportError:
             st.error("❌ Módulo improve_tools não encontrado")
             st.info("Verifique se o arquivo improve_tools.py existe na pasta pages")
 
+# ✅ ADICIONAR ESTE IMPORT
+try:
+    from src.pages.control_tools import show_control_phase as show_control_tools
+except ImportError:
+    try:
+        from pages.control_tools import show_control_phase as show_control_tools
+    except ImportError:
+        def show_control_tools():
+            st.error("❌ Módulo control_tools não encontrado")
+            st.info("Verifique se o arquivo control_tools.py existe na pasta pages")
+
 
 def show_dmaic_phase():
     """Mostrar navegação entre fases DMAIC"""
@@ -321,33 +332,48 @@ def show_control_phase(project: Dict):
     if not improve_completed:
         st.warning("⚠️ Complete a fase **Improve** antes de estabelecer controles")
         st.info("💡 A fase Control foca em sustentar as melhorias implementadas")
-    
-    # Mostrar resumo das soluções implementadas (se houver)
-    if improve_completed:
-        st.success("✅ **Fase Improve concluída** - Pronto para estabelecer controles")
         
-        # Mostrar soluções aprovadas (se houver)
-        solution_data = improve_data.get('solution_development', {}).get('data', {})
-        if solution_data.get('solutions'):
-            approved_solutions = [sol for sol in solution_data['solutions'] if sol.get('status') == 'Aprovada']
-            if approved_solutions:
-                st.info(f"🎯 **{len(approved_solutions)} solução(ões) implementada(s)** - Requer monitoramento")
+        # Mostrar preview das ferramentas que estarão disponíveis
+        st.markdown("### 🎯 Ferramentas que serão habilitadas após completar Improve:")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.info("📊 **Plano de Controle** - Sistema de monitoramento contínuo")
+            st.info("📈 **Gráficos de Controle** - SPC para monitoramento estatístico")
+        
+        with col2:
+            st.info("📋 **Documentação Padrão** - Procedimentos padronizados")
+            st.info("🔄 **Auditoria de Sustentabilidade** - Verificação contínua")
+        
+        return
     
-    st.info("🚧 **Fase Control em desenvolvimento**")
+    # Mostrar resumo das soluções implementadas
+    st.success("✅ **Fase Improve concluída** - Controles disponíveis")
     
-    st.markdown("""
-    ### 🎯 Ferramentas que serão incluídas:
+    # Mostrar soluções aprovadas (se houver)
+    solution_data = improve_data.get('solution_development', {}).get('data', {})
+    if solution_data.get('solutions'):
+        approved_solutions = [sol for sol in solution_data['solutions'] if sol.get('status') == 'Aprovada']
+        if approved_solutions:
+            st.info(f"🎯 **{len(approved_solutions)} solução(ões) implementada(s)** - Requer monitoramento")
+            
+            with st.expander("Ver soluções implementadas"):
+                for i, sol in enumerate(approved_solutions, 1):
+                    st.write(f"**{i}.** {sol['name']} - R$ {sol.get('cost_estimate', 0):,.2f}")
     
-    - **📊 Plano de Controle**: Sistema de monitoramento contínuo
-    - **📈 Gráficos de Controle**: SPC para monitoramento estatístico  
-    - **📋 Procedimentos Padrão**: Documentação dos novos processos
-    - **🎓 Plano de Treinamento**: Capacitação da equipe
-    - **📊 Dashboard de KPIs**: Monitoramento visual dos resultados
-    - **📝 Documentação Final**: Lições aprendidas e handover
-    - **🔄 Auditoria de Processo**: Verificação da sustentabilidade
-    - **📈 Relatório de Benefícios**: Comprovação dos resultados
-    """)
-    
+    # Chamar as ferramentas da fase Control
+    try:
+        show_control_tools()
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar ferramentas da fase Control: {str(e)}")
+        st.info("Verifique se o módulo control_tools.py está configurado corretamente")
+        
+        # Mostrar stack trace para debug
+        import traceback
+        with st.expander("Ver detalhes do erro"):
+            st.code(traceback.format_exc())
+
     # Placeholder para ferramentas futuras
     st.markdown("---")
     st.markdown("### 🔧 Ferramentas Disponíveis")
