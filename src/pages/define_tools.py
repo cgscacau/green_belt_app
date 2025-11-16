@@ -21,7 +21,7 @@ def show_project_charter(project_data: Dict):
     if charter_key not in st.session_state:
         # Carregar dados existentes do projeto
         existing_data = project_data.get('define', {}).get('charter', {}).get('data', {})
-        st.session_state[charter_key] = existing_data
+        st.session_state[charter_key] = existing_data if existing_data else {}
     
     # Status atual
     is_completed = project_data.get('define', {}).get('charter', {}).get('completed', False)
@@ -330,7 +330,7 @@ def show_stakeholder_mapping(project_data: Dict):
     stakeholder_key = f"stakeholder_data_{project_id}"
     if stakeholder_key not in st.session_state:
         existing_data = project_data.get('define', {}).get('stakeholders', {}).get('data', {})
-        st.session_state[stakeholder_key] = existing_data
+        st.session_state[stakeholder_key] = existing_data if existing_data else {}
     
     # Status atual
     is_completed = project_data.get('define', {}).get('stakeholders', {}).get('completed', False)
@@ -344,9 +344,10 @@ def show_stakeholder_mapping(project_data: Dict):
     # Seção 1: Lista de Stakeholders
     st.markdown("### 📝 Identificação dos Stakeholders")
     
-    # Inicializar lista de stakeholders se não existir
-    if 'stakeholders' not in stakeholder_data:
+    # Inicializar lista de stakeholders se não existir - CORREÇÃO AQUI
+    if 'stakeholders' not in stakeholder_data or stakeholder_data['stakeholders'] is None:
         stakeholder_data['stakeholders'] = []
+        st.session_state[stakeholder_key] = stakeholder_data  # Salvar a mudança
     
     # Adicionar novo stakeholder
     st.markdown("**Adicionar Novo Stakeholder:**")
@@ -377,10 +378,11 @@ def show_stakeholder_mapping(project_data: Dict):
                     'id': len(stakeholder_data['stakeholders'])
                 }
                 stakeholder_data['stakeholders'].append(new_stakeholder)
+                st.session_state[stakeholder_key] = stakeholder_data  # Salvar mudança
                 st.rerun()
     
     # Mostrar stakeholders existentes
-    if stakeholder_data['stakeholders']:
+    if stakeholder_data['stakeholders'] and len(stakeholder_data['stakeholders']) > 0:
         st.markdown("### 👥 Stakeholders Identificados")
         
         for i, stakeholder in enumerate(stakeholder_data['stakeholders']):
@@ -426,10 +428,11 @@ def show_stakeholder_mapping(project_data: Dict):
                 
                 if st.button(f"🗑️ Remover {stakeholder['name']}", key=f"remove_{project_id}_{i}"):
                     stakeholder_data['stakeholders'].pop(i)
+                    st.session_state[stakeholder_key] = stakeholder_data  # Salvar mudança
                     st.rerun()
     
     # Matriz de Influência vs Interesse
-    if stakeholder_data['stakeholders']:
+    if stakeholder_data['stakeholders'] and len(stakeholder_data['stakeholders']) > 0:
         st.markdown("### 📊 Matriz Influência vs Interesse")
         
         # Preparar dados para o gráfico
@@ -476,7 +479,7 @@ def show_stakeholder_mapping(project_data: Dict):
     # Processar ações
     if save_draft or complete_mapping:
         # Validação para finalizar
-        if complete_mapping and len(stakeholder_data['stakeholders']) < 3:
+        if complete_mapping and len(stakeholder_data.get('stakeholders', [])) < 3:
             st.error("❌ Identifique pelo menos 3 stakeholders para finalizar o mapping")
             st.stop()
         
@@ -529,7 +532,7 @@ def show_voice_of_customer(project_data: Dict):
     voc_key = f"voc_data_{project_id}"
     if voc_key not in st.session_state:
         existing_data = project_data.get('define', {}).get('voc', {}).get('data', {})
-        st.session_state[voc_key] = existing_data
+        st.session_state[voc_key] = existing_data if existing_data else {}
     
     # Status atual
     is_completed = project_data.get('define', {}).get('voc', {}).get('completed', False)
@@ -562,9 +565,10 @@ def show_voice_of_customer(project_data: Dict):
     # Seção 2: Necessidades do Cliente
     st.markdown("### 🎯 Necessidades e Expectativas dos Clientes")
     
-    # Inicializar lista de necessidades
-    if 'customer_needs' not in voc_data:
+    # Inicializar lista de necessidades - CORREÇÃO AQUI
+    if 'customer_needs' not in voc_data or voc_data['customer_needs'] is None:
         voc_data['customer_needs'] = []
+        st.session_state[voc_key] = voc_data  # Salvar mudança
     
     # Adicionar nova necessidade
     st.markdown("**Adicionar Nova Necessidade:**")
@@ -595,10 +599,11 @@ def show_voice_of_customer(project_data: Dict):
                     'id': len(voc_data['customer_needs'])
                 }
                 voc_data['customer_needs'].append(new_customer_need)
+                st.session_state[voc_key] = voc_data  # Salvar mudança
                 st.rerun()
     
     # Mostrar necessidades existentes
-    if voc_data['customer_needs']:
+    if voc_data['customer_needs'] and len(voc_data['customer_needs']) > 0:
         st.markdown("### 📋 Necessidades Identificadas")
         
         for i, need in enumerate(voc_data['customer_needs']):
@@ -645,10 +650,11 @@ def show_voice_of_customer(project_data: Dict):
                 
                 if st.button(f"🗑️ Remover", key=f"remove_need_{project_id}_{i}"):
                     voc_data['customer_needs'].pop(i)
+                    st.session_state[voc_key] = voc_data  # Salvar mudança
                     st.rerun()
     
     # Seção 3: Análise e Priorização
-    if voc_data['customer_needs']:
+    if voc_data['customer_needs'] and len(voc_data['customer_needs']) > 0:
         st.markdown("### 📊 Análise de Importância vs Satisfação")
         
         # Preparar dados para matriz
@@ -728,7 +734,7 @@ def show_voice_of_customer(project_data: Dict):
         current_data = {
             'collection_methods': st.session_state.get(f"collection_methods_{project_id}", []),
             'other_methods': st.session_state.get(f"other_methods_{project_id}", ''),
-            'customer_needs': voc_data['customer_needs'],
+            'customer_needs': voc_data.get('customer_needs', []),
             'key_insights': st.session_state.get(f"key_insights_{project_id}", ''),
             'improvement_opportunities': st.session_state.get(f"improvement_opportunities_{project_id}", ''),
             'last_saved': datetime.now().isoformat()
@@ -791,7 +797,7 @@ def show_sipoc_diagram(project_data: Dict):
     sipoc_key = f"sipoc_data_{project_id}"
     if sipoc_key not in st.session_state:
         existing_data = project_data.get('define', {}).get('sipoc', {}).get('data', {})
-        st.session_state[sipoc_key] = existing_data
+        st.session_state[sipoc_key] = existing_data if existing_data else {}
     
     # Status atual
     is_completed = project_data.get('define', {}).get('sipoc', {}).get('completed', False)
@@ -802,10 +808,11 @@ def show_sipoc_diagram(project_data: Dict):
     
     sipoc_data = st.session_state[sipoc_key]
     
-    # Inicializar estruturas de dados
+    # Inicializar estruturas de dados - CORREÇÃO AQUI
     for key in ['suppliers', 'inputs', 'process_steps', 'outputs', 'customers']:
-        if key not in sipoc_data:
+        if key not in sipoc_data or sipoc_data[key] is None:
             sipoc_data[key] = []
+    st.session_state[sipoc_key] = sipoc_data  # Salvar mudanças
     
     # Definição do processo principal
     st.markdown("### 🎯 Definição do Processo")
@@ -849,30 +856,33 @@ def show_sipoc_diagram(project_data: Dict):
                         'description': '',
                         'id': len(sipoc_data['suppliers'])
                     })
+                    st.session_state[sipoc_key] = sipoc_data
                     st.rerun()
         
         # Mostrar suppliers
-        for i, supplier in enumerate(sipoc_data['suppliers']):
-            with st.expander(f"**{supplier['name']}**"):
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    supplier['type'] = st.selectbox(
-                        "Tipo",
-                        ["Interno", "Externo", "Misto"],
-                        index=["Interno", "Externo", "Misto"].index(supplier.get('type', 'Interno')),
-                        key=f"supplier_type_{project_id}_{i}"
+        if sipoc_data['suppliers'] and len(sipoc_data['suppliers']) > 0:
+            for i, supplier in enumerate(sipoc_data['suppliers']):
+                with st.expander(f"**{supplier['name']}**"):
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        supplier['type'] = st.selectbox(
+                            "Tipo",
+                            ["Interno", "Externo", "Misto"],
+                            index=["Interno", "Externo", "Misto"].index(supplier.get('type', 'Interno')),
+                            key=f"supplier_type_{project_id}_{i}"
+                        )
+                    with col_b:
+                        if st.button(f"🗑️ Remover", key=f"remove_supplier_{project_id}_{i}"):
+                            sipoc_data['suppliers'].pop(i)
+                            st.session_state[sipoc_key] = sipoc_data
+                            st.rerun()
+                    
+                    supplier['description'] = st.text_area(
+                        "Descrição/Observações",
+                        value=supplier.get('description', ''),
+                        key=f"supplier_desc_{project_id}_{i}",
+                        height=60
                     )
-                with col_b:
-                    if st.button(f"🗑️ Remover", key=f"remove_supplier_{project_id}_{i}"):
-                        sipoc_data['suppliers'].pop(i)
-                        st.rerun()
-                
-                supplier['description'] = st.text_area(
-                    "Descrição/Observações",
-                    value=supplier.get('description', ''),
-                    key=f"supplier_desc_{project_id}_{i}",
-                    height=60
-                )
     
     # Tab 2: Inputs
     with tab2:
@@ -894,37 +904,40 @@ def show_sipoc_diagram(project_data: Dict):
                         'requirements': '',
                         'id': len(sipoc_data['inputs'])
                     })
+                    st.session_state[sipoc_key] = sipoc_data
                     st.rerun()
         
         # Mostrar inputs
-        for i, input_item in enumerate(sipoc_data['inputs']):
-            with st.expander(f"**{input_item['name']}**"):
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    input_item['type'] = st.selectbox(
-                        "Tipo",
-                        ["Material", "Informação", "Serviço", "Recurso"],
-                        index=["Material", "Informação", "Serviço", "Recurso"].index(input_item.get('type', 'Material')),
-                        key=f"input_type_{project_id}_{i}"
-                    )
+        if sipoc_data['inputs'] and len(sipoc_data['inputs']) > 0:
+            for i, input_item in enumerate(sipoc_data['inputs']):
+                with st.expander(f"**{input_item['name']}**"):
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        input_item['type'] = st.selectbox(
+                            "Tipo",
+                            ["Material", "Informação", "Serviço", "Recurso"],
+                            index=["Material", "Informação", "Serviço", "Recurso"].index(input_item.get('type', 'Material')),
+                            key=f"input_type_{project_id}_{i}"
+                        )
+                        
+                        input_item['source'] = st.text_input(
+                            "Fonte/Origem",
+                            value=input_item.get('source', ''),
+                            key=f"input_source_{project_id}_{i}"
+                        )
                     
-                    input_item['source'] = st.text_input(
-                        "Fonte/Origem",
-                        value=input_item.get('source', ''),
-                        key=f"input_source_{project_id}_{i}"
+                    with col_b:
+                        if st.button(f"🗑️ Remover", key=f"remove_input_{project_id}_{i}"):
+                            sipoc_data['inputs'].pop(i)
+                            st.session_state[sipoc_key] = sipoc_data
+                            st.rerun()
+                    
+                    input_item['requirements'] = st.text_area(
+                        "Requisitos/Especificações",
+                        value=input_item.get('requirements', ''),
+                        key=f"input_req_{project_id}_{i}",
+                        height=60
                     )
-                
-                with col_b:
-                    if st.button(f"🗑️ Remover", key=f"remove_input_{project_id}_{i}"):
-                        sipoc_data['inputs'].pop(i)
-                        st.rerun()
-                
-                input_item['requirements'] = st.text_area(
-                    "Requisitos/Especificações",
-                    value=input_item.get('requirements', ''),
-                    key=f"input_req_{project_id}_{i}",
-                    height=60
-                )
     
     # Tab 3: Process
     with tab3:
@@ -947,49 +960,54 @@ def show_sipoc_diagram(project_data: Dict):
                         'order': len(sipoc_data['process_steps']) + 1,
                         'id': len(sipoc_data['process_steps'])
                     })
+                    st.session_state[sipoc_key] = sipoc_data
                     st.rerun()
         
         # Mostrar steps
-        for i, step in enumerate(sipoc_data['process_steps']):
-            with st.expander(f"**{i+1}. {step['name']}**"):
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    step['responsible'] = st.text_input(
-                        "Responsável",
-                        value=step.get('responsible', ''),
-                        key=f"step_responsible_{project_id}_{i}"
+        if sipoc_data['process_steps'] and len(sipoc_data['process_steps']) > 0:
+            for i, step in enumerate(sipoc_data['process_steps']):
+                with st.expander(f"**{i+1}. {step['name']}**"):
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        step['responsible'] = st.text_input(
+                            "Responsável",
+                            value=step.get('responsible', ''),
+                            key=f"step_responsible_{project_id}_{i}"
+                        )
+                    
+                    with col_b:
+                        step['duration'] = st.text_input(
+                            "Duração Estimada",
+                            value=step.get('duration', ''),
+                            key=f"step_duration_{project_id}_{i}",
+                            placeholder="Ex: 2 horas, 1 dia..."
+                        )
+                    
+                    step['description'] = st.text_area(
+                        "Descrição Detalhada",
+                        value=step.get('description', ''),
+                        key=f"step_desc_{project_id}_{i}",
+                        height=60
                     )
-                
-                with col_b:
-                    step['duration'] = st.text_input(
-                        "Duração Estimada",
-                        value=step.get('duration', ''),
-                        key=f"step_duration_{project_id}_{i}",
-                        placeholder="Ex: 2 horas, 1 dia..."
-                    )
-                
-                step['description'] = st.text_area(
-                    "Descrição Detalhada",
-                    value=step.get('description', ''),
-                    key=f"step_desc_{project_id}_{i}",
-                    height=60
-                )
-                
-                col_move, col_remove = st.columns(2)
-                with col_move:
-                    if i > 0:
-                        if st.button(f"⬆️ Mover para Cima", key=f"move_up_{project_id}_{i}"):
-                            sipoc_data['process_steps'][i], sipoc_data['process_steps'][i-1] = sipoc_data['process_steps'][i-1], sipoc_data['process_steps'][i]
+                    
+                    col_move, col_remove = st.columns(2)
+                    with col_move:
+                        if i > 0:
+                            if st.button(f"⬆️ Mover para Cima", key=f"move_up_{project_id}_{i}"):
+                                sipoc_data['process_steps'][i], sipoc_data['process_steps'][i-1] = sipoc_data['process_steps'][i-1], sipoc_data['process_steps'][i]
+                                st.session_state[sipoc_key] = sipoc_data
+                                st.rerun()
+                        if i < len(sipoc_data['process_steps']) - 1:
+                            if st.button(f"⬇️ Mover para Baixo", key=f"move_down_{project_id}_{i}"):
+                                sipoc_data['process_steps'][i], sipoc_data['process_steps'][i+1] = sipoc_data['process_steps'][i+1], sipoc_data['process_steps'][i]
+                                st.session_state[sipoc_key] = sipoc_data
+                                st.rerun()
+                    
+                    with col_remove:
+                        if st.button(f"🗑️ Remover", key=f"remove_step_{project_id}_{i}"):
+                            sipoc_data['process_steps'].pop(i)
+                            st.session_state[sipoc_key] = sipoc_data
                             st.rerun()
-                    if i < len(sipoc_data['process_steps']) - 1:
-                        if st.button(f"⬇️ Mover para Baixo", key=f"move_down_{project_id}_{i}"):
-                            sipoc_data['process_steps'][i], sipoc_data['process_steps'][i+1] = sipoc_data['process_steps'][i+1], sipoc_data['process_steps'][i]
-                            st.rerun()
-                
-                with col_remove:
-                    if st.button(f"🗑️ Remover", key=f"remove_step_{project_id}_{i}"):
-                        sipoc_data['process_steps'].pop(i)
-                        st.rerun()
     
     # Tab 4: Outputs
     with tab4:
@@ -1011,37 +1029,40 @@ def show_sipoc_diagram(project_data: Dict):
                         'destination': '',
                         'id': len(sipoc_data['outputs'])
                     })
+                    st.session_state[sipoc_key] = sipoc_data
                     st.rerun()
         
         # Mostrar outputs
-        for i, output in enumerate(sipoc_data['outputs']):
-            with st.expander(f"**{output['name']}**"):
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    output['type'] = st.selectbox(
-                        "Tipo",
-                        ["Produto", "Serviço", "Informação", "Decisão"],
-                        index=["Produto", "Serviço", "Informação", "Decisão"].index(output.get('type', 'Produto')),
-                        key=f"output_type_{project_id}_{i}"
-                    )
+        if sipoc_data['outputs'] and len(sipoc_data['outputs']) > 0:
+            for i, output in enumerate(sipoc_data['outputs']):
+                with st.expander(f"**{output['name']}**"):
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        output['type'] = st.selectbox(
+                            "Tipo",
+                            ["Produto", "Serviço", "Informação", "Decisão"],
+                            index=["Produto", "Serviço", "Informação", "Decisão"].index(output.get('type', 'Produto')),
+                            key=f"output_type_{project_id}_{i}"
+                        )
+                        
+                        output['destination'] = st.text_input(
+                            "Destino",
+                            value=output.get('destination', ''),
+                            key=f"output_dest_{project_id}_{i}"
+                        )
                     
-                    output['destination'] = st.text_input(
-                        "Destino",
-                        value=output.get('destination', ''),
-                        key=f"output_dest_{project_id}_{i}"
+                    with col_b:
+                        if st.button(f"🗑️ Remover", key=f"remove_output_{project_id}_{i}"):
+                            sipoc_data['outputs'].pop(i)
+                            st.session_state[sipoc_key] = sipoc_data
+                            st.rerun()
+                    
+                    output['quality_criteria'] = st.text_area(
+                        "Critérios de Qualidade",
+                        value=output.get('quality_criteria', ''),
+                        key=f"output_quality_{project_id}_{i}",
+                        height=60
                     )
-                
-                with col_b:
-                    if st.button(f"🗑️ Remover", key=f"remove_output_{project_id}_{i}"):
-                        sipoc_data['outputs'].pop(i)
-                        st.rerun()
-                
-                output['quality_criteria'] = st.text_area(
-                    "Critérios de Qualidade",
-                    value=output.get('quality_criteria', ''),
-                    key=f"output_quality_{project_id}_{i}",
-                    height=60
-                )
     
     # Tab 5: Customers
     with tab5:
@@ -1063,83 +1084,93 @@ def show_sipoc_diagram(project_data: Dict):
                         'requirements': '',
                         'id': len(sipoc_data['customers'])
                     })
+                    st.session_state[sipoc_key] = sipoc_data
                     st.rerun()
         
         # Mostrar customers
-        for i, customer in enumerate(sipoc_data['customers']):
-            with st.expander(f"**{customer['name']}**"):
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    customer['type'] = st.selectbox(
-                        "Tipo",
-                        ["Cliente Final", "Cliente Interno", "Processo Seguinte"],
-                        index=["Cliente Final", "Cliente Interno", "Processo Seguinte"].index(customer.get('type', 'Cliente Final')),
-                        key=f"customer_type_{project_id}_{i}"
-                    )
+        if sipoc_data['customers'] and len(sipoc_data['customers']) > 0:
+            for i, customer in enumerate(sipoc_data['customers']):
+                with st.expander(f"**{customer['name']}**"):
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        customer['type'] = st.selectbox(
+                            "Tipo",
+                            ["Cliente Final", "Cliente Interno", "Processo Seguinte"],
+                            index=["Cliente Final", "Cliente Interno", "Processo Seguinte"].index(customer.get('type', 'Cliente Final')),
+                            key=f"customer_type_{project_id}_{i}"
+                        )
+                        
+                        customer['expectations'] = st.text_area(
+                            "Expectativas",
+                            value=customer.get('expectations', ''),
+                            key=f"customer_exp_{project_id}_{i}",
+                            height=60
+                        )
                     
-                    customer['expectations'] = st.text_area(
-                        "Expectativas",
-                        value=customer.get('expectations', ''),
-                        key=f"customer_exp_{project_id}_{i}",
-                        height=60
-                    )
-                
-                with col_b:
-                    if st.button(f"🗑️ Remover", key=f"remove_customer_{project_id}_{i}"):
-                        sipoc_data['customers'].pop(i)
-                        st.rerun()
-                    
-                    customer['requirements'] = st.text_area(
-                        "Requisitos",
-                        value=customer.get('requirements', ''),
-                        key=f"customer_req_{project_id}_{i}",
-                        height=60
-                    )
+                    with col_b:
+                        if st.button(f"🗑️ Remover", key=f"remove_customer_{project_id}_{i}"):
+                            sipoc_data['customers'].pop(i)
+                            st.session_state[sipoc_key] = sipoc_data
+                            st.rerun()
+                        
+                        customer['requirements'] = st.text_area(
+                            "Requisitos",
+                            value=customer.get('requirements', ''),
+                            key=f"customer_req_{project_id}_{i}",
+                            height=60
+                        )
     
     # Visualização do SIPOC
     st.divider()
     st.markdown("### 📊 Visualização do SIPOC")
     
-    if any([sipoc_data['suppliers'], sipoc_data['inputs'], sipoc_data['process_steps'], sipoc_data['outputs'], sipoc_data['customers']]):
+    if any([sipoc_data.get('suppliers', []), sipoc_data.get('inputs', []), 
+            sipoc_data.get('process_steps', []), sipoc_data.get('outputs', []), 
+            sipoc_data.get('customers', [])]):
         # Criar tabela visual
         col_s, col_i, col_p, col_o, col_c = st.columns(5)
         
         with col_s:
             st.markdown("**🏭 SUPPLIERS**")
-            for supplier in sipoc_data['suppliers'][:5]:  # Limitar a 5 para não ocupar muito espaço
+            suppliers = sipoc_data.get('suppliers', [])
+            for supplier in suppliers[:5]:  # Limitar a 5 para não ocupar muito espaço
                 st.write(f"• {supplier['name']}")
-            if len(sipoc_data['suppliers']) > 5:
-                st.write(f"... e mais {len(sipoc_data['suppliers']) - 5}")
+            if len(suppliers) > 5:
+                st.write(f"... e mais {len(suppliers) - 5}")
         
         with col_i:
             st.markdown("**📥 INPUTS**")
-            for input_item in sipoc_data['inputs'][:5]:
+            inputs = sipoc_data.get('inputs', [])
+            for input_item in inputs[:5]:
                 st.write(f"• {input_item['name']}")
-            if len(sipoc_data['inputs']) > 5:
-                st.write(f"... e mais {len(sipoc_data['inputs']) - 5}")
+            if len(inputs) > 5:
+                st.write(f"... e mais {len(inputs) - 5}")
         
         with col_p:
             st.markdown("**⚙️ PROCESS**")
             if process_name:
                 st.write(f"**{process_name}**")
-            for i, step in enumerate(sipoc_data['process_steps'][:3]):
+            steps = sipoc_data.get('process_steps', [])
+            for i, step in enumerate(steps[:3]):
                 st.write(f"{i+1}. {step['name']}")
-            if len(sipoc_data['process_steps']) > 3:
-                st.write(f"... e mais {len(sipoc_data['process_steps']) - 3} passos")
+            if len(steps) > 3:
+                st.write(f"... e mais {len(steps) - 3} passos")
         
         with col_o:
             st.markdown("**📤 OUTPUTS**")
-            for output in sipoc_data['outputs'][:5]:
+            outputs = sipoc_data.get('outputs', [])
+            for output in outputs[:5]:
                 st.write(f"• {output['name']}")
-            if len(sipoc_data['outputs']) > 5:
-                st.write(f"... e mais {len(sipoc_data['outputs']) - 5}")
+            if len(outputs) > 5:
+                st.write(f"... e mais {len(outputs) - 5}")
         
         with col_c:
             st.markdown("**👥 CUSTOMERS**")
-            for customer in sipoc_data['customers'][:5]:
+            customers = sipoc_data.get('customers', [])
+            for customer in customers[:5]:
                 st.write(f"• {customer['name']}")
-            if len(sipoc_data['customers']) > 5:
-                st.write(f"... e mais {len(sipoc_data['customers']) - 5}")
+            if len(customers) > 5:
+                st.write(f"... e mais {len(customers) - 5}")
     
     # Botões de ação
     st.divider()
@@ -1157,11 +1188,11 @@ def show_sipoc_diagram(project_data: Dict):
         current_data = {
             'process_name': st.session_state.get(f"process_name_{project_id}", ''),
             'process_description': st.session_state.get(f"process_description_{project_id}", ''),
-            'suppliers': sipoc_data['suppliers'],
-            'inputs': sipoc_data['inputs'],
-            'process_steps': sipoc_data['process_steps'],
-            'outputs': sipoc_data['outputs'],
-            'customers': sipoc_data['customers'],
+            'suppliers': sipoc_data.get('suppliers', []),
+            'inputs': sipoc_data.get('inputs', []),
+            'process_steps': sipoc_data.get('process_steps', []),
+            'outputs': sipoc_data.get('outputs', []),
+            'customers': sipoc_data.get('customers', []),
             'last_saved': datetime.now().isoformat()
         }
         
@@ -1233,7 +1264,7 @@ def show_project_timeline(project_data: Dict):
     timeline_key = f"timeline_data_{project_id}"
     if timeline_key not in st.session_state:
         existing_data = project_data.get('define', {}).get('timeline', {}).get('data', {})
-        st.session_state[timeline_key] = existing_data
+        st.session_state[timeline_key] = existing_data if existing_data else {}
     
     # Status atual
     is_completed = project_data.get('define', {}).get('timeline', {}).get('completed', False)
@@ -1250,9 +1281,14 @@ def show_project_timeline(project_data: Dict):
     col1, col2 = st.columns(2)
     
     with col1:
+        try:
+            start_date_value = datetime.strptime(timeline_data.get('start_date', datetime.now().strftime('%Y-%m-%d')), '%Y-%m-%d').date()
+        except:
+            start_date_value = datetime.now().date()
+            
         start_date = st.date_input(
             "Data de Início do Projeto *",
-            value=datetime.strptime(timeline_data.get('start_date', datetime.now().strftime('%Y-%m-%d')), '%Y-%m-%d').date(),
+            value=start_date_value,
             key=f"start_date_{project_id}"
         )
     
@@ -1308,8 +1344,8 @@ def show_project_timeline(project_data: Dict):
         }
     }
     
-    # Inicializar fases se não existirem
-    if 'phases' not in timeline_data:
+    # Inicializar fases se não existirem - CORREÇÃO AQUI
+    if 'phases' not in timeline_data or timeline_data['phases'] is None:
         timeline_data['phases'] = {}
         for phase_key, phase_info in dmaic_phases.items():
             timeline_data['phases'][phase_key] = {
@@ -1317,6 +1353,7 @@ def show_project_timeline(project_data: Dict):
                 'tasks': [],
                 'status': 'not_started'
             }
+        st.session_state[timeline_key] = timeline_data  # Salvar mudanças
     
     st.markdown("### 📊 Planejamento das Fases DMAIC")
     
@@ -1381,7 +1418,7 @@ def show_project_timeline(project_data: Dict):
             st.markdown("**✅ Tarefas Específicas:**")
             
             # Inicializar tarefas se não existirem
-            if 'tasks' not in timeline_data['phases'][phase_key]:
+            if 'tasks' not in timeline_data['phases'][phase_key] or timeline_data['phases'][phase_key]['tasks'] is None:
                 timeline_data['phases'][phase_key]['tasks'] = []
             
             # Adicionar nova tarefa
@@ -1415,56 +1452,60 @@ def show_project_timeline(project_data: Dict):
                             'notes': '',
                             'id': len(timeline_data['phases'][phase_key]['tasks'])
                         })
+                        st.session_state[timeline_key] = timeline_data
                         st.rerun()
             
             # Mostrar tarefas existentes
-            for j, task in enumerate(timeline_data['phases'][phase_key]['tasks']):
-                with st.container():
-                    col_t1, col_t2, col_t3, col_t4 = st.columns([3, 2, 2, 1])
-                    
-                    with col_t1:
-                        task['name'] = st.text_input(
-                            "Tarefa",
-                            value=task['name'],
-                            key=f"task_name_{phase_key}_{project_id}_{j}"
-                        )
-                    
-                    with col_t2:
-                        task_status_options = ["pending", "in_progress", "completed"]
-                        task_status_labels = ["⏳ Pendente", "🔄 Em Progresso", "✅ Concluída"]
+            tasks = timeline_data['phases'][phase_key].get('tasks', [])
+            if tasks and len(tasks) > 0:
+                for j, task in enumerate(tasks):
+                    with st.container():
+                        col_t1, col_t2, col_t3, col_t4 = st.columns([3, 2, 2, 1])
                         
-                        current_task_status = task.get('status', 'pending')
-                        task_status_index = task_status_options.index(current_task_status)
+                        with col_t1:
+                            task['name'] = st.text_input(
+                                "Tarefa",
+                                value=task['name'],
+                                key=f"task_name_{phase_key}_{project_id}_{j}"
+                            )
                         
-                        task['status'] = st.selectbox(
-                            "Status",
-                            task_status_options,
-                            index=task_status_index,
-                            format_func=lambda x: task_status_labels[task_status_options.index(x)],
-                            key=f"task_status_{phase_key}_{project_id}_{j}"
+                        with col_t2:
+                            task_status_options = ["pending", "in_progress", "completed"]
+                            task_status_labels = ["⏳ Pendente", "🔄 Em Progresso", "✅ Concluída"]
+                            
+                            current_task_status = task.get('status', 'pending')
+                            task_status_index = task_status_options.index(current_task_status)
+                            
+                            task['status'] = st.selectbox(
+                                "Status",
+                                task_status_options,
+                                index=task_status_index,
+                                format_func=lambda x: task_status_labels[task_status_options.index(x)],
+                                key=f"task_status_{phase_key}_{project_id}_{j}"
+                            )
+                        
+                        with col_t3:
+                            task['responsible'] = st.text_input(
+                                "Responsável",
+                                value=task.get('responsible', ''),
+                                key=f"task_responsible_{phase_key}_{project_id}_{j}"
+                            )
+                        
+                        with col_t4:
+                            if st.button("🗑️", key=f"remove_task_{phase_key}_{project_id}_{j}"):
+                                timeline_data['phases'][phase_key]['tasks'].pop(j)
+                                st.session_state[timeline_key] = timeline_data
+                                st.rerun()
+                        
+                        # Notas da tarefa
+                        task['notes'] = st.text_area(
+                            "Notas/Observações",
+                            value=task.get('notes', ''),
+                            key=f"task_notes_{phase_key}_{project_id}_{j}",
+                            height=50
                         )
-                    
-                    with col_t3:
-                        task['responsible'] = st.text_input(
-                            "Responsável",
-                            value=task.get('responsible', ''),
-                            key=f"task_responsible_{phase_key}_{project_id}_{j}"
-                        )
-                    
-                    with col_t4:
-                        if st.button("🗑️", key=f"remove_task_{phase_key}_{project_id}_{j}"):
-                            timeline_data['phases'][phase_key]['tasks'].pop(j)
-                            st.rerun()
-                    
-                    # Notas da tarefa
-                    task['notes'] = st.text_area(
-                        "Notas/Observações",
-                        value=task.get('notes', ''),
-                        key=f"task_notes_{phase_key}_{project_id}_{j}",
-                        height=50
-                    )
-                    
-                    st.divider()
+                        
+                        st.divider()
         
         current_start_date = phase_end_date
     
@@ -1548,7 +1589,7 @@ def show_project_timeline(project_data: Dict):
             'start_date': st.session_state.get(f"start_date_{project_id}").strftime('%Y-%m-%d'),
             'total_duration': st.session_state.get(f"total_duration_{project_id}"),
             'end_date': end_date.strftime('%Y-%m-%d'),
-            'phases': timeline_data['phases'],
+            'phases': timeline_data.get('phases', {}),
             'total_allocated': total_allocated,
             'last_saved': datetime.now().isoformat()
         }
@@ -1560,7 +1601,8 @@ def show_project_timeline(project_data: Dict):
                 st.stop()
             
             # Verificar se pelo menos uma tarefa foi adicionada em cada fase
-            phases_with_tasks = sum(1 for phase in timeline_data['phases'].values() if len(phase.get('tasks', [])) > 0)
+            phases_with_tasks = sum(1 for phase in timeline_data['phases'].values() 
+                                  if len(phase.get('tasks', [])) > 0)
             if phases_with_tasks < 3:
                 st.error("❌ Adicione pelo menos uma tarefa em pelo menos 3 fases para finalizar o timeline")
                 st.stop()
