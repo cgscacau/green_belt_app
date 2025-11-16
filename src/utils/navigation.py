@@ -323,22 +323,63 @@ class NavigationManager:
         return progress
     
     def _get_phase_total_steps(self, phase: DMACPhase) -> int:
-        """Retorna o número total de etapas por fase"""
-        steps_count = {
-            DMACPhase.DEFINE: 5,
-            DMACPhase.MEASURE: 6,
-            DMACPhase.ANALYZE: 7,
-            DMACPhase.IMPROVE: 5,
-            DMACPhase.CONTROL: 4
+        """Retorna o número total de etapas por fase baseado nas ferramentas reais"""
+        # ✅ DEFINIR FERRAMENTAS REAIS DE CADA FASE
+        phase_tools = {
+            DMACPhase.DEFINE: [
+                "project_charter",
+                "stakeholder_analysis", 
+                "voice_of_customer",
+                "sipoc_diagram",
+                "problem_statement"
+            ],  # 5 ferramentas
+            
+            DMACPhase.MEASURE: [
+                "data_collection_plan",
+                "measurement_system_analysis",
+                "process_mapping",
+                "baseline_measurement"
+            ],  # 4 ferramentas
+            
+            DMACPhase.ANALYZE: [
+                "statistical_analysis",
+                "root_cause_analysis", 
+                "hypothesis_testing",
+                "process_analysis"
+            ],  # 4 ferramentas
+            
+            DMACPhase.IMPROVE: [
+                "solution_development",
+                "action_plan",
+                "pilot_implementation", 
+                "full_implementation"
+            ],  # 4 ferramentas
+            
+            DMACPhase.CONTROL: [
+                "control_plan",
+                "statistical_process_control",
+                "standard_work",
+                "sustainability_plan"
+            ]  # 4 ferramentas
         }
-        return steps_count.get(phase, 1)
+        
+        return len(phase_tools.get(phase, []))
     
     def _count_completed_steps(self, phase_data: Dict) -> int:
-        """Conta etapas completadas em uma fase"""
+        """Conta etapas completadas em uma fase baseado no status 'completed'"""
+        if not isinstance(phase_data, dict):
+            return 0
+        
         completed = 0
-        for key, value in phase_data.items():
-            if isinstance(value, dict) and value.get('completed', False):
-                completed += 1
-            elif isinstance(value, (str, list)) and value:
-                completed += 1
+        
+        # ✅ CONTAR APENAS FERRAMENTAS COM completed=True
+        for tool_key, tool_data in phase_data.items():
+            if isinstance(tool_data, dict):
+                # Verificar se a ferramenta está marcada como concluída
+                if tool_data.get('completed', False):
+                    completed += 1
+                # ✅ DEBUG: Mostrar status de cada ferramenta (remover depois)
+                # print(f"Tool {tool_key}: completed={tool_data.get('completed', False)}")
+        
         return completed
+
