@@ -2,6 +2,7 @@ import streamlit as st
 import time
 import uuid
 import pandas as pd
+import numpy as np
 import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
@@ -34,6 +35,88 @@ class ProjectManager:
         
         return True
     
+    def _convert_numpy_types(self, obj):
+        """Converte tipos numpy para tipos nativos Python compatíveis com Firestore"""
+        if isinstance(obj, dict):
+            return {key: self._convert_numpy_types(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_numpy_types(item) for item in obj]
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, (np.bool_, bool)):
+            return bool(obj)
+        elif pd.isna(obj):
+            return None
+        elif isinstance(obj, pd.Timestamp):
+            return obj.isoformat()
+        else:
+            return obj
+    
+    def _prepare_dataframe_for_firestore(self, df: pd.DataFrame) -> Dict:
+        """Prepara DataFrame para salvar no Firestore convertendo tipos problemáticos"""
+        try:
+            # Criar uma cópia do DataFrame
+            df_clean = df.copy()
+            
+            # Converter tipos numpy para tipos nativos Python
+            for col in df_clean.columns:
+                if df_clean[col].dtype == 'object':
+                    # Para colunas de objeto, converter valores individuais
+                    df_clean[col] = df_clean[col].apply(lambda x: self._convert_numpy_types(x))
+                elif pd.api.types.is_integer_dtype(df_clean[col]):
+                    # Converter inteiros numpy para int nativo
+                    df_clean[col] = df_clean[col].astype('Int64')  # Nullable integer
+                elif pd.api.types.is_float_dtype(df_clean[col]):
+                    # Converter floats numpy para float nativo
+                    df_clean[col] = df_clean[col].astype('float64')
+                elif pd.api.types.is_bool_dtype(df_clean[col]):
+                    # Converter boolean numpy para bool nativo
+                    df_clean[col] = df_clean[col].astype('boolean')  # Nullable boolean
+            
+            # Substituir NaN por None (compatível com Firestore)
+            df_clean = df_clean.where(pd.notnull(df_clean), None)
+            
+            # Converter para JSON usando orient='records'
+            records = df_clean.to_dict('records')
+            
+            # Aplicar conversão adicional nos records
+            clean_records = []
+            for record in records:
+                clean_record = self._convert_numpy_types(record)
+                clean_records.append(clean_record)
+            
+            return {
+                'records': clean_records,
+                'columns': list(df.columns),
+                'index': df.index.tolist()
+            }
+            
+        except Exception as e:
+            st.error(f"Erro ao preparar DataFrame: {str(e)}")
+            raise e
+    
+    def _restore_dataframe_from_firestore(self, data: Dict) -> pd.DataFrame:
+        """Restaura DataFrame a partir dos dados salvos no Firestore"""
+        try:
+            if 'records' in data:
+                # Novo formato
+                df = pd.DataFrame(data['records'])
+                if 'columns' in data:
+                    # Garantir ordem das colunas
+                    df = df.reindex(columns=data['columns'])
+                return df
+            else:
+                # Formato antigo (JSON string)
+                return pd.read_json(data, orient='records')
+                
+        except Exception as e:
+            st.error(f"Erro ao restaurar DataFrame: {str(e)}")
+            return pd.DataFrame()
+    
     def create_project(self, user_uid: str, project_data: Dict) -> tuple[bool, str]:
         """Cria um novo projeto"""
         try:
@@ -50,14 +133,19 @@ class ProjectManager:
             
             project_id = str(uuid.uuid4())
             
+            # Converter valores numéricos para tipos nativos
+            expected_savings = project_data.get('expected_savings', 0)
+            if isinstance(expected_savings, (np.number, np.integer, np.floating)):
+                expected_savings = float(expected_savings)
+            
             # Estrutura padrão do projeto
             new_project = {
                 'id': project_id,
                 'user_uid': user_uid,
-                'name': project_data['name'],
-                'description': project_data.get('description', ''),
-                'business_case': project_data.get('business_case', ''),
-                'expected_savings': float(project_data.get('expected_savings', 0)),
+                'name': str(project_data['name']),
+                'description': str(project_data.get('description', '')),
+                'business_case': str(project_data.get('business_case', '')),
+                'expected_savings': expected_savings,
                 'start_date': project_data.get('start_date', datetime.now().isoformat()),
                 'target_end_date': project_data.get('target_end_date', (datetime.now() + timedelta(days=120)).isoformat()),
                 'status': 'active',
@@ -80,7 +168,7 @@ class ProjectManager:
                     'msa': {'completed': False, 'data': {}},
                     'process_capability': {'completed': False, 'data': {}},
                     'ctq_metrics': {'completed': False, 'data': {}},
-                    'file_upload': {'completed': False, 'data': {}},  # Adicionado para upload
+                    'file_upload': {'completed': False, 'data': {}},
                     'uploaded_files': []
                 },
                 'analyze': {
@@ -88,7 +176,6 @@ class ProjectManager:
                     'root_cause_analysis': {'completed': False, 'data': {}},
                     'hypothesis_testing': {'completed': False, 'data': {}},
                     'process_analysis': {'completed': False, 'data': {}},
-                    # Manter compatibilidade com estrutura antiga
                     'ishikawa': {'completed': False, 'data': {}},
                     'five_whys': {'completed': False, 'data': {}},
                     'pareto': {'completed': False, 'data': {}},
@@ -110,6 +197,9 @@ class ProjectManager:
                 }
             }
             
+            # Converter toda a estrutura para tipos compatíveis com Firestore
+            new_project = self._convert_numpy_types(new_project)
+            
             # Salvar no Firestore
             self.db.collection('projects').document(project_id).set(new_project)
             
@@ -121,11 +211,10 @@ class ProjectManager:
                 if user_doc.exists:
                     user_data = user_doc.to_dict()
                     projects = user_data.get('projects', [])
-                    if project_id not in projects:  # Evitar duplicatas
+                    if project_id not in projects:
                         projects.append(project_id)
                         user_ref.update({'projects': projects})
                 else:
-                    # Criar documento do usuário se não existir
                     user_ref.set({
                         'projects': [project_id],
                         'updated_at': datetime.now().isoformat()
@@ -150,6 +239,8 @@ class ProjectManager:
                 return False, "Erro de conexão. Verifique sua internet."
             elif "quota" in error_msg.lower():
                 return False, "Quota do Firebase excedida. Tente novamente mais tarde."
+            elif "convert" in error_msg.lower() and "firestore" in error_msg.lower():
+                return False, "Erro de conversão de dados. Verifique os tipos de dados fornecidos."
             else:
                 return False, f"Erro interno: {error_msg}"
     
@@ -167,7 +258,7 @@ class ProjectManager:
             
             for doc in projects_query:
                 project_data = doc.to_dict()
-                if project_data:  # Verificar se dados existem
+                if project_data:
                     projects.append(project_data)
             
             # Ordenar por data de criação (mais recente primeiro)
@@ -216,6 +307,9 @@ class ProjectManager:
         try:
             if not self.db or not project_id:
                 return False
+            
+            # Converter tipos numpy antes de salvar
+            updates = self._convert_numpy_types(updates)
             
             # Adicionar timestamp de atualização
             updates['updated_at'] = datetime.now().isoformat()
@@ -290,50 +384,56 @@ class ProjectManager:
     
     def save_uploaded_data(self, project_id: str, dataframe: pd.DataFrame, filename: str, 
                           additional_info: Dict = None) -> bool:
-        """Salva dados de upload no projeto"""
+        """Salva dados de upload no projeto com tratamento robusto de tipos"""
         if not self._ensure_user_authenticated():
             return False
         
         try:
-            # Converter DataFrame para JSON (mais eficiente que pickle para Firestore)
-            df_json = dataframe.to_json(orient='records', date_format='iso')
+            # Preparar DataFrame para Firestore
+            df_data = self._prepare_dataframe_for_firestore(dataframe)
             
-            # Preparar informações sobre o dataset
+            # Preparar informações sobre o dataset com conversão de tipos
             dataset_info = {
-                'filename': filename,
-                'columns': list(dataframe.columns),
-                'shape': list(dataframe.shape),
-                'dtypes': {col: str(dtype) for col, dtype in dataframe.dtypes.items()},
+                'filename': str(filename),
+                'columns': [str(col) for col in dataframe.columns],
+                'shape': [int(dataframe.shape[0]), int(dataframe.shape[1])],
+                'dtypes': {str(col): str(dtype) for col, dtype in dataframe.dtypes.items()},
                 'uploaded_at': datetime.now().isoformat(),
                 'data_summary': {
-                    'total_rows': len(dataframe),
-                    'total_columns': len(dataframe.columns),
-                    'numeric_columns': len(dataframe.select_dtypes(include=['number']).columns),
-                    'categorical_columns': len(dataframe.select_dtypes(include=['object']).columns),
-                    'missing_values': dataframe.isnull().sum().sum(),
-                    'memory_usage': dataframe.memory_usage(deep=True).sum()
+                    'total_rows': int(len(dataframe)),
+                    'total_columns': int(len(dataframe.columns)),
+                    'numeric_columns': int(len(dataframe.select_dtypes(include=['number']).columns)),
+                    'categorical_columns': int(len(dataframe.select_dtypes(include=['object']).columns)),
+                    'missing_values': int(dataframe.isnull().sum().sum()),
+                    'memory_usage': int(dataframe.memory_usage(deep=True).sum())
                 }
             }
             
             # Adicionar informações extras se fornecidas
             if additional_info:
+                additional_info = self._convert_numpy_types(additional_info)
                 dataset_info.update(additional_info)
             
-            # Preparar dados para salvar (limitando tamanho se necessário)
-            upload_data = {
-                'dataframe_json': df_json,
-                'dataset_info': dataset_info
-            }
+            # Verificar tamanho dos dados
+            data_json = json.dumps(df_data)
+            data_size = len(data_json.encode('utf-8'))
             
-            # Verificar tamanho dos dados (Firestore tem limite de 1MB por documento)
-            data_size = len(df_json.encode('utf-8'))
+            # Preparar dados para salvar
             if data_size > 800000:  # 800KB como limite de segurança
                 st.warning("⚠️ Dataset muito grande. Salvando apenas metadados.")
                 upload_data = {
-                    'dataframe_json': None,
+                    'dataframe_data': None,
                     'dataset_info': dataset_info,
                     'size_warning': f"Dataset muito grande ({data_size / 1024:.1f}KB). Dados mantidos apenas em memória."
                 }
+            else:
+                upload_data = {
+                    'dataframe_data': df_data,
+                    'dataset_info': dataset_info
+                }
+            
+            # Converter todos os dados para tipos compatíveis
+            upload_data = self._convert_numpy_types(upload_data)
             
             # Atualizar no Firestore
             update_data = {
@@ -349,11 +449,12 @@ class ProjectManager:
                 # Salvar no session state também
                 st.session_state[f'uploaded_data_{project_id}'] = dataframe
                 st.session_state[f'upload_info_{project_id}'] = dataset_info
+                st.success("✅ Dados salvos com sucesso!")
             
             return success
             
         except Exception as e:
-            st.error(f"Erro ao salvar dados de upload: {str(e)}")
+            st.error(f"❌ Erro ao salvar dados de upload: {str(e)}")
             return False
     
     def get_uploaded_data(self, project_id: str) -> Optional[pd.DataFrame]:
@@ -369,9 +470,9 @@ class ProjectManager:
             measure_data = project.get('measure', {})
             file_upload_data = measure_data.get('file_upload', {}).get('data', {})
             
-            if file_upload_data.get('dataframe_json'):
+            if file_upload_data.get('dataframe_data'):
                 try:
-                    df = pd.read_json(file_upload_data['dataframe_json'])
+                    df = self._restore_dataframe_from_firestore(file_upload_data['dataframe_data'])
                     # Salvar no session state para próximas consultas
                     st.session_state[session_key] = df
                     
@@ -381,7 +482,7 @@ class ProjectManager:
                     
                     return df
                 except Exception as e:
-                    st.error(f"Erro ao carregar dados do Firebase: {str(e)}")
+                    st.error(f"❌ Erro ao carregar dados do Firebase: {str(e)}")
             elif file_upload_data.get('size_warning'):
                 st.warning(file_upload_data['size_warning'])
         
@@ -415,9 +516,9 @@ class ProjectManager:
             
             # Sincronizar file_upload
             file_upload_data = measure_data.get('file_upload', {}).get('data', {})
-            if file_upload_data.get('dataframe_json'):
+            if file_upload_data.get('dataframe_data'):
                 try:
-                    df = pd.read_json(file_upload_data['dataframe_json'])
+                    df = self._restore_dataframe_from_firestore(file_upload_data['dataframe_data'])
                     st.session_state[f'uploaded_data_{project_id}'] = df
                     
                     # Sincronizar informações do dataset
@@ -425,7 +526,7 @@ class ProjectManager:
                         st.session_state[f'upload_info_{project_id}'] = file_upload_data['dataset_info']
                 
                 except Exception as e:
-                    st.warning(f"Erro ao sincronizar dados de upload: {str(e)}")
+                    st.warning(f"⚠️ Erro ao sincronizar dados de upload: {str(e)}")
             
             # Sincronizar baseline_data
             baseline_data = measure_data.get('baseline_data', {}).get('data', {})
@@ -441,7 +542,7 @@ class ProjectManager:
                         st.session_state[session_key] = tool_data['data']
         
         except Exception as e:
-            st.warning(f"Erro na sincronização de dados: {str(e)}")
+            st.warning(f"⚠️ Erro na sincronização de dados: {str(e)}")
     
     def ensure_project_sync(self, project_id: str) -> bool:
         """Força sincronização completa do projeto"""
@@ -453,7 +554,7 @@ class ProjectManager:
                 return True
             return False
         except Exception as e:
-            st.error(f"Erro na sincronização: {str(e)}")
+            st.error(f"❌ Erro na sincronização: {str(e)}")
             return False
     
     def calculate_project_progress(self, project_data: Dict) -> float:
