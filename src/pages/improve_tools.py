@@ -2315,26 +2315,32 @@ class PilotImplementationTool:
                                 else:
                                     st.error(f"📉 {improvement:.1f}%")
                     #####
-                    # ✅ SEÇÃO DE MEDIÇÕES COM EDIÇÃO E DELETE FUNCIONANDO
+                    # ✅ SEÇÃO DE MEDIÇÕES COM DELETE FUNCIONANDO
                     data_points = metric.get('data_points', [])
                     if data_points:
                         st.markdown("---")
                         st.markdown("##### 📋 Medições Registradas")
                         
-                        # ✅ PROCESSAR EM ORDEM REVERSA PARA EVITAR PROBLEMAS DE ÍNDICE NO DELETE
-                        # Criar lista com índices para processamento seguro
-                        indexed_points = [(i, dp) for i, dp in enumerate(data_points)]
-                        # Ordenar por data (mais recente primeiro) mas manter índices originais
-                        indexed_points.sort(key=lambda x: x[1]['date'], reverse=True)
+                        # ✅ MOSTRAR BOTÃO PARA RECARREGAR SE NECESSÁRIO
+                        if st.button("🔄 Atualizar Lista", key=f"refresh_measurements_{metric_index}_{self.project_id}"):
+                            st.rerun()
                         
-                        for display_order, (original_idx, data_point) in enumerate(indexed_points):
-                            # Chave única baseada no índice ORIGINAL (não muda durante a sessão)
-                            unique_id = f"metric_{metric_index}_original_{original_idx}_{self.project_id}"
+                        # ✅ PROCESSAR CADA MEDIÇÃO COM ÍNDICE DIRETO
+                        for dp_idx in range(len(data_points)):
+                            # Verificar se o índice ainda existe (pode ter sido deletado)
+                            if dp_idx >= len(pilot_data['measurements'][metric_index]['data_points']):
+                                continue
+                                
+                            data_point = pilot_data['measurements'][metric_index]['data_points'][dp_idx]
+                            
+                            # Chave única para esta medição
+                            unique_id = f"m{metric_index}_dp{dp_idx}_{len(data_points)}_{self.project_id}"
                             edit_key = f"editing_{unique_id}"
+                            delete_confirm_key = f"delete_confirm_{unique_id}"
                             
                             measurement_date = datetime.fromisoformat(data_point['date']).strftime('%d/%m/%Y')
                             
-                            # ✅ CONTAINER PARA CADA MEDIÇÃO
+                            # Container para cada medição
                             with st.container():
                                 # Verificar se está em modo de edição
                                 is_editing = st.session_state.get(edit_key, False)
@@ -2346,108 +2352,125 @@ class PilotImplementationTool:
                                     col_edit1, col_edit2, col_edit3 = st.columns([2, 2, 2])
                                     
                                     with col_edit1:
-                                        # Campo de data editável
                                         edited_date = st.date_input(
                                             "Nova Data:",
                                             value=datetime.fromisoformat(data_point['date']).date(),
-                                            key=f"edit_date_field_{unique_id}"
+                                            key=f"edit_date_{unique_id}"
                                         )
                                     
                                     with col_edit2:
-                                        # Campo de valor editável
                                         edited_value = st.number_input(
                                             f"Novo Valor ({metric.get('unit', '')}):",
                                             value=float(data_point['value']),
-                                            key=f"edit_value_field_{unique_id}",
+                                            key=f"edit_value_{unique_id}",
                                             step=0.01,
                                             format="%.2f"
                                         )
                                     
                                     with col_edit3:
-                                        # Botões de ação
                                         col_save, col_cancel = st.columns(2)
                                         
                                         with col_save:
-                                            if st.button("💾 Salvar", key=f"save_btn_{unique_id}"):
-                                                # ✅ VERIFICAR SE O ÍNDICE AINDA É VÁLIDO
-                                                if original_idx < len(pilot_data['measurements'][metric_index]['data_points']):
-                                                    # Salvar as alterações
-                                                    pilot_data['measurements'][metric_index]['data_points'][original_idx] = {
+                                            if st.button("💾", key=f"save_{unique_id}", help="Salvar"):
+                                                # Verificar se índice ainda é válido
+                                                if dp_idx < len(pilot_data['measurements'][metric_index]['data_points']):
+                                                    pilot_data['measurements'][metric_index]['data_points'][dp_idx] = {
                                                         'date': edited_date.isoformat(),
                                                         'value': float(edited_value),
                                                         'added_at': data_point.get('added_at', datetime.now().isoformat()),
                                                         'updated_at': datetime.now().isoformat()
                                                     }
                                                     
-                                                    # Sair do modo edição
-                                                    st.session_state[edit_key] = False
+                                                    # Limpar estado de edição
+                                                    if edit_key in st.session_state:
+                                                        del st.session_state[edit_key]
                                                     
                                                     st.success("✅ Medição atualizada!")
                                                     st.rerun()
-                                                else:
-                                                    st.error("❌ Erro: Medição não encontrada. Recarregue a página.")
                                         
                                         with col_cancel:
-                                            if st.button("❌ Cancelar", key=f"cancel_btn_{unique_id}"):
-                                                # Sair do modo edição sem salvar
-                                                st.session_state[edit_key] = False
+                                            if st.button("❌", key=f"cancel_{unique_id}", help="Cancelar"):
+                                                if edit_key in st.session_state:
+                                                    del st.session_state[edit_key]
                                                 st.rerun()
                                 
                                 else:
-                                    # ✅ MODO VISUALIZAÇÃO NORMAL
-                                    col_display1, col_display2, col_display3, col_display4 = st.columns([2, 2, 1, 1])
+                                    # ✅ MODO VISUALIZAÇÃO
+                                    col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
                                     
-                                    with col_display1:
+                                    with col1:
                                         st.write(f"📅 **{measurement_date}**")
                                     
-                                    with col_display2:
+                                    with col2:
                                         st.write(f"**{data_point['value']} {metric.get('unit', '')}**")
                                     
-                                    with col_display3:
-                                        # Botão para entrar em modo edição
-                                        if st.button("✏️", key=f"edit_btn_{unique_id}", help="Editar medição"):
+                                    with col3:
+                                        if st.button("✏️", key=f"edit_{unique_id}", help="Editar"):
                                             st.session_state[edit_key] = True
                                             st.rerun()
                                     
-                                    with col_display4:
-                                        # ✅ BOTÃO DE EXCLUSÃO CORRIGIDO
-                                        confirm_delete_key = f"confirm_delete_{unique_id}"
+                                    with col4:
+                                        # ✅ DELETE SUPER SIMPLIFICADO
+                                        delete_button_key = f"delete_{unique_id}"
                                         
-                                        if st.button("🗑️", key=f"delete_btn_{unique_id}", help="Excluir medição"):
-                                            if st.session_state.get(confirm_delete_key, False):
-                                                # ✅ VERIFICAR SE O ÍNDICE AINDA É VÁLIDO ANTES DE DELETAR
-                                                current_data_points = pilot_data['measurements'][metric_index]['data_points']
-                                                
-                                                # Encontrar o item pelos dados (mais seguro que índice)
-                                                item_to_remove = None
-                                                for i, dp in enumerate(current_data_points):
-                                                    if (dp['date'] == data_point['date'] and 
-                                                        dp['value'] == data_point['value'] and 
-                                                        dp.get('added_at') == data_point.get('added_at')):
-                                                        item_to_remove = i
-                                                        break
-                                                
-                                                if item_to_remove is not None:
-                                                    # Remover o item
-                                                    pilot_data['measurements'][metric_index]['data_points'].pop(item_to_remove)
-                                                    
-                                                    # Limpar estados relacionados a esta medição
-                                                    keys_to_clean = [k for k in st.session_state.keys() if unique_id in k]
-                                                    for k in keys_to_clean:
-                                                        del st.session_state[k]
-                                                    
-                                                    st.success("✅ Medição removida!")
-                                                    st.rerun()
-                                                else:
-                                                    st.error("❌ Erro: Medição não encontrada. Recarregue a página.")
+                                        if st.button("🗑️", key=delete_button_key, help="Excluir medição"):
+                                            # Verificar se já foi confirmado
+                                            if st.session_state.get(delete_confirm_key, False):
+                                                # ✅ EXECUTAR DELETE DIRETO
+                                                try:
+                                                    # Verificar se ainda existe
+                                                    if dp_idx < len(pilot_data['measurements'][metric_index]['data_points']):
+                                                        # Remover diretamente pelo índice
+                                                        removed_item = pilot_data['measurements'][metric_index]['data_points'].pop(dp_idx)
+                                                        
+                                                        # Limpar TODOS os estados relacionados
+                                                        keys_to_remove = []
+                                                        for key in st.session_state.keys():
+                                                            if (f"m{metric_index}_dp" in key or 
+                                                                f"delete_confirm_m{metric_index}" in key or
+                                                                f"editing_m{metric_index}" in key):
+                                                                keys_to_remove.append(key)
+                                                        
+                                                        for key in keys_to_remove:
+                                                            try:
+                                                                del st.session_state[key]
+                                                            except:
+                                                                pass
+                                                        
+                                                        st.success(f"✅ Medição de {measurement_date} removida!")
+                                                        st.rerun()
+                                                    else:
+                                                        st.error("❌ Medição não encontrada")
+                                                except Exception as e:
+                                                    st.error(f"❌ Erro ao remover: {str(e)}")
                                             else:
-                                                # Primeira confirmação
-                                                st.session_state[confirm_delete_key] = True
+                                                # Primeira vez - pedir confirmação
+                                                st.session_state[delete_confirm_key] = True
                                                 st.warning("⚠️ Clique novamente para confirmar exclusão")
+                                                # Auto-limpar confirmação após 10 segundos
+                                                import time
+                                                time.sleep(0.1)  # Pequena pausa para mostrar mensagem
                                 
-                                # Separador entre medições
-                                if display_order < len(indexed_points) - 1:
+                                # Separador
+                                if dp_idx < len(data_points) - 1:
                                     st.divider()
+                        
+                        # ✅ BOTÃO DE EMERGÊNCIA PARA LIMPAR ESTADOS
+                        if st.button("🧹 Limpar Estados (se algo der errado)", key=f"emergency_clear_{metric_index}_{self.project_id}"):
+                            keys_to_remove = []
+                            for key in st.session_state.keys():
+                                if f"m{metric_index}_" in key:
+                                    keys_to_remove.append(key)
+                            
+                            for key in keys_to_remove:
+                                try:
+                                    del st.session_state[key]
+                                except:
+                                    pass
+                            
+                            st.success("🧹 Estados limpos!")
+                            st.rerun()
+                    
                     else:
                         st.info("📝 Nenhuma medição registrada ainda.")
 
