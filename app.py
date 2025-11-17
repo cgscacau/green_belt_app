@@ -1,6 +1,6 @@
 """
 Aplicação principal do sistema Six Sigma Green Belt
-Versão melhorada com inicialização robusta e gerenciamento de estado
+Versão corrigida com transição de login robusta
 """
 
 import streamlit as st
@@ -13,13 +13,10 @@ from typing import Optional, Dict, Any
 import time
 from datetime import datetime
 
-# Configurar logging antes de qualquer import
+# Configurar logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
@@ -30,579 +27,355 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
-        'Get Help': 'https://github.com/seu-usuario/six-sigma-app',
-        'Report a bug': 'https://github.com/seu-usuario/six-sigma-app/issues',
-        'About': """
-        # Six Sigma Green Belt System
-        
-        Sistema completo para gerenciamento de projetos Six Sigma seguindo a metodologia DMAIC.
-        
-        **Versão:** 2.0.0  
-        **Desenvolvido com:** Streamlit & Firebase
-        """
+        'Get Help': None,
+        'Report a bug': None,
+        'About': "Six Sigma Green Belt System v2.0"
     }
 )
 
-# Adicionar diretórios ao path
+# Configurar path do Python
 def setup_python_path():
     """Configura o path do Python para imports"""
     try:
         current_dir = Path(__file__).parent
         src_dir = current_dir / "src"
         
-        # Adicionar diretórios ao sys.path se não existirem
         paths_to_add = [str(current_dir), str(src_dir)]
         
         for path in paths_to_add:
             if path not in sys.path:
                 sys.path.insert(0, path)
         
-        logger.info(f"Python path configurado: {paths_to_add}")
         return True
-        
     except Exception as e:
         logger.error(f"Erro ao configurar Python path: {str(e)}")
         return False
 
-# Configurar path
 setup_python_path()
 
-# Tentar importar módulos principais com fallback robusto
-def import_core_modules():
-    """Importa módulos principais com tratamento de erro"""
+# Função para importar módulos com fallback
+def safe_import():
+    """Importa módulos de forma segura"""
     modules = {}
     
     # Firebase Auth
     try:
         from src.auth.firebase_auth import FirebaseAuth
-        modules['firebase_auth'] = FirebaseAuth
-        logger.info("✅ Firebase Auth importado com sucesso")
-    except ImportError as e:
-        logger.error(f"❌ Erro ao importar Firebase Auth: {str(e)}")
-        modules['firebase_auth'] = None
+        modules['auth'] = FirebaseAuth
+    except ImportError:
+        try:
+            from auth.firebase_auth import FirebaseAuth
+            modules['auth'] = FirebaseAuth
+        except ImportError:
+            modules['auth'] = None
     
-    # Navegação Principal
+    # Dashboard
+    try:
+        from src.pages.dashboard import show_dashboard
+        modules['dashboard'] = show_dashboard
+    except ImportError:
+        try:
+            from pages.dashboard import show_dashboard
+            modules['dashboard'] = show_dashboard
+        except ImportError:
+            modules['dashboard'] = None
+    
+    # Navegação principal
     try:
         from src.pages.main_navigation import show_main_navigation
-        modules['main_navigation'] = show_main_navigation
-        logger.info("✅ Navegação principal importada com sucesso")
-    except ImportError as e:
-        logger.error(f"❌ Erro ao importar navegação principal: {str(e)}")
-        modules['main_navigation'] = None
-    
-    # Utilitários
-    try:
-        from src.utils.session_manager import SessionManager
-        modules['session_manager'] = SessionManager
-        logger.info("✅ Session Manager importado com sucesso")
-    except ImportError as e:
-        logger.warning(f"⚠️ Session Manager não disponível: {str(e)}")
-        modules['session_manager'] = None
-    
-    try:
-        from src.utils.offline_storage import get_offline_storage
-        modules['offline_storage'] = get_offline_storage
-        logger.info("✅ Offline Storage importado com sucesso")
-    except ImportError as e:
-        logger.warning(f"⚠️ Offline Storage não disponível: {str(e)}")
-        modules['offline_storage'] = None
-    
-    # Configuração DMAIC
-    try:
-        from src.config.dmaic_config import DMAIC_PHASES_CONFIG
-        modules['dmaic_config'] = DMAIC_PHASES_CONFIG
-        logger.info("✅ Configuração DMAIC importada com sucesso")
-    except ImportError as e:
-        logger.warning(f"⚠️ Configuração DMAIC não disponível: {str(e)}")
-        modules['dmaic_config'] = None
+        modules['navigation'] = show_main_navigation
+    except ImportError:
+        try:
+            from pages.main_navigation import show_main_navigation
+            modules['navigation'] = show_main_navigation
+        except ImportError:
+            modules['navigation'] = None
     
     return modules
 
 # Importar módulos
-CORE_MODULES = import_core_modules()
+MODULES = safe_import()
 
-class AppState:
-    """Gerenciador de estado da aplicação"""
-    
-    @staticmethod
-    def initialize():
-        """Inicializa estado da aplicação"""
-        try:
-            # Inicializar valores padrão se não existirem
-            defaults = {
-                'app_initialized': False,
-                'authentication_status': False,
-                'current_page': 'login',
-                'app_version': '2.0.0',
-                'initialization_time': datetime.utcnow().isoformat(),
-                'debug_mode': False,
-                'theme_config': {
-                    'primary_color': '#1f77b4',
-                    'background_color': '#ffffff',
-                    'secondary_background_color': '#f0f2f6'
-                }
-            }
-            
-            for key, default_value in defaults.items():
-                if key not in st.session_state:
-                    st.session_state[key] = default_value
-            
-            # Usar SessionManager se disponível
-            if CORE_MODULES.get('session_manager'):
-                CORE_MODULES['session_manager'].initialize_session()
-            
-            # Marcar como inicializado
-            st.session_state.app_initialized = True
-            
-            logger.info("✅ Estado da aplicação inicializado")
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Erro na inicialização do estado: {str(e)}")
-            return False
-    
-    @staticmethod
-    def is_initialized() -> bool:
-        """Verifica se a aplicação está inicializada"""
-        return st.session_state.get('app_initialized', False)
-    
-    @staticmethod
-    def get_debug_info() -> Dict[str, Any]:
-        """Retorna informações de debug"""
-        return {
-            'app_initialized': AppState.is_initialized(),
-            'session_keys_count': len(st.session_state),
-            'authentication_status': st.session_state.get('authentication_status', False),
-            'current_page': st.session_state.get('current_page', 'unknown'),
-            'user_authenticated': st.session_state.get('user_data') is not None,
-            'modules_loaded': {name: module is not None for name, module in CORE_MODULES.items()},
-            'initialization_time': st.session_state.get('initialization_time'),
-            'app_version': st.session_state.get('app_version')
-        }
-
-def show_loading_screen():
-    """Exibe tela de carregamento"""
-    st.markdown("""
-    <div style='
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 60vh;
-        text-align: center;
-    '>
-        <h1 style='color: #1f77b4; margin-bottom: 2rem;'>
-            🎯 Six Sigma Green Belt
-        </h1>
-        <div style='
-            width: 60px;
-            height: 60px;
-            border: 6px solid #f3f3f3;
-            border-top: 6px solid #1f77b4;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 2rem;
-        '></div>
-        <p style='color: #666; font-size: 1.1em;'>
-            Inicializando sistema...
-        </p>
-        <p style='color: #999; font-size: 0.9em;'>
-            Carregando módulos e configurações
-        </p>
-    </div>
-    
-    <style>
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+def initialize_session():
+    """Inicializa session state com valores padrão"""
+    defaults = {
+        'authentication_status': False,
+        'user_data': None,
+        'current_page': 'dashboard',
+        'app_initialized': True
     }
-    </style>
-    """, unsafe_allow_html=True)
+    
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
-def show_error_screen(error_message: str, details: Optional[str] = None):
-    """Exibe tela de erro"""
-    st.error("❌ **Erro na Aplicação**")
+def show_login_page():
+    """Página de login simplificada"""
+    st.markdown("# 🎯 Six Sigma Green Belt")
+    st.markdown("### Sistema de Gerenciamento de Projetos Six Sigma")
     
-    col1, col2 = st.columns([2, 1])
+    # Verificar se Firebase Auth está disponível
+    if not MODULES.get('auth'):
+        st.error("❌ Sistema de autenticação não disponível")
+        st.info("Verifique a configuração do Firebase")
+        return
     
-    with col1:
-        st.markdown(f"""
-        ### 🚨 Problema Detectado
-        
-        {error_message}
-        
-        **O que você pode tentar:**
-        1. Recarregar a página (F5)
-        2. Limpar o cache do navegador
-        3. Verificar sua conexão com a internet
-        4. Contatar o suporte técnico
-        """)
-        
-        if details:
-            with st.expander("🔍 Detalhes Técnicos"):
-                st.code(details)
+    # Criar instância do auth
+    try:
+        auth = MODULES['auth']()
+    except Exception as e:
+        st.error(f"❌ Erro ao inicializar autenticação: {str(e)}")
+        return
+    
+    # Interface de login
+    col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
-        st.markdown("### 🔧 Ações Rápidas")
+        tab1, tab2 = st.tabs(["🔑 Login", "👤 Registro"])
         
-        if st.button("🔄 Recarregar Aplicação", type="primary", use_container_width=True):
-            st.rerun()
-        
-        if st.button("🗑️ Limpar Cache", use_container_width=True):
-            # Limpar cache do Streamlit
-            st.cache_data.clear()
-            st.cache_resource.clear()
+        with tab1:
+            st.markdown("#### Faça login em sua conta")
             
-            # Limpar session_state (mantendo apenas essenciais)
-            keys_to_keep = {'app_version', 'theme_config'}
-            keys_to_remove = [k for k in st.session_state.keys() if k not in keys_to_keep]
-            
-            for key in keys_to_remove:
-                del st.session_state[key]
-            
-            st.success("✅ Cache limpo! Recarregando...")
-            time.sleep(1)
-            st.rerun()
-        
-        if st.button("📊 Info Debug", use_container_width=True):
-            debug_info = AppState.get_debug_info()
-            st.json(debug_info)
-
-def show_login_screen():
-    """Exibe tela de login"""
-    try:
-        # Verificar se Firebase Auth está disponível
-        if not CORE_MODULES.get('firebase_auth'):
-            st.error("❌ Sistema de autenticação não disponível")
-            st.info("Verifique a configuração do Firebase")
-            return
-        
-        # Criar instância do Firebase Auth
-        auth = CORE_MODULES['firebase_auth']()
-        
-        # Interface de login
-        st.markdown("""
-        <div style='text-align: center; margin-bottom: 3rem;'>
-            <h1 style='color: #1f77b4; font-size: 3em; margin-bottom: 0.5rem;'>
-                🎯 Six Sigma Green Belt
-            </h1>
-            <p style='color: #666; font-size: 1.2em; margin-bottom: 2rem;'>
-                Sistema de Gerenciamento de Projetos Six Sigma
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Container centralizado para login
-        col1, col2, col3 = st.columns([1, 2, 1])
-        
-        with col2:
-            # Abas para Login e Registro
-            tab_login, tab_register = st.tabs(["🔑 Entrar", "👤 Registrar"])
-            
-            with tab_login:
-                st.markdown("### Faça login em sua conta")
+            with st.form("login_form", clear_on_submit=False):
+                email = st.text_input("📧 Email", placeholder="seu.email@exemplo.com")
+                password = st.text_input("🔒 Senha", type="password", placeholder="••••••••")
                 
-                with st.form("login_form"):
-                    email = st.text_input(
-                        "📧 Email",
-                        placeholder="seu.email@exemplo.com",
-                        help="Digite seu email cadastrado"
-                    )
-                    
-                    password = st.text_input(
-                        "🔒 Senha",
-                        type="password",
-                        placeholder="••••••••",
-                        help="Digite sua senha"
-                    )
-                    
-                    col_login1, col_login2 = st.columns(2)
-                    
-                    with col_login1:
-                        login_button = st.form_submit_button(
-                            "🚀 Entrar",
-                            type="primary",
-                            use_container_width=True
-                        )
-                    
-                    with col_login2:
-                        remember_me = st.checkbox("Lembrar de mim")
+                submitted = st.form_submit_button("🚀 Entrar", type="primary", use_container_width=True)
                 
-                # Processar login
-                if login_button:
+                if submitted:
                     if email and password:
-                        with st.spinner("🔐 Autenticando..."):
-                            success, message = auth.login_user(email, password)
-                        
-                        if success:
-                            st.success("✅ Login realizado com sucesso!")
-                            st.balloons()
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error(f"❌ Erro no login: {message}")
+                        try:
+                            with st.spinner("Autenticando..."):
+                                success, message = auth.login_user(email, password)
+                            
+                            if success:
+                                st.success("✅ Login realizado com sucesso!")
+                                st.balloons()
+                                
+                                # ✅ CORREÇÃO: Aguardar um pouco antes de recarregar
+                                time.sleep(2)
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Erro no login: {message}")
+                        except Exception as e:
+                            st.error(f"❌ Erro inesperado: {str(e)}")
+                            logger.error(f"Erro no login: {str(e)}")
                     else:
-                        st.warning("⚠️ Preencha todos os campos")
+                        st.warning("⚠️ Preencha email e senha")
+        
+        with tab2:
+            st.markdown("#### Criar nova conta")
             
-            with tab_register:
-                st.markdown("### Criar nova conta")
+            with st.form("register_form", clear_on_submit=False):
+                reg_name = st.text_input("👤 Nome Completo")
+                reg_email = st.text_input("📧 Email")
+                reg_company = st.text_input("🏢 Empresa (opcional)")
+                reg_password = st.text_input("🔒 Senha", type="password")
+                reg_password_confirm = st.text_input("🔒 Confirmar Senha", type="password")
                 
-                with st.form("register_form"):
-                    reg_name = st.text_input(
-                        "👤 Nome Completo",
-                        placeholder="Seu Nome Completo",
-                        help="Digite seu nome completo"
-                    )
-                    
-                    reg_email = st.text_input(
-                        "📧 Email",
-                        placeholder="seu.email@exemplo.com",
-                        help="Email será usado para login"
-                    )
-                    
-                    reg_company = st.text_input(
-                        "🏢 Empresa (Opcional)",
-                        placeholder="Nome da sua empresa",
-                        help="Empresa onde trabalha (opcional)"
-                    )
-                    
-                    col_pass1, col_pass2 = st.columns(2)
-                    
-                    with col_pass1:
-                        reg_password = st.text_input(
-                            "🔒 Senha",
-                            type="password",
-                            placeholder="••••••••",
-                            help="Mínimo 6 caracteres"
-                        )
-                    
-                    with col_pass2:
-                        reg_password_confirm = st.text_input(
-                            "🔒 Confirmar Senha",
-                            type="password",
-                            placeholder="••••••••",
-                            help="Digite a senha novamente"
-                        )
-                    
-                    terms_accepted = st.checkbox(
-                        "Aceito os termos de uso e política de privacidade",
-                        help="Obrigatório para criar conta"
-                    )
-                    
-                    register_button = st.form_submit_button(
-                        "🎯 Criar Conta",
-                        type="primary",
-                        use_container_width=True
-                    )
+                reg_submitted = st.form_submit_button("🎯 Criar Conta", type="primary", use_container_width=True)
                 
-                # Processar registro
-                if register_button:
-                    # Validações
-                    errors = []
-                    
-                    if not reg_name or len(reg_name.strip()) < 2:
-                        errors.append("Nome deve ter pelo menos 2 caracteres")
-                    
-                    if not reg_email or "@" not in reg_email:
-                        errors.append("Email inválido")
-                    
-                    if not reg_password or len(reg_password) < 6:
-                        errors.append("Senha deve ter pelo menos 6 caracteres")
-                    
-                    if reg_password != reg_password_confirm:
-                        errors.append("Senhas não coincidem")
-                    
-                    if not terms_accepted:
-                        errors.append("Você deve aceitar os termos de uso")
-                    
-                    if errors:
-                        for error in errors:
-                            st.error(f"❌ {error}")
+                if reg_submitted:
+                    # Validações básicas
+                    if not all([reg_name, reg_email, reg_password]):
+                        st.error("❌ Preencha todos os campos obrigatórios")
+                    elif reg_password != reg_password_confirm:
+                        st.error("❌ Senhas não coincidem")
+                    elif len(reg_password) < 6:
+                        st.error("❌ Senha deve ter pelo menos 6 caracteres")
                     else:
-                        # Tentar registrar
-                        user_data = {
-                            'name': reg_name.strip(),
-                            'email': reg_email.strip().lower(),
-                            'company': reg_company.strip() if reg_company else None
-                        }
-                        
-                        with st.spinner("👤 Criando conta..."):
-                            success, message = auth.register_user(
-                                reg_email.strip().lower(),
-                                reg_password,
-                                user_data
-                            )
-                        
-                        if success:
-                            st.success("✅ Conta criada com sucesso!")
-                            st.info("🔑 Você pode fazer login agora")
-                            time.sleep(2)
-                            st.rerun()
-                        else:
-                            st.error(f"❌ Erro ao criar conta: {message}")
-        
-        # Rodapé informativo
-        st.markdown("---")
-        
-        col_footer1, col_footer2, col_footer3 = st.columns(3)
-        
-        with col_footer1:
-            st.markdown("""
-            **🎯 Recursos do Sistema:**
-            - Metodologia DMAIC completa
-            - Ferramentas de análise estatística
-            - Relatórios científicos
-            """)
-        
-        with col_footer2:
-            st.markdown("""
-            **📊 Análises Disponíveis:**
-            - Controle estatístico de processo
-            - Análise de capacidade
-            - Testes de hipóteses
-            """)
-        
-        with col_footer3:
-            st.markdown("""
-            **🔧 Ferramentas Incluídas:**
-            - Project Charter
-            - Análise de causa raiz
-            - Planos de controle
-            """)
-        
-    except Exception as e:
-        logger.error(f"Erro na tela de login: {str(e)}")
-        show_error_screen(
-            "Erro no sistema de autenticação",
-            f"Detalhes: {str(e)}\n\n{traceback.format_exc()}"
-        )
+                        try:
+                            user_data = {
+                                'name': reg_name.strip(),
+                                'email': reg_email.strip().lower(),
+                                'company': reg_company.strip() if reg_company else None
+                            }
+                            
+                            with st.spinner("Criando conta..."):
+                                success, message = auth.register_user(reg_email, reg_password, user_data)
+                            
+                            if success:
+                                st.success("✅ Conta criada com sucesso!")
+                                st.info("🔑 Você pode fazer login agora na aba 'Login'")
+                            else:
+                                st.error(f"❌ Erro ao criar conta: {message}")
+                        except Exception as e:
+                            st.error(f"❌ Erro inesperado: {str(e)}")
+                            logger.error(f"Erro no registro: {str(e)}")
 
-def show_main_application():
-    """Exibe aplicação principal"""
+def show_main_app():
+    """Aplicação principal"""
     try:
-        # Verificar se navegação principal está disponível
-        if not CORE_MODULES.get('main_navigation'):
-            st.error("❌ Sistema de navegação não disponível")
-            st.info("Verifique os módulos da aplicação")
+        # ✅ CORREÇÃO: Verificar se user_data existe e é válido
+        user_data = st.session_state.get('user_data')
+        if not user_data:
+            st.error("❌ Dados do usuário não encontrados")
+            
+            # Botão para fazer logout e voltar ao login
+            if st.button("🚪 Voltar ao Login"):
+                st.session_state.authentication_status = False
+                st.session_state.user_data = None
+                st.rerun()
             return
         
-        # Executar navegação principal
-        navigation_function = CORE_MODULES['main_navigation']
-        success = navigation_function()
+        # ✅ CORREÇÃO: Tentar usar navegação principal primeiro
+        if MODULES.get('navigation'):
+            try:
+                MODULES['navigation']()
+                return
+            except Exception as e:
+                logger.error(f"Erro na navegação principal: {str(e)}")
+                st.warning("⚠️ Problema na navegação principal, usando dashboard básico...")
         
-        if not success:
-            st.warning("⚠️ Problema na navegação principal")
-            
-            # Opções de recuperação
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if st.button("🔄 Tentar Novamente", type="primary"):
-                    st.rerun()
-            
-            with col2:
-                if st.button("🚪 Fazer Logout"):
-                    # Limpar autenticação
-                    for key in ['authentication_status', 'user_data', 'current_project']:
-                        if key in st.session_state:
-                            del st.session_state[key]
-                    st.rerun()
+        # ✅ CORREÇÃO: Fallback para dashboard se navegação falhar
+        if MODULES.get('dashboard'):
+            try:
+                MODULES['dashboard']()
+                return
+            except Exception as e:
+                logger.error(f"Erro no dashboard: {str(e)}")
+                st.error("❌ Erro ao carregar dashboard")
+        
+        # ✅ CORREÇÃO: Dashboard básico como último recurso
+        show_basic_dashboard(user_data)
         
     except Exception as e:
         logger.error(f"Erro na aplicação principal: {str(e)}")
-        show_error_screen(
-            "Erro na aplicação principal",
-            f"Detalhes: {str(e)}\n\n{traceback.format_exc()}"
-        )
+        st.error("❌ Erro na aplicação principal")
+        
+        # Mostrar detalhes do erro e opções de recuperação
+        with st.expander("🔍 Detalhes do erro"):
+            st.code(f"Erro: {str(e)}\n\n{traceback.format_exc()}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Tentar Novamente"):
+                st.rerun()
+        with col2:
+            if st.button("🚪 Fazer Logout"):
+                st.session_state.authentication_status = False
+                st.session_state.user_data = None
+                st.rerun()
 
-def show_debug_panel():
-    """Painel de debug (apenas em modo debug)"""
-    if not st.session_state.get('debug_mode', False):
-        return
+def show_basic_dashboard(user_data):
+    """Dashboard básico como fallback"""
+    st.title(f"🏠 Dashboard - {user_data.get('name', 'Usuário')}")
     
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("### 🔍 Debug Panel")
-        
-        if st.button("📊 Show Debug Info"):
-            debug_info = AppState.get_debug_info()
-            st.json(debug_info)
-        
-        if st.button("🗑️ Clear All Cache"):
+    if user_data.get('company'):
+        st.caption(f"🏢 {user_data['company']}")
+    
+    st.markdown("---")
+    
+    # Informações básicas
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.info("📊 **Sistema Carregado**\nModo básico ativo")
+    
+    with col2:
+        st.info("🎯 **Metodologia**\nDMAIC Six Sigma")
+    
+    with col3:
+        st.info("👤 **Usuário**\nAutenticado com sucesso")
+    
+    st.markdown("---")
+    
+    # Mensagem informativa
+    st.warning("⚠️ **Modo Básico Ativo**")
+    st.markdown("""
+    O sistema está funcionando em modo básico. Isso pode acontecer se:
+    - Alguns módulos não foram carregados corretamente
+    - Há problemas de conectividade
+    - É a primeira execução do sistema
+    
+    **O que você pode fazer:**
+    1. Recarregar a página (F5)
+    2. Verificar sua conexão com a internet
+    3. Aguardar alguns instantes e tentar novamente
+    """)
+    
+    # Botões de ação
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("🔄 Recarregar Sistema", type="primary"):
+            st.rerun()
+    
+    with col2:
+        if st.button("🗑️ Limpar Cache"):
+            # Limpar cache do Streamlit
             st.cache_data.clear()
             st.cache_resource.clear()
-            st.success("Cache cleared!")
-        
-        if st.button("🔄 Restart App"):
-            st.session_state.clear()
+            st.success("✅ Cache limpo!")
+            time.sleep(1)
             st.rerun()
-        
-        # Toggle debug mode
-        if st.button("🐛 Disable Debug"):
-            st.session_state.debug_mode = False
+    
+    with col3:
+        if st.button("🚪 Logout"):
+            st.session_state.authentication_status = False
+            st.session_state.user_data = None
             st.rerun()
+    
+    # Sidebar com informações
+    with st.sidebar:
+        st.markdown("### 👤 Informações do Usuário")
+        st.write(f"**Nome:** {user_data.get('name', 'N/A')}")
+        st.write(f"**Email:** {user_data.get('email', 'N/A')}")
+        if user_data.get('company'):
+            st.write(f"**Empresa:** {user_data['company']}")
+        
+        st.markdown("---")
+        st.markdown("### 🔧 Sistema")
+        st.write("**Status:** Modo Básico")
+        st.write("**Versão:** 2.0.0")
+        
+        # Debug info
+        if st.checkbox("🔍 Debug Info"):
+            st.json({
+                'authentication_status': st.session_state.get('authentication_status'),
+                'user_data_present': user_data is not None,
+                'modules_loaded': {k: v is not None for k, v in MODULES.items()},
+                'session_keys': len(st.session_state)
+            })
 
 def main():
-    """Função principal da aplicação"""
+    """Função principal"""
     try:
-        # Mostrar tela de carregamento inicial
-        if not AppState.is_initialized():
-            show_loading_screen()
-            
-            # Simular tempo de carregamento
-            time.sleep(1)
-            
-            # Inicializar aplicação
-            if not AppState.initialize():
-                show_error_screen("Falha na inicialização da aplicação")
-                return
-            
-            # Recarregar após inicialização
-            st.rerun()
+        # ✅ CORREÇÃO: Inicializar session state
+        initialize_session()
         
-        # Debug panel (se habilitado)
-        show_debug_panel()
-        
-        # Verificar status de autenticação
+        # ✅ CORREÇÃO: Verificar autenticação de forma mais robusta
         is_authenticated = st.session_state.get('authentication_status', False)
+        user_data = st.session_state.get('user_data')
         
-        if not is_authenticated:
-            # Mostrar tela de login
-            show_login_screen()
+        # Se não está autenticado OU não tem dados do usuário, mostrar login
+        if not is_authenticated or not user_data:
+            show_login_page()
         else:
-            # Mostrar aplicação principal
-            show_main_application()
+            # Está autenticado e tem dados do usuário
+            show_main_app()
         
-        # Rodapé da aplicação
-        st.markdown("---")
-        col1, col2, col3 = st.columns([2, 1, 1])
+    except Exception as e:
+        logger.critical(f"Erro crítico na aplicação: {str(e)}")
+        
+        # Tela de erro crítico
+        st.error("❌ **Erro Crítico na Aplicação**")
+        st.markdown("Ocorreu um erro inesperado. Tente as opções abaixo:")
+        
+        col1, col2 = st.columns(2)
         
         with col1:
-            st.caption(f"Six Sigma Green Belt v{st.session_state.get('app_version', '2.0.0')}")
-        
-        with col2:
-            if st.button("🐛 Debug Mode") and not st.session_state.get('debug_mode'):
-                st.session_state.debug_mode = True
+            if st.button("🔄 Recarregar Aplicação", type="primary"):
                 st.rerun()
         
-        with col3:
-            current_time = datetime.now().strftime("%H:%M:%S")
-            st.caption(f"⏰ {current_time}")
+        with col2:
+            if st.button("🗑️ Resetar Sistema"):
+                st.session_state.clear()
+                st.rerun()
         
-    except Exception as e:
-        # Capturar qualquer erro não tratado
-        logger.critical(f"Erro crítico na aplicação: {str(e)}")
-        show_error_screen(
-            "Erro crítico na aplicação",
-            f"Erro: {str(e)}\n\nStack trace:\n{traceback.format_exc()}"
-        )
+        # Mostrar detalhes do erro
+        with st.expander("🔍 Detalhes técnicos"):
+            st.code(f"Erro: {str(e)}\n\n{traceback.format_exc()}")
 
-# Executar aplicação
 if __name__ == "__main__":
-    try:
-        logger.info("🚀 Iniciando Six Sigma Green Belt Application")
-        main()
-    except Exception as e:
-        logger.critical(f"Falha crítica na inicialização: {str(e)}")
-        st.error("❌ **Falha Crítica na Aplicação**")
-        st.code(f"Erro: {str(e)}\n\n{traceback.format_exc()}")
+    main()
