@@ -159,34 +159,22 @@ class ProjectManager:
             return False, error_msg
     
     def get_user_projects(self, user_uid: str, force_refresh: bool = False) -> List[Dict]:
-        """
-        Obtém projetos do usuário com cache inteligente
-        
-        Args:
-            user_uid: ID do usuário
-            force_refresh: Forçar atualização do cache
-            
-        Returns:
-            List[Dict]: Lista de projetos
-        """
+        """Obtém projetos do usuário"""
         try:
-            # Verificar cache primeiro (se não forçar refresh)
+            # Verificar cache primeiro
             if not force_refresh:
                 cached_projects = SessionManager.get_cached_projects(user_uid)
                 if cached_projects is not None:
-                    self.session_stats['cache_hits'] += 1
-                    logger.debug(f"Projetos carregados do cache para usuário {user_uid}")
                     return cached_projects
             
-            # Cache miss - carregar do banco
-            self.session_stats['cache_misses'] += 1
-            
             if not self.db:
-                logger.error("Banco de dados não disponível")
+                st.error("❌ Banco de dados não disponível")
                 return []
             
-            # Query no Firestore
-            projects_ref = self.db.collection(self.collection_name)
+            # Query no Firestore - IMPORTANTE: verificar se a coleção existe
+            projects_ref = self.db.collection(self.collection_name)  # "projects"
+            
+            # Fazer query com o UID do usuário
             query = projects_ref.where("user_uid", "==", user_uid).order_by("created_at", direction="DESCENDING")
             
             # Executar query
@@ -196,25 +184,17 @@ class ProjectManager:
             for doc in docs:
                 project_data = doc.to_dict()
                 project_data['id'] = doc.id
-                
-                # Enriquecer dados do projeto
-                enriched_project = self._enrich_project_data(project_data)
-                projects.append(enriched_project)
+                projects.append(project_data)
             
             # Armazenar no cache
             SessionManager.set_cached_projects(user_uid, projects)
             
-            # Atualizar estatísticas
-            self.session_stats['projects_loaded'] += len(projects)
-            
-            logger.info(f"Carregados {len(projects)} projetos para usuário {user_uid}")
             return projects
             
         except Exception as e:
-            error_msg = f"Erro ao carregar projetos: {str(e)}"
-            logger.error(error_msg)
-            st.error(f"❌ {error_msg}")
+            st.error(f"❌ Erro ao carregar projetos: {str(e)}")
             return []
+
     
     def get_project(self, project_id: str) -> Optional[Dict]:
         """
