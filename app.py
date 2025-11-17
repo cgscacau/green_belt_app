@@ -153,38 +153,68 @@ def show_simple_login():
                             st.error(f"❌ Erro: {str(e)}")
 
 # Aplicação principal simples
+# Na função show_main_app(), substitua por:
 def show_main_app():
     inject_custom_css()
     
     user_data = st.session_state.get('user_data', {})
     
-    # Tentar carregar seu dashboard original
+    # Debug: mostrar informações na sidebar
+    with st.sidebar:
+        st.markdown("### 🔍 Debug Info")
+        st.write(f"**Usuário:** {user_data.get('name', 'N/A')}")
+        st.write(f"**Email:** {user_data.get('email', 'N/A')}")
+        st.write(f"**UID:** {user_data.get('uid', 'N/A')[:8] if user_data.get('uid') else 'N/A'}...")
+        
+        # Verificar se consegue importar dashboard
+        dashboard_func = get_dashboard()
+        st.write(f"**Dashboard importado:** {'✅ Sim' if dashboard_func else '❌ Não'}")
+        
+        if st.button("🔄 Tentar Recarregar Dashboard"):
+            st.rerun()
+    
+    # Tentar carregar dashboard completo
     dashboard_func = get_dashboard()
     
     if dashboard_func:
         try:
+            st.info("🔄 Carregando dashboard completo...")
             dashboard_func()
             return
         except Exception as e:
-            logger.error(f"Erro no dashboard: {str(e)}")
-            st.warning("⚠️ Problema no dashboard, usando versão básica...")
+            st.error(f"❌ Erro no dashboard completo: {str(e)}")
+            
+            # Mostrar detalhes do erro
+            with st.expander("🔍 Detalhes do erro"):
+                import traceback
+                st.code(traceback.format_exc())
+            
+            st.warning("⚠️ Usando dashboard básico como fallback...")
+    else:
+        st.warning("⚠️ Dashboard completo não encontrado, usando básico...")
     
-    # Dashboard básico se houver problema
-    st.title(f"🏠 Dashboard - {user_data.get('name', 'Usuário')}")
+    # Dashboard básico como fallback
+    show_basic_dashboard(user_data)
+
+def show_basic_dashboard(user_data):
+    """Dashboard básico funcional"""
+    st.title(f"🏠 Dashboard Básico - {user_data.get('name', 'Usuário')}")
     
     if user_data.get('company'):
         st.caption(f"🏢 {user_data['company']}")
     
+    st.warning("⚠️ **Modo Básico Ativo** - O dashboard completo não pôde ser carregado")
+    
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.success("✅ Sistema funcionando")
+        st.success("✅ **Login OK**\nAutenticação funcionando")
     
     with col2:
-        st.info("🎯 DMAIC Six Sigma")
+        st.info("🎯 **Sistema**\nDMAIC Six Sigma")
     
     with col3:
-        if st.button("🚪 Logout"):
+        if st.button("🚪 Logout", type="secondary"):
             firebase_auth = get_firebase_auth()
             if firebase_auth:
                 firebase_auth.logout_user()
@@ -193,37 +223,50 @@ def show_main_app():
             st.rerun()
     
     st.markdown("---")
-    st.success("🎉 Login funcionando corretamente com seus dados Firebase!")
     
-    # Mostrar dados do usuário
-    with st.expander("👤 Dados do usuário"):
-        st.json(user_data)
-
-# Função principal minimalista
-def main():
-    try:
-        init_session()
-        
-        # Verificação simples
-        if (st.session_state.get('authentication_status') and 
-            st.session_state.get('user_data')):
-            show_main_app()
-        else:
-            show_simple_login()
-            
-    except Exception as e:
-        logger.critical(f"Erro crítico: {str(e)}")
-        
-        st.error("❌ **Erro na Aplicação**")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔄 Recarregar"):
-                st.rerun()
-        with col2:
-            if st.button("🗑️ Reset"):
-                st.session_state.clear()
-                st.rerun()
-
-if __name__ == "__main__":
-    main()
+    # Informações sobre o problema
+    st.markdown("### 🔧 Diagnóstico")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        **✅ Funcionando:**
+        - Login com Firebase Auth
+        - Dados do usuário carregados
+        - Interface básica ativa
+        """)
+    
+    with col2:
+        st.markdown("""
+        **⚠️ Problemas detectados:**
+        - Dashboard completo não carrega
+        - Firestore pode não estar conectado
+        - Interface limitada
+        """)
+    
+    # Botões de ação
+    st.markdown("### 🚀 Ações")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("🔄 Recarregar Sistema", type="primary"):
+            st.rerun()
+    
+    with col2:
+        if st.button("🗑️ Limpar Cache"):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.success("Cache limpo!")
+            time.sleep(1)
+            st.rerun()
+    
+    with col3:
+        if st.button("📊 Forçar Dashboard"):
+            # Tentar forçar carregamento do dashboard
+            try:
+                from src.pages.dashboard import show_dashboard
+                show_dashboard()
+            except Exception as e:
+                st.error(f"Erro: {str(e)}")
