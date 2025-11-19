@@ -281,7 +281,7 @@ def _calculate_phases_progress(project_data: Dict) -> Dict:
         
         # IMPROVE - Ferramentas da fase Improve (ainda não implementadas)
         improve_data = project_data.get('improve', {})
-        improve_tools = ['solutions', 'action_plan', 'pilot_results', 'implementation', 'validation']
+        improve_tools = ['solution_development', 'action_plan', 'pilot_implementation', 'full_implementation']
         improve_completed = 0
         
         for tool in improve_tools:
@@ -293,7 +293,7 @@ def _calculate_phases_progress(project_data: Dict) -> Dict:
         
         # CONTROL - Ferramentas da fase Control (ainda não implementadas)
         control_data = project_data.get('control', {})
-        control_tools = ['control_plan', 'spc_charts', 'documentation', 'handover']
+        control_tools = ['control_plan', 'monitoring_system', 'documentation', 'sustainability_plan']
         control_completed = 0
         
         for tool in control_tools:
