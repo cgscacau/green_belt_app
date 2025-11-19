@@ -48,7 +48,7 @@ def show_dmaic_phase():
             "name": "Define", 
             "icon": "🎯", 
             "description": "Definir problema, objetivos e escopo",
-            "tools": ["charter", "stakeholders", "voc", "sipoc", "timeline"]
+            "tools": ["project_charter", "stakeholder_analysis", "voice_of_customer", "sipoc", "problem_statement"]
         },
         "measure": {
             "name": "Measure", 
@@ -60,21 +60,22 @@ def show_dmaic_phase():
             "name": "Analyze", 
             "icon": "🔍", 
             "description": "Analisar dados e identificar causas raiz",
-            "tools": ["statistical_analysis", "root_cause_analysis", "hypothesis_testing", "process_analysis", "ishikawa", "five_whys", "pareto", "hypothesis_tests", "root_cause"]
+            "tools": ["statistical_analysis", "root_cause_analysis", "hypothesis_testing", "process_analysis"]
         },
         "improve": {
             "name": "Improve", 
             "icon": "⚡", 
             "description": "Desenvolver e implementar soluções",
-            "tools": ["solutions", "action_plan", "pilot_results", "implementation", "validation"]
+            "tools": ["solution_development", "action_plan", "pilot_implementation", "full_implementation"]
         },
         "control": {
             "name": "Control", 
             "icon": "🎮", 
             "description": "Controlar e sustentar melhorias",
-            "tools": ["control_plan", "spc_charts", "documentation", "handover"]
+            "tools": ["control_plan", "monitoring_system", "documentation", "sustainability_plan"]
         }
     }
+
 
         
     # Calcular progresso de cada fase
