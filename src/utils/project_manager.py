@@ -167,10 +167,10 @@ class ProjectManager:
                     'baseline_data': {'completed': False, 'data': {}},
                     'msa': {'completed': False, 'data': {}},
                     'process_capability': {'completed': False, 'data': {}},
-                    'ctq_metrics': {'completed': False, 'data': {}},
                     'file_upload': {'completed': False, 'data': {}},
                     'uploaded_files': []
                 },
+
                 'analyze': {
                     'statistical_analysis': {'completed': False, 'data': {}},
                     'root_cause_analysis': {'completed': False, 'data': {}},
