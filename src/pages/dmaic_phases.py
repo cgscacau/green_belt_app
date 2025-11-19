@@ -60,8 +60,9 @@ def show_dmaic_phase():
             "name": "Analyze", 
             "icon": "🔍", 
             "description": "Analisar dados e identificar causas raiz",
-            "tools": ["statistical_analysis", "root_cause_analysis", "hypothesis_testing", "process_analysis"]
+            "tools": ["statistical_analysis", "root_cause_analysis"]
         },
+
         "improve": {
             "name": "Improve", 
             "icon": "⚡", 
