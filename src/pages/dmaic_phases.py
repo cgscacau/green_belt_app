@@ -48,34 +48,35 @@ def show_dmaic_phase():
             "name": "Define", 
             "icon": "🎯", 
             "description": "Definir problema, objetivos e escopo",
-            "tools": ["project_charter", "stakeholder_analysis", "voice_of_customer", "sipoc", "problem_statement"]
+            "tools": ["charter", "stakeholders", "voc", "sipoc", "timeline"]
         },
         "measure": {
             "name": "Measure", 
             "icon": "📏", 
             "description": "Medir e coletar dados do estado atual",
-            "tools": ["data_collection_plan", "measurement_system", "process_mapping", "baseline_analysis"]
+            "tools": ["data_collection_plan", "file_upload", "baseline_data", "msa", "process_capability"]
         },
         "analyze": {
             "name": "Analyze", 
             "icon": "🔍", 
             "description": "Analisar dados e identificar causas raiz",
-            "tools": ["statistical_analysis", "root_cause_analysis", "hypothesis_testing", "process_analysis"]
+            "tools": ["statistical_analysis", "root_cause_analysis", "hypothesis_testing", "process_analysis", "ishikawa", "five_whys", "pareto", "hypothesis_tests", "root_cause"]
         },
         "improve": {
             "name": "Improve", 
             "icon": "⚡", 
             "description": "Desenvolver e implementar soluções",
-            "tools": ["solution_development", "action_plan", "pilot_implementation", "full_implementation"]
+            "tools": ["solutions", "action_plan", "pilot_results", "implementation", "validation"]
         },
         "control": {
             "name": "Control", 
             "icon": "🎮", 
             "description": "Controlar e sustentar melhorias",
-            "tools": ["control_plan", "monitoring_system", "documentation", "sustainability_plan"]
+            "tools": ["control_plan", "spc_charts", "documentation", "handover"]
         }
     }
-    
+
+        
     # Calcular progresso de cada fase
     phase_progress = {}
     for phase_key, phase_config in phases_config.items():
