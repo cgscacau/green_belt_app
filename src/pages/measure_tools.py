@@ -1667,6 +1667,9 @@ def show_baseline_metrics(project_data: Dict):
                                                                              
     
     baseline_data = st.session_state[session_key]
+    if 'ctq_metrics' not in baseline_data or baseline_data['ctq_metrics'] is None:
+    baseline_data['ctq_metrics'] = []
+    st.session_state[session_key] = baseline_data    
     
     # Adicionar CTQ
     st.markdown("### 🎯 Métricas CTQ (Critical to Quality)")
