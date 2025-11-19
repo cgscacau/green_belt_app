@@ -1656,7 +1656,12 @@ def show_baseline_metrics(project_data: Dict):
     session_key = f"{tool_name}_{project_id}"
     if session_key not in st.session_state:
         existing_data = manager.get_tool_data(tool_name)
+        # Garantir que ctq_metrics sempre exista
+        if existing_data and not isinstance(existing_data.get('ctq_metrics'), list):
+            existing_data['ctq_metrics'] = []
         st.session_state[session_key] = existing_data if existing_data else {'ctq_metrics': []}
+
+                                                                             
     
     baseline_data = st.session_state[session_key]
     
