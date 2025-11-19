@@ -48,7 +48,7 @@ def show_dmaic_phase():
             "name": "Define", 
             "icon": "🎯", 
             "description": "Definir problema, objetivos e escopo",
-            "tools": ["project_charter", "stakeholder_analysis", "voice_of_customer", "sipoc", "problem_statement"]
+            "tools": ["charter", "stakeholders", "voc", "sipoc", "timeline"]
         },
         "measure": {
             "name": "Measure", 
