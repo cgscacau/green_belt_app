@@ -1,9 +1,9 @@
 """
-🎮 CONTROL TOOLS - VERSÃO CORRIGIDA DEFINITIVA
-✅ Chaves únicas em TODOS os widgets
+🎮 CONTROL TOOLS - VERSÃO FINAL CORRIGIDA
+✅ Formulários com valores persistentes
+✅ Campos não apagam ao digitar
+✅ Chaves únicas
 ✅ Medições visíveis e editáveis
-✅ Exclusão funcional
-✅ Sem erros de duplicação
 """
 
 import streamlit as st
@@ -97,7 +97,7 @@ class ControlPhaseManager:
 
 
 class ControlPlanTool:
-    """Ferramenta de Plano de Controle - CORRIGIDA"""
+    """Ferramenta de Plano de Controle"""
     
     def __init__(self, manager: ControlPhaseManager):
         self.manager = manager
@@ -159,79 +159,50 @@ class ControlPlanTool:
                     st.error("❌ Adicione pelo menos um ponto de controle")
     
     def _show_control_points(self, control_data: Dict):
-        """Gerenciar pontos de controle - CHAVES ÚNICAS"""
+        """Gerenciar pontos de controle"""
         st.markdown("### 🎯 Pontos de Controle")
         
-        # Adicionar novo ponto
-        with st.expander("➕ Adicionar Ponto"):
-            # CHAVE ÚNICA: usar timestamp
-            form_id = int(datetime.now().timestamp() * 1000)
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                point_name = st.text_input(
-                    "Nome *", 
-                    key=f"pt_name_{form_id}",
-                    placeholder="Ex: Taxa de defeitos"
-                )
-                metric_name = st.text_input(
-                    "Métrica *", 
-                    key=f"pt_metric_{form_id}",
-                    placeholder="Ex: Defeitos por unidade"
-                )
-                unit = st.text_input(
-                    "Unidade", 
-                    key=f"pt_unit_{form_id}",
-                    placeholder="Ex: ppm, %"
-                )
-            
-            with col2:
-                target = st.number_input(
-                    "Meta *", 
-                    key=f"pt_target_{form_id}",
-                    step=0.01, 
-                    format="%.2f"
-                )
-                lower_limit = st.number_input(
-                    "Limite Inferior *", 
-                    key=f"pt_lcl_{form_id}",
-                    step=0.01, 
-                    format="%.2f"
-                )
-                upper_limit = st.number_input(
-                    "Limite Superior *", 
-                    key=f"pt_ucl_{form_id}",
-                    step=0.01, 
-                    format="%.2f"
-                )
-            
-            responsible = st.text_input(
-                "Responsável *", 
-                key=f"pt_resp_{form_id}"
-            )
-            
-            if st.button("➕ Adicionar", key=f"add_pt_{form_id}"):
-                if point_name and metric_name and responsible:
-                    new_point = {
-                        'id': f"point_{len(control_data['control_points'])}_{int(datetime.now().timestamp())}",
-                        'name': point_name.strip(),
-                        'metric': metric_name.strip(),
-                        'unit': unit.strip(),
-                        'target': float(target),
-                        'lower_limit': float(lower_limit),
-                        'upper_limit': float(upper_limit),
-                        'responsible': responsible.strip(),
-                        'status': 'Ativo',
-                        'measurements': [],
-                        'created_at': datetime.now().isoformat()
-                    }
-                    
-                    control_data['control_points'].append(new_point)
-                    st.success(f"✅ Ponto '{point_name}' adicionado!")
-                    st.rerun()
-                else:
-                    st.error("❌ Preencha todos os campos obrigatórios")
+        # Adicionar novo ponto COM FORM
+        with st.expander("➕ Adicionar Ponto", expanded=not control_data.get('control_points')):
+            # USAR FORM para evitar re-renders
+            with st.form(key=f"form_add_point_{self.project_id}", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    point_name = st.text_input("Nome *", placeholder="Ex: Taxa de defeitos")
+                    metric_name = st.text_input("Métrica *", placeholder="Ex: Defeitos por unidade")
+                    unit = st.text_input("Unidade", placeholder="Ex: ppm, %")
+                
+                with col2:
+                    target = st.number_input("Meta *", step=0.01, format="%.2f", value=0.0)
+                    lower_limit = st.number_input("Limite Inferior *", step=0.01, format="%.2f", value=0.0)
+                    upper_limit = st.number_input("Limite Superior *", step=0.01, format="%.2f", value=0.0)
+                
+                responsible = st.text_input("Responsável *")
+                
+                submitted = st.form_submit_button("➕ Adicionar Ponto", use_container_width=True)
+                
+                if submitted:
+                    if point_name and metric_name and responsible:
+                        new_point = {
+                            'id': f"point_{len(control_data['control_points'])}_{int(datetime.now().timestamp())}",
+                            'name': point_name.strip(),
+                            'metric': metric_name.strip(),
+                            'unit': unit.strip(),
+                            'target': float(target),
+                            'lower_limit': float(lower_limit),
+                            'upper_limit': float(upper_limit),
+                            'responsible': responsible.strip(),
+                            'status': 'Ativo',
+                            'measurements': [],
+                            'created_at': datetime.now().isoformat()
+                        }
+                        
+                        control_data['control_points'].append(new_point)
+                        st.success(f"✅ Ponto '{point_name}' adicionado!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Preencha todos os campos obrigatórios (marcados com *)")
         
         # Exibir pontos existentes
         if control_data.get('control_points'):
@@ -250,7 +221,7 @@ class ControlPlanTool:
                         st.write(f"**Responsável:** {point.get('responsible', 'N/A')}")
                     
                     with col2:
-                        # Adicionar medição - CHAVE ÚNICA
+                        # Adicionar medição
                         new_value = st.number_input(
                             "Nova medição:",
                             key=f"meas_val_{idx}_{point_id}",
@@ -258,7 +229,7 @@ class ControlPlanTool:
                             label_visibility="collapsed"
                         )
                         
-                        if st.button("➕", key=f"add_meas_{idx}_{point_id}"):
+                        if st.button("➕ Adicionar", key=f"add_meas_{idx}_{point_id}"):
                             if 'measurements' not in control_data['control_points'][idx]:
                                 control_data['control_points'][idx]['measurements'] = []
                             
@@ -275,19 +246,18 @@ class ControlPlanTool:
                             st.success("✅ Medição adicionada!")
                             st.rerun()
                         
-                        # Botão de exclusão
+                        # Botão de exclusão do ponto
                         if st.button("🗑️ Remover Ponto", key=f"del_pt_{idx}_{point_id}"):
                             control_data['control_points'].pop(idx)
                             st.success("✅ Ponto removido!")
                             st.rerun()
                     
-                    # MOSTRAR MEDIÇÕES - CORRIGIDO
+                    # Mostrar medições
                     measurements = point.get('measurements', [])
                     if measurements:
                         st.markdown("---")
-                        st.markdown("**📋 Medições Registradas:**")
+                        st.markdown("**📋 Medições:**")
                         
-                        # Tabela de medições
                         for m_idx, meas in enumerate(measurements):
                             meas_id = meas.get('id', f"meas_{m_idx}")
                             meas_date = datetime.fromisoformat(meas['date']).strftime('%d/%m/%Y')
@@ -310,16 +280,14 @@ class ControlPlanTool:
                                     st.error("🚨")
                             
                             with col_m4:
-                                # Editar - CHAVE ÚNICA
                                 if st.button("✏️", key=f"edit_meas_{idx}_{m_idx}_{meas_id}"):
                                     st.session_state[f"editing_{idx}_{m_idx}"] = True
                                     st.rerun()
                             
                             with col_m5:
-                                # Excluir - CHAVE ÚNICA
                                 if st.button("🗑️", key=f"del_meas_{idx}_{m_idx}_{meas_id}"):
                                     control_data['control_points'][idx]['measurements'].pop(m_idx)
-                                    st.success("✅ Medição removida!")
+                                    st.success("✅ Removida!")
                                     st.rerun()
                             
                             # Modo edição
@@ -412,49 +380,41 @@ class ControlPlanTool:
         st.plotly_chart(fig, use_container_width=True)
     
     def _show_response_plans(self, control_data: Dict):
-        """Planos de resposta - CHAVES ÚNICAS"""
+        """Planos de resposta"""
         st.markdown("### ⚠️ Planos de Resposta")
         
-        # Adicionar plano
+        # Adicionar plano COM FORM
         with st.expander("➕ Adicionar Plano"):
-            plan_id = int(datetime.now().timestamp() * 1000)
-            
-            trigger = st.selectbox(
-                "Gatilho:",
-                ["Fora dos limites", "Tendência negativa", "Meta não atingida", "Outro"],
-                key=f"plan_trigger_{plan_id}"
-            )
-            
-            severity = st.select_slider(
-                "Severidade:",
-                options=["Baixa", "Média", "Alta", "Crítica"],
-                key=f"plan_severity_{plan_id}"
-            )
-            
-            description = st.text_area(
-                "Descrição:",
-                key=f"plan_desc_{plan_id}",
-                height=80
-            )
-            
-            actions = st.text_area(
-                "Ações:",
-                key=f"plan_actions_{plan_id}",
-                height=100
-            )
-            
-            if st.button("⚠️ Adicionar", key=f"add_plan_{plan_id}"):
-                if description and actions:
-                    control_data['response_plans'].append({
-                        'id': f"plan_{len(control_data['response_plans'])}_{plan_id}",
-                        'trigger': trigger,
-                        'severity': severity,
-                        'description': description,
-                        'actions': actions,
-                        'created_at': datetime.now().isoformat()
-                    })
-                    st.success("✅ Plano adicionado!")
-                    st.rerun()
+            with st.form(key=f"form_add_plan_{self.project_id}", clear_on_submit=True):
+                trigger = st.selectbox(
+                    "Gatilho:",
+                    ["Fora dos limites", "Tendência negativa", "Meta não atingida", "Outro"]
+                )
+                
+                severity = st.select_slider(
+                    "Severidade:",
+                    options=["Baixa", "Média", "Alta", "Crítica"]
+                )
+                
+                description = st.text_area("Descrição:", height=80)
+                actions = st.text_area("Ações:", height=100)
+                
+                submitted = st.form_submit_button("⚠️ Adicionar Plano", use_container_width=True)
+                
+                if submitted:
+                    if description and actions:
+                        control_data['response_plans'].append({
+                            'id': f"plan_{len(control_data['response_plans'])}_{int(datetime.now().timestamp())}",
+                            'trigger': trigger,
+                            'severity': severity,
+                            'description': description,
+                            'actions': actions,
+                            'created_at': datetime.now().isoformat()
+                        })
+                        st.success("✅ Plano adicionado!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Descrição e ações são obrigatórias")
         
         # Mostrar planos
         if control_data.get('response_plans'):
@@ -475,7 +435,7 @@ class ControlPlanTool:
 
 
 class StandardDocumentationTool:
-    """Documentação - CHAVES ÚNICAS"""
+    """Documentação"""
     
     def __init__(self, manager: ControlPhaseManager):
         self.manager = manager
@@ -538,112 +498,187 @@ class StandardDocumentationTool:
                     st.error("❌ Adicione pelo menos um POP")
     
     def _show_pops(self, doc_data: Dict):
-        """POPs - CHAVES ÚNICAS"""
+        """POPs - COM FORM"""
         st.markdown("### 📄 Procedimentos Operacionais Padrão")
         
-        with st.expander("➕ Novo POP"):
-            pop_id = int(datetime.now().timestamp() * 1000)
-            
-            title = st.text_input("Título *", key=f"pop_title_{pop_id}")
-            code = st.text_input("Código", key=f"pop_code_{pop_id}", placeholder="POP-001")
-            steps = st.text_area("Procedimento *", key=f"pop_steps_{pop_id}", height=150)
-            
-            if st.button("📄 Adicionar", key=f"add_pop_{pop_id}"):
-                if title and steps:
-                    doc_data['procedures'].append({
-                        'id': f"pop_{len(doc_data['procedures'])}_{pop_id}",
-                        'title': title,
-                        'code': code,
-                        'steps': steps,
-                        'created_at': datetime.now().isoformat()
-                    })
-                    st.success("✅ POP adicionado!")
-                    st.rerun()
-        
-        for idx, pop in enumerate(doc_data.get('procedures', [])):
-            pop_id = pop.get('id', f"pop_{idx}")
-            with st.expander(f"📄 {pop['title']}"):
-                st.write(f"**Código:** {pop.get('code', 'N/A')}")
-                st.text(pop['steps'])
+        with st.expander("➕ Novo POP", expanded=not doc_data.get('procedures')):
+            # USAR FORM - SOLUÇÃO PARA CAMPOS QUE APAGAM
+            with st.form(key=f"form_add_pop_{self.project_id}", clear_on_submit=True):
+                title = st.text_input("Título *", placeholder="Ex: Procedimento de Controle de Qualidade")
+                code = st.text_input("Código", placeholder="POP-001")
+                objective = st.text_area("Objetivo", height=80, placeholder="Objetivo deste procedimento...")
+                steps = st.text_area(
+                    "Procedimento *", 
+                    height=200,
+                    placeholder="1. Primeiro passo...\n2. Segundo passo...\n3. Terceiro passo..."
+                )
                 
-                if st.button("🗑️ Remover", key=f"del_pop_{idx}_{pop_id}"):
-                    doc_data['procedures'].pop(idx)
-                    st.rerun()
+                submitted = st.form_submit_button("📄 Adicionar POP", use_container_width=True)
+                
+                if submitted:
+                    if title and steps:
+                        doc_data['procedures'].append({
+                            'id': f"pop_{len(doc_data['procedures'])}_{int(datetime.now().timestamp())}",
+                            'title': title.strip(),
+                            'code': code.strip(),
+                            'objective': objective.strip(),
+                            'steps': steps.strip(),
+                            'created_at': datetime.now().isoformat()
+                        })
+                        st.success(f"✅ POP '{title}' adicionado!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Título e procedimento são obrigatórios")
+        
+        # Mostrar POPs existentes
+        if doc_data.get('procedures'):
+            st.markdown("##### 📋 POPs Criados")
+            
+            for idx, pop in enumerate(doc_data.get('procedures', [])):
+                pop_id = pop.get('id', f"pop_{idx}")
+                
+                with st.expander(f"📄 {pop['title']} - {pop.get('code', 'Sem código')}"):
+                    st.write(f"**Código:** {pop.get('code', 'N/A')}")
+                    
+                    if pop.get('objective'):
+                        st.markdown("**Objetivo:**")
+                        st.write(pop['objective'])
+                    
+                    st.markdown("**Procedimento:**")
+                    st.text(pop['steps'])
+                    
+                    if st.button("🗑️ Remover POP", key=f"del_pop_{idx}_{pop_id}"):
+                        doc_data['procedures'].pop(idx)
+                        st.success("✅ POP removido!")
+                        st.rerun()
+        else:
+            st.info("📄 Nenhum POP criado ainda. Clique em 'Novo POP' acima para adicionar.")
     
     def _show_instructions(self, doc_data: Dict):
-        """Instruções - CHAVES ÚNICAS"""
+        """Instruções - COM FORM"""
         st.markdown("### 📝 Instruções de Trabalho")
         
         with st.expander("➕ Nova Instrução"):
-            wi_id = int(datetime.now().timestamp() * 1000)
-            
-            title = st.text_input("Título *", key=f"wi_title_{wi_id}")
-            instructions = st.text_area("Instruções *", key=f"wi_inst_{wi_id}", height=150)
-            
-            if st.button("📝 Adicionar", key=f"add_wi_{wi_id}"):
-                if title and instructions:
-                    doc_data['work_instructions'].append({
-                        'id': f"wi_{len(doc_data['work_instructions'])}_{wi_id}",
-                        'title': title,
-                        'instructions': instructions,
-                        'created_at': datetime.now().isoformat()
-                    })
-                    st.success("✅ Instrução adicionada!")
-                    st.rerun()
-        
-        for idx, wi in enumerate(doc_data.get('work_instructions', [])):
-            wi_id = wi.get('id', f"wi_{idx}")
-            with st.expander(f"📝 {wi['title']}"):
-                st.text(wi['instructions'])
+            with st.form(key=f"form_add_wi_{self.project_id}", clear_on_submit=True):
+                title = st.text_input("Título *", placeholder="Ex: Instrução para Setup de Máquina")
+                task = st.text_input("Tarefa/Atividade", placeholder="Ex: Setup de torno CNC")
+                instructions = st.text_area(
+                    "Instruções *", 
+                    height=150,
+                    placeholder="Descreva passo a passo como executar a tarefa..."
+                )
+                safety = st.text_area(
+                    "Precauções de Segurança",
+                    height=80,
+                    placeholder="EPIs necessários, cuidados especiais..."
+                )
                 
-                if st.button("🗑️ Remover", key=f"del_wi_{idx}_{wi_id}"):
-                    doc_data['work_instructions'].pop(idx)
-                    st.rerun()
+                submitted = st.form_submit_button("📝 Adicionar Instrução", use_container_width=True)
+                
+                if submitted:
+                    if title and instructions:
+                        doc_data['work_instructions'].append({
+                            'id': f"wi_{len(doc_data['work_instructions'])}_{int(datetime.now().timestamp())}",
+                            'title': title.strip(),
+                            'task': task.strip(),
+                            'instructions': instructions.strip(),
+                            'safety': safety.strip(),
+                            'created_at': datetime.now().isoformat()
+                        })
+                        st.success(f"✅ Instrução '{title}' adicionada!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Título e instruções são obrigatórios")
+        
+        # Mostrar instruções
+        if doc_data.get('work_instructions'):
+            st.markdown("##### 📋 Instruções Criadas")
+            
+            for idx, wi in enumerate(doc_data.get('work_instructions', [])):
+                wi_id = wi.get('id', f"wi_{idx}")
+                
+                with st.expander(f"📝 {wi['title']}"):
+                    if wi.get('task'):
+                        st.write(f"**Tarefa:** {wi['task']}")
+                    
+                    st.markdown("**Instruções:**")
+                    st.text(wi['instructions'])
+                    
+                    if wi.get('safety'):
+                        st.markdown("**⚠️ Segurança:**")
+                        st.write(wi['safety'])
+                    
+                    if st.button("🗑️ Remover", key=f"del_wi_{idx}_{wi_id}"):
+                        doc_data['work_instructions'].pop(idx)
+                        st.success("✅ Instrução removida!")
+                        st.rerun()
+        else:
+            st.info("📝 Nenhuma instrução criada ainda")
     
     def _show_training(self, doc_data: Dict):
-        """Treinamento - CHAVES ÚNICAS CORRIGIDAS"""
+        """Treinamento - COM FORM"""
         st.markdown("### 🎓 Material de Treinamento")
         
         with st.expander("➕ Novo Material"):
-            # CORREÇÃO: Usar timestamp único
-            tm_id = int(datetime.now().timestamp() * 1000)
-            
-            title = st.text_input("Título *", key=f"tm_title_{tm_id}_{self.project_id}")
-            type_mat = st.selectbox(
-                "Tipo", 
-                ["Apresentação", "Vídeo", "Manual", "Quiz"],
-                key=f"tm_type_{tm_id}_{self.project_id}"
-            )
-            description = st.text_area(
-                "Descrição *", 
-                key=f"tm_desc_{tm_id}_{self.project_id}",
-                height=100
-            )
-            
-            if st.button("🎓 Adicionar", key=f"add_tm_{tm_id}_{self.project_id}"):
-                if title and description:
-                    doc_data['training_materials'].append({
-                        'id': f"tm_{len(doc_data['training_materials'])}_{tm_id}",
-                        'title': title,
-                        'type': type_mat,
-                        'description': description,
-                        'created_at': datetime.now().isoformat()
-                    })
-                    st.success("✅ Material adicionado!")
-                    st.rerun()
-        
-        for idx, mat in enumerate(doc_data.get('training_materials', [])):
-            mat_id = mat.get('id', f"tm_{idx}")
-            with st.expander(f"🎓 {mat['title']} ({mat['type']})"):
-                st.write(mat['description'])
+            with st.form(key=f"form_add_tm_{self.project_id}", clear_on_submit=True):
+                title = st.text_input("Título *", placeholder="Ex: Treinamento de Controle Estatístico")
+                type_mat = st.selectbox(
+                    "Tipo", 
+                    ["Apresentação", "Vídeo", "Manual", "Quiz", "Checklist", "Outro"]
+                )
+                description = st.text_area(
+                    "Descrição/Conteúdo *", 
+                    height=120,
+                    placeholder="Descreva o conteúdo do material de treinamento..."
+                )
+                duration = st.number_input(
+                    "Duração Estimada (minutos)",
+                    min_value=5,
+                    max_value=480,
+                    value=30
+                )
                 
-                if st.button("🗑️ Remover", key=f"del_tm_{idx}_{mat_id}_{self.project_id}"):
-                    doc_data['training_materials'].pop(idx)
-                    st.rerun()
+                submitted = st.form_submit_button("🎓 Adicionar Material", use_container_width=True)
+                
+                if submitted:
+                    if title and description:
+                        doc_data['training_materials'].append({
+                            'id': f"tm_{len(doc_data['training_materials'])}_{int(datetime.now().timestamp())}",
+                            'title': title.strip(),
+                            'type': type_mat,
+                            'description': description.strip(),
+                            'duration': duration,
+                            'created_at': datetime.now().isoformat()
+                        })
+                        st.success(f"✅ Material '{title}' adicionado!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Título e descrição são obrigatórios")
+        
+        # Mostrar materiais
+        if doc_data.get('training_materials'):
+            st.markdown("##### 📋 Materiais Criados")
+            
+            for idx, mat in enumerate(doc_data.get('training_materials', [])):
+                mat_id = mat.get('id', f"tm_{idx}")
+                
+                with st.expander(f"🎓 {mat['title']} ({mat['type']})"):
+                    st.write(f"**Tipo:** {mat['type']}")
+                    st.write(f"**Duração:** {mat.get('duration', 0)} minutos")
+                    
+                    st.markdown("**Descrição:**")
+                    st.write(mat['description'])
+                    
+                    if st.button("🗑️ Remover", key=f"del_tm_{idx}_{mat_id}"):
+                        doc_data['training_materials'].pop(idx)
+                        st.success("✅ Material removido!")
+                        st.rerun()
+        else:
+            st.info("🎓 Nenhum material criado ainda")
 
 
 def show_control_phase():
-    """Fase Control - VERSÃO CORRIGIDA"""
+    """Fase Control - VERSÃO FINAL"""
     st.title("🎮 Fase CONTROL")
     
     if 'current_project' not in st.session_state or not st.session_state.current_project:
