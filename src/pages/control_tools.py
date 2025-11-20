@@ -218,465 +218,292 @@ class ControlPlanTool:
 
 ####################################################################################################################################################################################################
     
-    def _show_control_points(self, control_data: Dict):
-        """Gerenciamento de pontos de controle - VERSÃO CORRIGIDA"""
-        st.markdown("#### 🎯 Pontos de Controle")
+def _show_control_points(self, control_data: Dict):
+    """Gerenciamento de pontos de controle - VERSÃO ULTRA SIMPLIFICADA"""
+    st.markdown("#### 🎯 Pontos de Controle")
+    
+    # Inicializar lista se não existir
+    if 'control_points' not in control_data or control_data['control_points'] is None:
+        control_data['control_points'] = []
+    
+    # ========== ADICIONAR NOVO PONTO DE CONTROLE ==========
+    with st.expander("➕ Adicionar Ponto de Controle"):
+        col1, col2 = st.columns(2)
         
-        # Inicializar lista se não existir
-        if 'control_points' not in control_data or control_data['control_points'] is None:
-            control_data['control_points'] = []
+        with col1:
+            new_point_name = st.text_input("Nome *", key=f"new_point_name_{self.project_id}")
+            new_metric = st.text_input("Métrica *", key=f"new_metric_{self.project_id}")
+            new_unit = st.text_input("Unidade", key=f"new_unit_{self.project_id}")
+            new_target = st.number_input("Meta", key=f"new_target_{self.project_id}", step=0.01)
         
-        # Adicionar novo ponto de controle
-        with st.expander("➕ Adicionar Ponto de Controle"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                new_point_name = st.text_input(
-                    "Nome do Ponto de Controle *",
-                    key=f"new_point_name_{self.project_id}",
-                    placeholder="Ex: Taxa de Defeitos"
-                )
-                
-                new_metric = st.text_input(
-                    "Métrica *",
-                    key=f"new_metric_{self.project_id}",
-                    placeholder="Ex: Defeitos por milhão"
-                )
-                
-                new_unit = st.text_input(
-                    "Unidade",
-                    key=f"new_unit_{self.project_id}",
-                    placeholder="Ex: %, ppm, minutos"
-                )
-                
-                new_target = st.number_input(
-                    "Meta",
-                    key=f"new_target_{self.project_id}",
-                    step=0.01,
-                    format="%.2f"
-                )
-            
-            with col2:
-                new_lower_limit = st.number_input(
-                    "Limite Inferior",
-                    key=f"new_lower_{self.project_id}",
-                    step=0.01,
-                    format="%.2f"
-                )
-                
-                new_upper_limit = st.number_input(
-                    "Limite Superior",
-                    key=f"new_upper_{self.project_id}",
-                    step=0.01,
-                    format="%.2f"
-                )
-                
-                new_frequency = st.selectbox(
-                    "Frequência de Medição",
-                    ["Diária", "Semanal", "Quinzenal", "Mensal"],
-                    key=f"new_frequency_{self.project_id}"
-                )
-                
-                new_responsible = st.text_input(
-                    "Responsável",
-                    key=f"new_responsible_{self.project_id}"
-                )
-            
-            new_description = st.text_area(
-                "Descrição",
-                key=f"new_description_{self.project_id}",
-                placeholder="Descreva o que este ponto de controle monitora...",
-                height=60
+        with col2:
+            new_lower = st.number_input("Limite Inferior", key=f"new_lower_{self.project_id}", step=0.01)
+            new_upper = st.number_input("Limite Superior", key=f"new_upper_{self.project_id}", step=0.01)
+            new_frequency = st.selectbox("Frequência", ["Diária", "Semanal", "Quinzenal", "Mensal"], key=f"new_freq_{self.project_id}")
+            new_responsible = st.text_input("Responsável", key=f"new_resp_{self.project_id}")
+        
+        if st.button("➕ Adicionar Ponto", key=f"add_point_{self.project_id}"):
+            if new_point_name.strip() and new_metric.strip():
+                control_data['control_points'].append({
+                    'name': new_point_name.strip(),
+                    'metric': new_metric.strip(),
+                    'unit': new_unit.strip(),
+                    'target': new_target,
+                    'lower_limit': new_lower,
+                    'upper_limit': new_upper,
+                    'frequency': new_frequency,
+                    'responsible': new_responsible.strip(),
+                    'status': 'Ativo',
+                    'measurements': [],
+                    'created_at': datetime.now().isoformat()
+                })
+                self.manager.save_tool_data(self.tool_name, control_data, completed=False)
+                st.success("✅ Ponto adicionado!")
+                st.rerun()
+    
+    # ========== MOSTRAR PONTOS EXISTENTES ==========
+    if not control_data.get('control_points'):
+        st.info("🎯 Nenhum ponto de controle definido.")
+        return
+    
+    # Selecionar ponto para trabalhar
+    point_names = [f"{i}. {p['name']}" for i, p in enumerate(control_data['control_points'])]
+    
+    selected_point_label = st.selectbox(
+        "🎯 Selecione um Ponto de Controle:",
+        point_names,
+        key=f"select_point_{self.project_id}"
+    )
+    
+    if not selected_point_label:
+        return
+    
+    # Extrair índice
+    point_idx = int(selected_point_label.split('.')[0])
+    point = control_data['control_points'][point_idx]
+    
+    # ========== EXIBIR INFORMAÇÕES DO PONTO ==========
+    st.markdown(f"### 📊 {point['name']}")
+    
+    col_info1, col_info2, col_info3 = st.columns(3)
+    
+    with col_info1:
+        st.metric("Métrica", f"{point['metric']} ({point.get('unit', '')})")
+        st.metric("Meta", point.get('target', 0))
+    
+    with col_info2:
+        st.metric("Limite Inferior", point.get('lower_limit', 0))
+        st.metric("Limite Superior", point.get('upper_limit', 0))
+    
+    with col_info3:
+        st.metric("Frequência", point.get('frequency', 'N/A'))
+        st.metric("Responsável", point.get('responsible', 'N/A'))
+    
+    st.divider()
+    
+    # ========== ABAS: ADICIONAR / VISUALIZAR / GERENCIAR ==========
+    tab1, tab2, tab3 = st.tabs(["➕ Adicionar Medição", "📊 Visualizar Gráfico", "📋 Gerenciar Medições"])
+    
+    # ========== TAB 1: ADICIONAR MEDIÇÃO ==========
+    with tab1:
+        st.markdown("#### ➕ Nova Medição")
+        
+        col_add1, col_add2, col_add3 = st.columns([2, 2, 1])
+        
+        with col_add1:
+            add_date_input = st.text_input(
+                "📅 Data:",
+                value=format_date_input(datetime.now().date()),
+                key=f"add_date_{point_idx}",
+                placeholder="DD/MM/AAAA"
             )
-            
-            new_method = st.text_input(
-                "Método de Medição",
-                key=f"new_method_{self.project_id}",
-                placeholder="Como será medido?"
+        
+        with col_add2:
+            add_value = st.number_input(
+                f"Valor ({point.get('unit', '')}):",
+                key=f"add_value_{point_idx}",
+                step=0.01,
+                value=0.0
             )
-            
-            if st.button("➕ Adicionar Ponto", key=f"add_point_{self.project_id}"):
-                if new_point_name.strip() and new_metric.strip():
-                    control_data['control_points'].append({
-                        'name': new_point_name.strip(),
-                        'metric': new_metric.strip(),
-                        'unit': new_unit.strip(),
-                        'target': new_target,
-                        'lower_limit': new_lower_limit,
-                        'upper_limit': new_upper_limit,
-                        'frequency': new_frequency,
-                        'responsible': new_responsible.strip(),
-                        'description': new_description.strip(),
-                        'measurement_method': new_method.strip(),
-                        'status': 'Ativo',
-                        'measurements': [],
-                        'created_at': datetime.now().isoformat()
+        
+        with col_add3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("➕ Adicionar", key=f"btn_add_{point_idx}", use_container_width=True):
+                add_date, is_valid, error = parse_date_input(add_date_input)
+                
+                if not is_valid:
+                    st.error(f"❌ {error}")
+                else:
+                    if 'measurements' not in control_data['control_points'][point_idx]:
+                        control_data['control_points'][point_idx]['measurements'] = []
+                    
+                    status = self._check_control_status(add_value, point)
+                    
+                    control_data['control_points'][point_idx]['measurements'].append({
+                        'date': add_date.isoformat(),
+                        'value': float(add_value),
+                        'status': status,
+                        'added_at': datetime.now().isoformat()
                     })
                     
-                    st.success("✅ Ponto de controle adicionado!")
+                    self.manager.save_tool_data(self.tool_name, control_data, completed=False)
+                    st.success(f"✅ Medição adicionada: {format_date_br(add_date.isoformat())} - {add_value}")
                     st.rerun()
-                else:
-                    st.error("❌ Nome e Métrica são obrigatórios")
+    
+    # ========== TAB 2: VISUALIZAR GRÁFICO ==========
+    with tab2:
+        measurements = point.get('measurements', [])
         
-        # Mostrar pontos existentes
-        if control_data.get('control_points'):
-            st.markdown("##### 📊 Pontos de Controle Definidos")
+        if not measurements or len(measurements) < 2:
+            st.info("📊 Adicione pelo menos 2 medições para visualizar o gráfico.")
+        else:
+            st.markdown("#### 📈 Gráfico de Controle")
             
-            for i, point in enumerate(control_data['control_points']):
-                with st.expander(f"🎯 **{point['name']}** - {point['status']}", expanded=True):
+            dates = [datetime.fromisoformat(m['date']) for m in measurements]
+            values = [m['value'] for m in measurements]
+            
+            target = point.get('target', 0)
+            upper = point.get('upper_limit', 0)
+            lower = point.get('lower_limit', 0)
+            
+            fig = go.Figure()
+            
+            fig.add_trace(go.Scatter(x=dates, y=values, mode='lines+markers', name='Valores', line=dict(color='blue', width=2)))
+            fig.add_trace(go.Scatter(x=[dates[0], dates[-1]], y=[target, target], mode='lines', name='Meta', line=dict(color='green', dash='dash')))
+            fig.add_trace(go.Scatter(x=[dates[0], dates[-1]], y=[upper, upper], mode='lines', name='LSC', line=dict(color='red', dash='dot')))
+            fig.add_trace(go.Scatter(x=[dates[0], dates[-1]], y=[lower, lower], mode='lines', name='LIC', line=dict(color='red', dash='dot')))
+            
+            fig.update_layout(title=f"{point['name']}", xaxis_title="Data", yaxis_title=f"{point['metric']} ({point.get('unit', '')})", height=400)
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+            col_s1.metric("Média", f"{np.mean(values):.2f}")
+            col_s2.metric("Desvio", f"{np.std(values):.2f}")
+            col_s3.metric("Mínimo", f"{np.min(values):.2f}")
+            col_s4.metric("Máximo", f"{np.max(values):.2f}")
+    
+    # ========== TAB 3: GERENCIAR MEDIÇÕES ==========
+    with tab3:
+        measurements = point.get('measurements', [])
+        
+        if not measurements:
+            st.info("📝 Nenhuma medição registrada.")
+        else:
+            st.markdown(f"#### 📋 {len(measurements)} Medição(ões) Registrada(s)")
+            
+            # Criar DataFrame para visualização
+            df_data = []
+            for m_idx, m in enumerate(measurements):
+                status_icon = "✅" if m.get('status') == 'OK' else ("⚠️" if m.get('status') == 'WARNING' else "🚨")
+                df_data.append({
+                    'ID': m_idx,
+                    'Data': format_date_br(m['date']),
+                    'Valor': f"{m['value']:.2f}",
+                    'Status': f"{status_icon} {m.get('status', 'OK')}"
+                })
+            
+            # Mostrar tabela
+            df = pd.DataFrame(df_data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            
+            st.markdown("---")
+            st.markdown("#### ✏️ Editar ou Excluir Medição")
+            
+            # Selecionar medição
+            measure_idx = st.number_input(
+                "ID da Medição:",
+                min_value=0,
+                max_value=len(measurements) - 1,
+                value=0,
+                step=1,
+                key=f"measure_idx_{point_idx}"
+            )
+            
+            if 0 <= measure_idx < len(measurements):
+                selected_m = measurements[measure_idx]
+                
+                st.info(f"📍 Selecionada: {format_date_br(selected_m['date'])} - {selected_m['value']} {point.get('unit', '')}")
+                
+                # MODO: Editar ou Excluir
+                action = st.radio(
+                    "Ação:",
+                    ["✏️ Editar", "🗑️ Excluir"],
+                    key=f"action_{point_idx}_{measure_idx}",
+                    horizontal=True
+                )
+                
+                if action == "✏️ Editar":
+                    col_e1, col_e2 = st.columns(2)
                     
-                    # ========== INFORMAÇÕES DO PONTO ==========
-                    col_info1, col_info2, col_info3 = st.columns([2, 2, 1])
-                    
-                    with col_info1:
-                        st.write(f"**Métrica:** {point['metric']} ({point.get('unit', '')})")
-                        st.write(f"**Meta:** {point.get('target', 0)}")
-                        st.write(f"**Limites:** {point.get('lower_limit', 0)} - {point.get('upper_limit', 0)}")
-                        st.write(f"**Descrição:** {point.get('description', 'N/A')}")
-                    
-                    with col_info2:
-                        st.write(f"**Frequência:** {point.get('frequency', 'N/A')}")
-                        st.write(f"**Responsável:** {point.get('responsible', 'Não definido')}")
-                        if point.get('measurement_method'):
-                            st.write(f"**Método:** {point['measurement_method']}")
-                    
-                    with col_info3:
-                        # Status do ponto
-                        new_status = st.selectbox(
-                            "Status:",
-                            ["Ativo", "Inativo", "Suspenso"],
-                            index=["Ativo", "Inativo", "Suspenso"].index(point.get('status', 'Ativo')),
-                            key=f"point_status_{i}_{self.project_id}"
+                    with col_e1:
+                        edit_date_input = st.text_input(
+                            "Nova Data:",
+                            value=format_date_input(datetime.fromisoformat(selected_m['date']).date()),
+                            key=f"edit_date_{point_idx}_{measure_idx}"
                         )
-                        
-                        control_data['control_points'][i]['status'] = new_status
-                        
-                        # Remover ponto
-                        if st.button("🗑️ Remover Ponto", key=f"remove_point_{i}_{self.project_id}"):
-                            confirm_key = f"confirm_delete_point_{i}_{self.project_id}"
-                            
-                            if st.session_state.get(confirm_key, False):
-                                control_data['control_points'].pop(i)
-                                if confirm_key in st.session_state:
-                                    del st.session_state[confirm_key]
-                                st.success("✅ Ponto removido!")
-                                st.rerun()
-                            else:
-                                st.session_state[confirm_key] = True
-                                st.warning("⚠️ Clique novamente para confirmar")
-                        
-                        # Status visual baseado nas medições
-                        measurements = point.get('measurements', [])
-                        if measurements:
-                            last_measurement = measurements[-1]
-                            status = last_measurement.get('status', 'OK')
-                            
-                            if status == 'OK':
-                                st.success("✅ No controle")
-                            elif status == 'WARNING':
-                                st.warning("⚠️ Atenção")
-                            else:
-                                st.error("🚨 Fora de controle")
                     
-                    st.divider()
-                    
-                    # ========== ADICIONAR NOVA MEDIÇÃO ==========
-                    st.markdown("##### ➕ Adicionar Nova Medição")
-                    
-                    col_add1, col_add2, col_add3 = st.columns([2, 2, 1])
-                    
-                    with col_add1:
-                        # Campo de data
-                        new_measure_date_input = st.text_input(
-                            "📅 Data da Medição:",
-                            value=format_date_input(datetime.now().date()),
-                            key=f"new_measure_date_input_{i}_{self.project_id}",
-                            placeholder="DD/MM/AAAA",
-                            help="Digite a data no formato brasileiro"
+                    with col_e2:
+                        edit_value = st.number_input(
+                            "Novo Valor:",
+                            value=float(selected_m['value']),
+                            key=f"edit_value_{point_idx}_{measure_idx}",
+                            step=0.01
                         )
                     
-                    with col_add2:
-                        # Campo de valor
-                        new_measure_value = st.number_input(
-                            f"Valor ({point.get('unit', '')}):",
-                            key=f"new_measure_value_{i}_{self.project_id}",
-                            step=0.01,
-                            format="%.2f",
-                            value=0.0
-                        )
+                    if st.button("💾 Salvar Alterações", key=f"save_{point_idx}_{measure_idx}"):
+                        edit_date, is_valid, error = parse_date_input(edit_date_input)
+                        
+                        if not is_valid:
+                            st.error(f"❌ {error}")
+                        else:
+                            new_status = self._check_control_status(edit_value, point)
+                            
+                            control_data['control_points'][point_idx]['measurements'][measure_idx] = {
+                                'date': edit_date.isoformat(),
+                                'value': float(edit_value),
+                                'status': new_status,
+                                'added_at': selected_m.get('added_at', datetime.now().isoformat()),
+                                'updated_at': datetime.now().isoformat()
+                            }
+                            
+                            self.manager.save_tool_data(self.tool_name, control_data, completed=False)
+                            st.success("✅ Atualizado!")
+                            st.rerun()
+                
+                else:  # Excluir
+                    st.warning(f"⚠️ **ATENÇÃO:** Você vai EXCLUIR a medição:")
+                    st.error(f"📅 {format_date_br(selected_m['date'])} - 📊 {selected_m['value']} {point.get('unit', '')}")
                     
-                    with col_add3:
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        
-                        # Botão de adicionar
-                        if st.button("➕ Adicionar", key=f"add_measurement_btn_{i}_{self.project_id}", use_container_width=True):
-                            # Validar data
-                            new_measure_date, is_valid_measure, error_measure = parse_date_input(new_measure_date_input)
-                            
-                            if not is_valid_measure:
-                                st.error(f"❌ Data inválida: {error_measure}")
-                            else:
-                                # Inicializar lista se não existir
-                                if 'measurements' not in control_data['control_points'][i]:
-                                    control_data['control_points'][i]['measurements'] = []
-                                
-                                # Calcular status da medição
-                                status = self._check_control_status(new_measure_value, point)
-                                
-                                # Adicionar medição
-                                control_data['control_points'][i]['measurements'].append({
-                                    'date': new_measure_date.isoformat(),
-                                    'value': float(new_measure_value),
-                                    'status': status,
-                                    'added_at': datetime.now().isoformat()
-                                })
-                                
-                                # Salvar automaticamente
-                                success = self.manager.save_tool_data(self.tool_name, control_data, completed=False)
-                                
-                                if success:
-                                    st.success(f"✅ Medição adicionada: {format_date_br(new_measure_date.isoformat())} - {new_measure_value} {point.get('unit', '')}")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Erro ao salvar medição")
+                    confirm_text = st.text_input(
+                        "Digite 'EXCLUIR' para confirmar:",
+                        key=f"confirm_{point_idx}_{measure_idx}"
+                    )
                     
-                    # ========== VISUALIZAÇÃO DAS MEDIÇÕES ==========
-                    measurements = point.get('measurements', [])
-                    
-                    if measurements and len(measurements) > 0:
-                        st.markdown("---")
-                        st.markdown("##### 📊 Medições Registradas")
-                        
-                        # ========== GRÁFICO DE CONTROLE ==========
-                        if len(measurements) >= 2:
-                            st.markdown("**📈 Gráfico de Controle:**")
-                            
-                            # Preparar dados
-                            dates = [datetime.fromisoformat(m['date']) for m in measurements]
-                            values = [m['value'] for m in measurements]
-                            
-                            target = point.get('target', 0)
-                            upper_limit = point.get('upper_limit', 0)
-                            lower_limit = point.get('lower_limit', 0)
-                            
-                            # Criar gráfico
-                            fig = go.Figure()
-                            
-                            # Linha dos valores
-                            fig.add_trace(go.Scatter(
-                                x=dates,
-                                y=values,
-                                mode='lines+markers',
-                                name='Valores Medidos',
-                                line=dict(color='blue', width=2),
-                                marker=dict(size=8),
-                                hovertemplate='%{x|%d/%m/%Y}<br>%{y:.2f}<extra></extra>'
-                            ))
-                            
-                            # Linha da meta
-                            fig.add_trace(go.Scatter(
-                                x=[dates[0], dates[-1]],
-                                y=[target, target],
-                                mode='lines',
-                                name='Meta',
-                                line=dict(color='green', width=2, dash='dash')
-                            ))
-                            
-                            # Limite superior
-                            fig.add_trace(go.Scatter(
-                                x=[dates[0], dates[-1]],
-                                y=[upper_limit, upper_limit],
-                                mode='lines',
-                                name='Limite Superior',
-                                line=dict(color='red', width=2, dash='dot')
-                            ))
-                            
-                            # Limite inferior
-                            fig.add_trace(go.Scatter(
-                                x=[dates[0], dates[-1]],
-                                y=[lower_limit, lower_limit],
-                                mode='lines',
-                                name='Limite Inferior',
-                                line=dict(color='red', width=2, dash='dot')
-                            ))
-                            
-                            # Marcar pontos fora de controle
-                            out_of_control = []
-                            out_of_control_dates = []
-                            
-                            for m_idx, value in enumerate(values):
-                                if value > upper_limit or value < lower_limit:
-                                    out_of_control.append(value)
-                                    out_of_control_dates.append(dates[m_idx])
-                            
-                            if out_of_control:
-                                fig.add_trace(go.Scatter(
-                                    x=out_of_control_dates,
-                                    y=out_of_control,
-                                    mode='markers',
-                                    name='Fora de Controle',
-                                    marker=dict(color='red', size=12, symbol='x')
-                                ))
-                            
-                            fig.update_layout(
-                                title=f"Gráfico de Controle - {point['name']}",
-                                xaxis_title="Data",
-                                yaxis_title=f"{point['metric']} ({point.get('unit', '')})",
-                                hovermode='x unified',
-                                height=400,
-                                showlegend=True
-                            )
-                            
-                            st.plotly_chart(fig, use_container_width=True)
-                            
-                            # Estatísticas
-                            col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-                            
-                            with col_stat1:
-                                st.metric("Média", f"{np.mean(values):.2f}")
-                            
-                            with col_stat2:
-                                st.metric("Desvio Padrão", f"{np.std(values):.2f}")
-                            
-                            with col_stat3:
-                                st.metric("Mínimo", f"{np.min(values):.2f}")
-                            
-                            with col_stat4:
-                                st.metric("Máximo", f"{np.max(values):.2f}")
-                        
-                        st.markdown("---")
-                        
-                        # ========== LISTA DE MEDIÇÕES COM EDIÇÃO ==========
-                        st.markdown("**📋 Lista de Medições:**")
-                        
-                        # Criar tabela de medições
-                        measurements_df = []
-                        for m_idx, m in enumerate(measurements):
-                            status_icon = "✅" if m.get('status') == 'OK' else ("⚠️" if m.get('status') == 'WARNING' else "🚨")
-                            measurements_df.append({
-                                'idx': m_idx,
-                                'Data': format_date_br(m['date']),
-                                'Valor': f"{m['value']:.2f} {point.get('unit', '')}",
-                                'Status': f"{status_icon} {m.get('status', 'OK')}"
-                            })
-                        
-                        if measurements_df:
-                            # Selecionar medição para editar/excluir
-                            selected_measure_idx = st.selectbox(
-                                "Selecionar medição:",
-                                options=[m['idx'] for m in measurements_df],
-                                format_func=lambda x: f"{measurements_df[x]['Data']} - {measurements_df[x]['Valor']} - {measurements_df[x]['Status']}",
-                                key=f"select_measurement_{i}_{self.project_id}"
-                            )
-                            
-                            if selected_measure_idx is not None:
-                                selected_measurement = measurements[selected_measure_idx]
-                                
-                                st.markdown("**✏️ Editar ou Excluir Medição Selecionada:**")
-                                
-                                col_edit1, col_edit2, col_edit3 = st.columns([2, 2, 2])
-                                
-                                with col_edit1:
-                                    # Editar data
-                                    current_m_date = datetime.fromisoformat(selected_measurement['date']).date()
-                                    
-                                    edit_date_input = st.text_input(
-                                        "📅 Nova Data:",
-                                        value=format_date_input(current_m_date),
-                                        key=f"edit_measurement_date_{i}_{selected_measure_idx}_{self.project_id}",
-                                        placeholder="DD/MM/AAAA"
-                                    )
-                                
-                                with col_edit2:
-                                    # Editar valor
-                                    edit_value = st.number_input(
-                                        f"Novo Valor ({point.get('unit', '')}):",
-                                        value=float(selected_measurement['value']),
-                                        key=f"edit_measurement_value_{i}_{selected_measure_idx}_{self.project_id}",
-                                        step=0.01,
-                                        format="%.2f"
-                                    )
-                                
-                                with col_edit3:
-                                    st.markdown("<br>", unsafe_allow_html=True)
-                                    
-                                    # ========== BOTÃO SALVAR ==========
-                                    if st.button("💾 Salvar Alterações", key=f"save_measurement_{i}_{selected_measure_idx}_{self.project_id}", use_container_width=True):
-                                        # Validar data
-                                        edit_date, is_valid_edit, error_edit = parse_date_input(edit_date_input)
-                                        
-                                        if not is_valid_edit:
-                                            st.error(f"❌ Data inválida: {error_edit}")
-                                        else:
-                                            # Recalcular status com novo valor
-                                            new_status = self._check_control_status(edit_value, point)
-                                            
-                                            # Atualizar medição
-                                            control_data['control_points'][i]['measurements'][selected_measure_idx] = {
-                                                'date': edit_date.isoformat(),
-                                                'value': float(edit_value),
-                                                'status': new_status,
-                                                'added_at': selected_measurement.get('added_at', datetime.now().isoformat()),
-                                                'updated_at': datetime.now().isoformat()
-                                            }
-                                            
-                                            # Salvar
-                                            success = self.manager.save_tool_data(self.tool_name, control_data, completed=False)
-                                            
-                                            if success:
-                                                st.success("✅ Medição atualizada!")
-                                                st.rerun()
-                                            else:
-                                                st.error("❌ Erro ao salvar")
-                                
-                                # ========== BOTÃO EXCLUIR (FORA DAS COLUNAS) ==========
-                                st.markdown("---")
-                                
-                                # Criar chave única para o checkbox de confirmação
-                                confirm_delete_key = f"confirm_delete_checkbox_{i}_{selected_measure_idx}_{self.project_id}"
-                                
-                                # Checkbox de confirmação
-                                confirm_delete = st.checkbox(
-                                    f"⚠️ **Confirmo que desejo EXCLUIR a medição de {format_date_br(selected_measurement['date'])} ({selected_measurement['value']} {point.get('unit', '')})**",
-                                    key=confirm_delete_key,
-                                    value=False
-                                )
-                                
-                                # Botão de exclusão (só ativo se checkbox marcado)
-                                col_del1, col_del2, col_del3 = st.columns([1, 1, 1])
-                                
-                                with col_del2:
-                                    if st.button(
-                                        "🗑️ EXCLUIR MEDIÇÃO PERMANENTEMENTE",
-                                        key=f"delete_measurement_final_{i}_{selected_measure_idx}_{self.project_id}",
-                                        disabled=not confirm_delete,
-                                        type="primary" if confirm_delete else "secondary",
-                                        use_container_width=True
-                                    ):
-                                        # Excluir medição
-                                        deleted_date = format_date_br(selected_measurement['date'])
-                                        deleted_value = selected_measurement['value']
-                                        
-                                        control_data['control_points'][i]['measurements'].pop(selected_measure_idx)
-                                        
-                                        # Limpar checkbox de confirmação
-                                        if confirm_delete_key in st.session_state:
-                                            del st.session_state[confirm_delete_key]
-                                        
-                                        # Salvar
-                                        success = self.manager.save_tool_data(self.tool_name, control_data, completed=False)
-                                        
-                                        if success:
-                                            st.success(f"✅ Medição excluída: {deleted_date} - {deleted_value} {point.get('unit', '')}")
-                                            # Pequeno delay para mostrar mensagem
-                                            import time
-                                            time.sleep(1)
-                                            st.rerun()
-                                        else:
-                                            st.error("❌ Erro ao salvar exclusão")
-                                
-                                if not confirm_delete:
-                                    st.caption("💡 Marque a caixa acima para habilitar o botão de exclusão")
+                    if st.button("🗑️ EXCLUIR PERMANENTEMENTE", key=f"delete_{point_idx}_{measure_idx}", type="primary"):
+                        if confirm_text.strip().upper() == "EXCLUIR":
+                            control_data['control_points'][point_idx]['measurements'].pop(measure_idx)
+                            self.manager.save_tool_data(self.tool_name, control_data, completed=False)
+                            st.success("✅ Excluído!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Digite 'EXCLUIR' para confirmar")
+    
+    # ========== REMOVER PONTO DE CONTROLE ==========
+    st.divider()
+    with st.expander("🗑️ Remover Ponto de Controle Completo"):
+        st.warning(f"⚠️ Isso vai excluir o ponto '{point['name']}' e TODAS as suas medições!")
+        
+        confirm_point = st.text_input("Digite 'EXCLUIR TUDO' para confirmar:", key=f"confirm_point_{point_idx}")
+        
+        if st.button("🗑️ EXCLUIR PONTO COMPLETO", key=f"delete_point_{point_idx}", type="primary"):
+            if confirm_point.strip().upper() == "EXCLUIR TUDO":
+                control_data['control_points'].pop(point_idx)
+                self.manager.save_tool_data(self.tool_name, control_data, completed=False)
+                st.success("✅ Ponto excluído!")
+                st.rerun()
+            else:
+                st.error("❌ Digite 'EXCLUIR TUDO' para confirmar")
         
 #########################################################################################################################################################################################################################
     
