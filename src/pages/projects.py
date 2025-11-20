@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import numpy as np
+import time
 
 def show_projects_page():
     """Página de gerenciamento completo de projetos Six Sigma"""
@@ -30,7 +31,7 @@ def show_projects_page():
     
     # ==================== BUSCAR PROJETOS DO FIREBASE ====================
     try:
-        # SUBSTITUA ESTA LINHA pela sua função real de buscar projetos
+        # ✅ CORREÇÃO: Buscar projetos reais do Firebase
         projects = _get_projects_from_firebase()
         
         if not projects:
@@ -51,7 +52,7 @@ def show_projects_page():
     
     with col1:
         total_projects = len(projects)
-        active_projects = sum(1 for p in projects if p.get('status') == 'Ativo')
+        active_projects = sum(1 for p in projects if p.get('status') == 'active')
         st.metric(
             "Total de Projetos", 
             total_projects,
@@ -59,7 +60,7 @@ def show_projects_page():
         )
     
     with col2:
-        total_savings = sum(p.get('savings', 0) for p in projects)
+        total_savings = sum(p.get('expected_savings', 0) for p in projects)
         st.metric(
             "Economia Total", 
             f"R$ {total_savings:,.2f}",
@@ -67,15 +68,20 @@ def show_projects_page():
         )
     
     with col3:
-        avg_progress = np.mean([p.get('progress', 0) for p in projects])
+        # Calcular progresso real usando project_manager
+        from src.utils.project_manager import ProjectManager
+        project_manager = ProjectManager()
+        
+        progress_values = [project_manager.calculate_project_progress(p) for p in projects]
+        avg_progress = np.mean(progress_values) if progress_values else 0
+        
         st.metric(
             "Progresso Médio", 
             f"{avg_progress:.1f}%",
-            delta=f"{len([p for p in projects if p.get('progress', 0) >= 100])} concluídos"
+            delta=f"{len([p for p in progress_values if p >= 100])} concluídos"
         )
     
     with col4:
-        # Calcular tempo médio (exemplo - ajuste conforme sua estrutura)
         st.metric(
             "Projetos Este Mês", 
             len([p for p in projects if _is_current_month(p.get('created_at', ''))]),
@@ -95,7 +101,7 @@ def show_projects_page():
     with col2:
         status_filter = st.selectbox(
             "📊 Status",
-            ["Todos", "Ativo", "Concluído", "Pausado", "Cancelado"]
+            ["Todos", "Ativo", "Concluído", "Pausado"]
         )
     
     with col3:
@@ -109,7 +115,8 @@ def show_projects_page():
         projects, 
         search_term, 
         status_filter, 
-        progress_filter
+        progress_filter,
+        project_manager
     )
     
     st.markdown(f"**{len(filtered_projects)}** projeto(s) encontrado(s)")
@@ -137,9 +144,9 @@ def show_projects_page():
         )
         
         if view_mode == "Cards":
-            _render_projects_cards(filtered_projects)
+            _render_projects_cards(filtered_projects, project_manager)
         else:
-            _render_projects_table(filtered_projects)
+            _render_projects_table(filtered_projects, project_manager)
     
     # -------------------- ABA 2: GRÁFICOS --------------------
     with tab2:
@@ -148,16 +155,13 @@ def show_projects_page():
         col1, col2 = st.columns(2)
         
         with col1:
-            # Gráfico de progresso por projeto
-            fig_progress = _create_progress_chart(filtered_projects)
+            fig_progress = _create_progress_chart(filtered_projects, project_manager)
             st.plotly_chart(fig_progress, use_container_width=True)
         
         with col2:
-            # Gráfico de economia por projeto
             fig_savings = _create_savings_chart(filtered_projects)
             st.plotly_chart(fig_savings, use_container_width=True)
         
-        # Gráfico de distribuição por fase DMAIC
         st.markdown("#### 📊 Distribuição por Fase DMAIC")
         fig_phases = _create_phases_distribution(filtered_projects)
         st.plotly_chart(fig_phases, use_container_width=True)
@@ -183,12 +187,11 @@ def show_projects_page():
     with tab4:
         st.markdown("### 📈 Análise Detalhada")
         
-        # Estatísticas avançadas
         col1, col2 = st.columns(2)
         
         with col1:
             st.markdown("#### 🎯 Performance")
-            _render_performance_metrics(filtered_projects)
+            _render_performance_metrics(filtered_projects, project_manager)
         
         with col2:
             st.markdown("#### 💰 Análise Financeira")
@@ -198,63 +201,40 @@ def show_projects_page():
 # ==================== FUNÇÕES AUXILIARES ====================
 
 def _get_projects_from_firebase():
-    """
-    SUBSTITUA esta função pela sua lógica real de buscar projetos do Firebase
-    """
-    # Exemplo de estrutura - AJUSTE conforme seu Firebase
+    """✅ CORREÇÃO: Busca projetos REAIS do Firebase"""
+    from src.utils.project_manager import ProjectManager
     
-    # Se você já tem uma função, use ela:
-    # from firebase_config import get_all_projects
-    # return get_all_projects()
+    # Obter user_uid do session_state
+    user_uid = st.session_state.get('user_data', {}).get('uid')
     
-    # Dados de exemplo (REMOVA quando integrar com Firebase real)
-    return [
-        {
-            'id': '1',
-            'name': 'Redução de Falhas nas Perfuratrizes',
-            'description': 'Projeto para reduzir falhas operacionais',
-            'status': 'Ativo',
-            'created_at': '16/11/2025',
-            'savings': 180000.00,
-            'progress': 62.9,
-            'phases': {
-                'define': 100,
-                'measure': 100,
-                'analyze': 75,
-                'improve': 25,
-                'control': 0
-            }
-        },
-        {
-            'id': '2',
-            'name': 'Otimização de Processos Logísticos',
-            'description': 'Melhorar eficiência da cadeia logística',
-            'status': 'Ativo',
-            'created_at': '01/11/2025',
-            'savings': 95000.00,
-            'progress': 45.0,
-            'phases': {
-                'define': 100,
-                'measure': 80,
-                'analyze': 40,
-                'improve': 0,
-                'control': 0
-            }
-        }
-    ]
+    if not user_uid:
+        st.error("❌ Usuário não autenticado")
+        return []
+    
+    # Buscar projetos do Firebase
+    project_manager = ProjectManager()
+    projects = project_manager.get_user_projects(user_uid)
+    
+    return projects
 
 
 def _is_current_month(date_str):
     """Verifica se a data é do mês atual"""
     try:
-        date = datetime.strptime(date_str, '%d/%m/%Y')
+        # Tentar formato ISO
+        if 'T' in date_str or 'Z' in date_str:
+            date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        else:
+            # Formato brasileiro
+            date = datetime.strptime(date_str, '%d/%m/%Y')
+        
         now = datetime.now()
         return date.month == now.month and date.year == now.year
     except:
         return False
 
 
-def _apply_filters(projects, search_term, status_filter, progress_filter):
+def _apply_filters(projects, search_term, status_filter, progress_filter, project_manager):
     """Aplica filtros aos projetos"""
     filtered = projects
     
@@ -268,24 +248,29 @@ def _apply_filters(projects, search_term, status_filter, progress_filter):
     
     # Filtro de status
     if status_filter != "Todos":
-        filtered = [p for p in filtered if p.get('status') == status_filter]
+        status_map = {
+            "Ativo": "active",
+            "Concluído": "completed",
+            "Pausado": "paused"
+        }
+        filtered = [p for p in filtered if p.get('status') == status_map.get(status_filter, status_filter.lower())]
     
     # Filtro de progresso
     if progress_filter != "Todos":
         if progress_filter == "100%":
-            filtered = [p for p in filtered if p.get('progress', 0) == 100]
+            filtered = [p for p in filtered if project_manager.calculate_project_progress(p) >= 100]
         else:
             min_p, max_p = map(int, progress_filter.replace('%', '').split('-'))
             filtered = [
                 p for p in filtered 
-                if min_p <= p.get('progress', 0) < max_p
+                if min_p <= project_manager.calculate_project_progress(p) < max_p
             ]
     
     return filtered
 
 
-def _render_projects_cards(projects):
-    """Renderiza projetos em formato de cards"""
+def _render_projects_cards(projects, project_manager):
+    """✅ CORRIGIDO: Renderiza projetos em formato de cards com BOTÕES FUNCIONAIS"""
     
     for i in range(0, len(projects), 2):
         cols = st.columns(2)
@@ -293,85 +278,145 @@ def _render_projects_cards(projects):
         for j, col in enumerate(cols):
             if i + j < len(projects):
                 project = projects[i + j]
+                project_id = project.get('id', 'unknown')
                 
                 with col:
-                    with st.container():
+                    with st.container(border=True):
                         # Status com cor
-                        status = project.get('status', 'Ativo')
-                        status_color = {
-                            'Ativo': '🟢',
-                            'Concluído': '🔵',
-                            'Pausado': '🟡',
-                            'Cancelado': '🔴'
-                        }.get(status, '⚪')
+                        status = project.get('status', 'active')
+                        status_map = {
+                            'active': ('🟢', 'Ativo'),
+                            'completed': ('🔵', 'Concluído'),
+                            'paused': ('🟡', 'Pausado')
+                        }
+                        status_emoji, status_text = status_map.get(status, ('⚪', 'Desconhecido'))
                         
-                        st.markdown(f"### {status_color} {project['name']}")
+                        st.markdown(f"### {status_emoji} {project.get('name', 'Sem nome')}")
                         st.caption(project.get('description', 'Sem descrição'))
+                        
+                        st.markdown("")  # Espaçamento
                         
                         # Métricas
                         col1, col2 = st.columns(2)
                         with col1:
-                            st.metric("💰 Economia", f"R$ {project.get('savings', 0):,.2f}")
+                            savings = project.get('expected_savings', 0)
+                            st.metric("💰 Economia", f"R$ {savings:,.2f}")
+                        
                         with col2:
-                            st.metric("📅 Criado em", project.get('created_at', 'N/A'))
+                            created = project.get('created_at', '')
+                            if created:
+                                try:
+                                    date_obj = datetime.fromisoformat(created.replace('Z', '+00:00'))
+                                    date_str = date_obj.strftime('%d/%m/%Y')
+                                except:
+                                    date_str = 'N/A'
+                            else:
+                                date_str = 'N/A'
+                            st.metric("📅 Criado em", date_str)
                         
                         # Progresso
-                        progress = project.get('progress', 0)
+                        progress = project_manager.calculate_project_progress(project)
                         st.markdown(f"**Progresso: {progress:.1f}%**")
                         st.progress(progress / 100)
                         
-                        # Progresso por fase
-                        phases = project.get('phases', {})
-                        if phases:
-                            st.caption("**Fases DMAIC:**")
-                            phase_cols = st.columns(5)
-                            phase_names = ['D', 'M', 'A', 'I', 'C']
-                            phase_keys = ['define', 'measure', 'analyze', 'improve', 'control']
-                            
-                            for idx, (name, key) in enumerate(zip(phase_names, phase_keys)):
-                                phase_progress = phases.get(key, 0)
-                                emoji = "✅" if phase_progress == 100 else "⏳"
-                                phase_cols[idx].caption(f"{emoji} {name}: {phase_progress}%")
+                        st.markdown("")  # Espaçamento
                         
-                        # Botões de ação
+                        # Progresso por fase DMAIC
+                        st.caption("**Fases DMAIC:**")
+                        phase_cols = st.columns(5)
+                        
+                        phases = {
+                            'D': ('define', project.get('define', {})),
+                            'M': ('measure', project.get('measure', {})),
+                            'A': ('analyze', project.get('analyze', {})),
+                            'I': ('improve', project.get('improve', {})),
+                            'C': ('control', project.get('control', {}))
+                        }
+                        
+                        for idx, (short_name, (phase_key, phase_data)) in enumerate(phases.items()):
+                            if isinstance(phase_data, dict):
+                                completed = sum(1 for tool in phase_data.values() 
+                                              if isinstance(tool, dict) and tool.get('completed', False))
+                                total = len([t for t in phase_data.values() 
+                                           if isinstance(t, dict) and 'completed' in t])
+                                
+                                phase_progress = (completed / total * 100) if total > 0 else 0
+                                emoji = "✅" if phase_progress == 100 else "⏳"
+                                
+                                phase_cols[idx].caption(f"{emoji} {short_name}: {phase_progress:.0f}%")
+                        
+                        st.markdown("")  # Espaçamento
+                        
+                        # ✅ CORREÇÃO: Botões com session_state CORRETO
                         btn_cols = st.columns(3)
+                        
                         with btn_cols[0]:
-                            if st.button("📂 Abrir", key=f"open_{project['id']}", use_container_width=True):
-                                st.session_state.selected_project = project['id']
-                                st.session_state.current_page = 'dmaic'
+                            # Botão ABRIR
+                            if st.button("📂 Abrir", key=f"open_{project_id}", use_container_width=True, type="primary"):
+                                # ✅ CRÍTICO: Salvar projeto COMPLETO, não apenas ID
+                                st.session_state['current_project'] = project
+                                st.session_state['current_page'] = 'dmaic'
+                                st.session_state['current_phase'] = 'define'
+                                
+                                st.success(f"✅ Abrindo: {project.get('name')}")
+                                time.sleep(0.3)
                                 st.rerun()
                         
                         with btn_cols[1]:
-                            if st.button("✏️ Editar", key=f"edit_{project['id']}", use_container_width=True):
-                                st.session_state.editing_project = project['id']
+                            # Botão EDITAR
+                            if st.button("✏️ Editar", key=f"edit_{project_id}", use_container_width=True):
+                                st.session_state['editing_project_id'] = project_id
+                                st.session_state['editing_project'] = project
+                                st.info(f"📝 Edição: {project.get('name')}")
                                 st.rerun()
                         
                         with btn_cols[2]:
-                            if st.button("🗑️ Excluir", key=f"delete_{project['id']}", use_container_width=True):
-                                st.session_state.deleting_project = project['id']
-                                st.rerun()
-                        
-                        st.divider()
+                            # Botão EXCLUIR com confirmação
+                            confirm_key = f"confirm_delete_{project_id}"
+                            
+                            if st.session_state.get(confirm_key, False):
+                                if st.button("⚠️ Confirmar", key=f"confirm_{project_id}", use_container_width=True):
+                                    with st.spinner("🗑️ Excluindo..."):
+                                        success = project_manager.delete_project(project_id, project['user_uid'])
+                                    
+                                    if success:
+                                        st.success("✅ Excluído!")
+                                        if confirm_key in st.session_state:
+                                            del st.session_state[confirm_key]
+                                        if st.session_state.get('current_project', {}).get('id') == project_id:
+                                            del st.session_state['current_project']
+                                        time.sleep(1)
+                                        st.rerun()
+                            else:
+                                if st.button("🗑️ Excluir", key=f"delete_{project_id}", use_container_width=True):
+                                    st.session_state[confirm_key] = True
+                                    st.warning(f"⚠️ Confirme: {project.get('name')}")
+                                    st.rerun()
 
 
-def _render_projects_table(projects):
+def _render_projects_table(projects, project_manager):
     """Renderiza projetos em formato de tabela"""
     
-    # Preparar dados para DataFrame
     table_data = []
     for p in projects:
+        progress = project_manager.calculate_project_progress(p)
+        
+        status_map = {
+            'active': 'Ativo',
+            'completed': 'Concluído',
+            'paused': 'Pausado'
+        }
+        
         table_data.append({
             'Nome': p.get('name', ''),
-            'Status': p.get('status', ''),
-            'Progresso (%)': f"{p.get('progress', 0):.1f}",
-            'Economia (R$)': f"{p.get('savings', 0):,.2f}",
-            'Criado em': p.get('created_at', ''),
-            'ID': p.get('id', '')
+            'Status': status_map.get(p.get('status', 'active'), 'Ativo'),
+            'Progresso (%)': f"{progress:.1f}",
+            'Economia (R$)': f"{p.get('expected_savings', 0):,.2f}",
+            'Criado em': p.get('created_at', '')[:10] if p.get('created_at') else 'N/A'
         })
     
     df = pd.DataFrame(table_data)
     
-    # Exibir tabela interativa
     st.dataframe(
         df,
         use_container_width=True,
@@ -380,16 +425,18 @@ def _render_projects_table(projects):
             'Nome': st.column_config.TextColumn('Nome do Projeto', width='large'),
             'Status': st.column_config.TextColumn('Status', width='small'),
             'Progresso (%)': st.column_config.NumberColumn('Progresso', width='small'),
-            'Economia (R$)': st.column_config.TextColumn('Economia', width='medium'),
-            'Criado em': st.column_config.DateColumn('Data de Criação', width='small')
+            'Economia (R$)': st.column_config.TextColumn('Economia', width='medium')
         }
     )
 
 
-def _create_progress_chart(projects):
+def _create_progress_chart(projects, project_manager):
     """Cria gráfico de progresso por projeto"""
     df = pd.DataFrame([
-        {'Projeto': p['name'], 'Progresso': p.get('progress', 0)}
+        {
+            'Projeto': p['name'][:20],
+            'Progresso': project_manager.calculate_project_progress(p)
+        }
         for p in projects
     ])
     
@@ -414,7 +461,7 @@ def _create_progress_chart(projects):
 def _create_savings_chart(projects):
     """Cria gráfico de economia por projeto"""
     df = pd.DataFrame([
-        {'Projeto': p['name'], 'Economia': p.get('savings', 0)}
+        {'Projeto': p['name'][:20], 'Economia': p.get('expected_savings', 0)}
         for p in projects
     ])
     
@@ -427,9 +474,7 @@ def _create_savings_chart(projects):
         color_continuous_scale='Blues'
     )
     
-    fig.update_layout(
-        yaxis_title='Economia (R$)'
-    )
+    fig.update_layout(yaxis_title='Economia (R$)')
     
     return fig
 
@@ -446,14 +491,25 @@ def _create_phases_distribution(projects):
     }
     
     for p in projects:
-        phases = p.get('phases', {})
-        phases_data['Define'].append(phases.get('define', 0))
-        phases_data['Measure'].append(phases.get('measure', 0))
-        phases_data['Analyze'].append(phases.get('analyze', 0))
-        phases_data['Improve'].append(phases.get('improve', 0))
-        phases_data['Control'].append(phases.get('control', 0))
+        for phase_name, phase_key in [
+            ('Define', 'define'),
+            ('Measure', 'measure'),
+            ('Analyze', 'analyze'),
+            ('Improve', 'improve'),
+            ('Control', 'control')
+        ]:
+            phase_data = p.get(phase_key, {})
+            if isinstance(phase_data, dict):
+                completed = sum(1 for tool in phase_data.values() 
+                              if isinstance(tool, dict) and tool.get('completed', False))
+                total = len([t for t in phase_data.values() 
+                           if isinstance(t, dict) and 'completed' in t])
+                progress = (completed / total * 100) if total > 0 else 0
+            else:
+                progress = 0
+            
+            phases_data[phase_name].append(progress)
     
-    # Calcular médias
     avg_phases = {k: np.mean(v) if v else 0 for k, v in phases_data.items()}
     
     fig = go.Figure(data=[
@@ -474,48 +530,50 @@ def _create_phases_distribution(projects):
 
 
 def _render_comparison(projects):
-    """Renderiza comparação entre projetos selecionados"""
+    """Renderiza comparação entre projetos"""
+    from src.utils.project_manager import ProjectManager
+    project_manager = ProjectManager()
     
-    # Tabela comparativa
     comparison_data = []
     for p in projects:
+        stats = project_manager.get_project_statistics(p)
+        
         comparison_data.append({
             'Projeto': p['name'],
-            'Status': p.get('status', ''),
-            'Progresso': f"{p.get('progress', 0):.1f}%",
-            'Economia': f"R$ {p.get('savings', 0):,.2f}",
-            'Define': f"{p.get('phases', {}).get('define', 0)}%",
-            'Measure': f"{p.get('phases', {}).get('measure', 0)}%",
-            'Analyze': f"{p.get('phases', {}).get('analyze', 0)}%",
-            'Improve': f"{p.get('phases', {}).get('improve', 0)}%",
-            'Control': f"{p.get('phases', {}).get('control', 0)}%"
+            'Status': p.get('status', 'active'),
+            'Progresso': f"{project_manager.calculate_project_progress(p):.1f}%",
+            'Economia': f"R$ {p.get('expected_savings', 0):,.2f}",
+            'Define': f"{stats['phase_progress'].get('define', {}).get('progress', 0):.0f}%",
+            'Measure': f"{stats['phase_progress'].get('measure', {}).get('progress', 0):.0f}%",
+            'Analyze': f"{stats['phase_progress'].get('analyze', {}).get('progress', 0):.0f}%",
+            'Improve': f"{stats['phase_progress'].get('improve', {}).get('progress', 0):.0f}%",
+            'Control': f"{stats['phase_progress'].get('control', {}).get('progress', 0):.0f}%"
         })
     
     df = pd.DataFrame(comparison_data)
     st.dataframe(df, use_container_width=True, hide_index=True)
     
-    # Gráfico de radar comparativo
+    # Gráfico de radar
     st.markdown("#### 📊 Comparação Visual (Fases DMAIC)")
     
     fig = go.Figure()
-    
     categories = ['Define', 'Measure', 'Analyze', 'Improve', 'Control']
     
     for p in projects:
-        phases = p.get('phases', {})
+        stats = project_manager.get_project_statistics(p)
         values = [
-            phases.get('define', 0),
-            phases.get('measure', 0),
-            phases.get('analyze', 0),
-            phases.get('improve', 0),
-            phases.get('control', 0)
+            stats['phase_progress'].get('define', {}).get('progress', 0),
+            stats['phase_progress'].get('measure', {}).get('progress', 0),
+            stats['phase_progress'].get('analyze', {}).get('progress', 0),
+            stats['phase_progress'].get('improve', {}).get('progress', 0),
+            stats['phase_progress'].get('control', {}).get('progress', 0)
         ]
         
         fig.add_trace(go.Scatterpolar(
             r=values,
             theta=categories,
             fill='toself',
-            name=p['name']
+            name=p['name'][:20]
         ))
     
     fig.update_layout(
@@ -526,35 +584,27 @@ def _render_comparison(projects):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _render_performance_metrics(projects):
+def _render_performance_metrics(projects, project_manager):
     """Renderiza métricas de performance"""
     
     total = len(projects)
-    active = len([p for p in projects if p.get('status') == 'Ativo'])
-    completed = len([p for p in projects if p.get('progress', 0) == 100])
+    active = len([p for p in projects if p.get('status') == 'active'])
+    
+    progress_values = [project_manager.calculate_project_progress(p) for p in projects]
+    completed = len([p for p in progress_values if p >= 100])
     
     st.metric("Taxa de Conclusão", f"{(completed/total*100) if total > 0 else 0:.1f}%")
     st.metric("Projetos Ativos", active)
     st.metric("Projetos Concluídos", completed)
-    
-    # Progresso médio por fase
-    st.markdown("**Progresso Médio por Fase:**")
-    for phase in ['define', 'measure', 'analyze', 'improve', 'control']:
-        avg = np.mean([p.get('phases', {}).get(phase, 0) for p in projects])
-        st.progress(avg / 100, text=f"{phase.capitalize()}: {avg:.1f}%")
 
 
 def _render_financial_analysis(projects):
     """Renderiza análise financeira"""
     
-    total_savings = sum(p.get('savings', 0) for p in projects)
-    avg_savings = np.mean([p.get('savings', 0) for p in projects]) if projects else 0
-    max_savings = max([p.get('savings', 0) for p in projects]) if projects else 0
+    total_savings = sum(p.get('expected_savings', 0) for p in projects)
+    avg_savings = np.mean([p.get('expected_savings', 0) for p in projects]) if projects else 0
+    max_savings = max([p.get('expected_savings', 0) for p in projects]) if projects else 0
     
     st.metric("Economia Total", f"R$ {total_savings:,.2f}")
     st.metric("Economia Média", f"R$ {avg_savings:,.2f}")
     st.metric("Maior Economia", f"R$ {max_savings:,.2f}")
-    
-    # ROI projetado (exemplo - ajuste conforme sua lógica)
-    roi = (total_savings / len(projects)) if projects else 0
-    st.metric("ROI Médio por Projeto", f"R$ {roi:,.2f}")
