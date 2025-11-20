@@ -572,7 +572,7 @@ class ControlPlanTool:
                             if selected_measure_idx is not None:
                                 selected_measurement = measurements[selected_measure_idx]
                                 
-                                st.markdown("**✏️ Editar Medição Selecionada:**")
+                                st.markdown("**✏️ Editar ou Excluir Medição Selecionada:**")
                                 
                                 col_edit1, col_edit2, col_edit3 = st.columns([2, 2, 2])
                                 
@@ -600,80 +600,83 @@ class ControlPlanTool:
                                 with col_edit3:
                                     st.markdown("<br>", unsafe_allow_html=True)
                                     
-                                    col_save, col_delete = st.columns(2)
-                                    
-                                    with col_save:
-                                        if st.button("💾 Salvar", key=f"save_measurement_{i}_{selected_measure_idx}_{self.project_id}", use_container_width=True):
-                                            # Validar data
-                                            edit_date, is_valid_edit, error_edit = parse_date_input(edit_date_input)
-                                            
-                                            if not is_valid_edit:
-                                                st.error(f"❌ Data inválida: {error_edit}")
-                                            else:
-                                                # Recalcular status com novo valor
-                                                new_status = self._check_control_status(edit_value, point)
-                                                
-                                                # Atualizar medição
-                                                control_data['control_points'][i]['measurements'][selected_measure_idx] = {
-                                                    'date': edit_date.isoformat(),
-                                                    'value': float(edit_value),
-                                                    'status': new_status,
-                                                    'added_at': selected_measurement.get('added_at', datetime.now().isoformat()),
-                                                    'updated_at': datetime.now().isoformat()
-                                                }
-                                                
-                                                # Salvar
-                                                success = self.manager.save_tool_data(self.tool_name, control_data, completed=False)
-                                                
-                                                if success:
-                                                    st.success("✅ Medição atualizada!")
-                                                    st.rerun()
-                                                else:
-                                                    st.error("❌ Erro ao salvar")
-                                    
-                                    with col_delete:
-                                        # ========== EXCLUSÃO CORRIGIDA ==========
-                                        delete_confirm_key = f"delete_confirm_{i}_{selected_measure_idx}_{self.project_id}"
+                                    # ========== BOTÃO SALVAR ==========
+                                    if st.button("💾 Salvar Alterações", key=f"save_measurement_{i}_{selected_measure_idx}_{self.project_id}", use_container_width=True):
+                                        # Validar data
+                                        edit_date, is_valid_edit, error_edit = parse_date_input(edit_date_input)
                                         
-                                        # Verificar se já está em modo de confirmação
-                                        if delete_confirm_key in st.session_state and st.session_state[delete_confirm_key]:
-                                            # MODO CONFIRMAÇÃO - Mostrar botão de confirmação final
-                                            if st.button("✅ CONFIRMAR EXCLUSÃO", key=f"confirm_delete_{i}_{selected_measure_idx}_{self.project_id}", use_container_width=True, type="primary"):
-                                                # Excluir medição
-                                                control_data['control_points'][i]['measurements'].pop(selected_measure_idx)
-                                                
-                                                # Limpar todos os estados relacionados a este ponto
-                                                keys_to_remove = [k for k in st.session_state.keys() if f"_{i}_" in k and "measurement" in k]
-                                                for key in keys_to_remove:
-                                                    try:
-                                                        del st.session_state[key]
-                                                    except:
-                                                        pass
-                                                
-                                                # Salvar
-                                                success = self.manager.save_tool_data(self.tool_name, control_data, completed=False)
-                                                
-                                                if success:
-                                                    st.success("✅ Medição excluída!")
-                                                    st.rerun()
-                                                else:
-                                                    st.error("❌ Erro ao salvar")
+                                        if not is_valid_edit:
+                                            st.error(f"❌ Data inválida: {error_edit}")
                                         else:
-                                            # MODO NORMAL - Primeiro clique
-                                            if st.button("🗑️ Excluir", key=f"delete_measurement_{i}_{selected_measure_idx}_{self.project_id}", use_container_width=True):
-                                                st.session_state[delete_confirm_key] = True
+                                            # Recalcular status com novo valor
+                                            new_status = self._check_control_status(edit_value, point)
+                                            
+                                            # Atualizar medição
+                                            control_data['control_points'][i]['measurements'][selected_measure_idx] = {
+                                                'date': edit_date.isoformat(),
+                                                'value': float(edit_value),
+                                                'status': new_status,
+                                                'added_at': selected_measurement.get('added_at', datetime.now().isoformat()),
+                                                'updated_at': datetime.now().isoformat()
+                                            }
+                                            
+                                            # Salvar
+                                            success = self.manager.save_tool_data(self.tool_name, control_data, completed=False)
+                                            
+                                            if success:
+                                                st.success("✅ Medição atualizada!")
                                                 st.rerun()
+                                            else:
+                                                st.error("❌ Erro ao salvar")
                                 
-                                # Mostrar aviso de confirmação se estiver em modo de confirmação
-                                delete_confirm_key = f"delete_confirm_{i}_{selected_measure_idx}_{self.project_id}"
-                                if delete_confirm_key in st.session_state and st.session_state[delete_confirm_key]:
-                                    st.warning("⚠️ **ATENÇÃO**: Clique em 'CONFIRMAR EXCLUSÃO' acima para excluir permanentemente esta medição!")
-                                    
-                                    # Botão de cancelar
-                                    if st.button("❌ Cancelar Exclusão", key=f"cancel_delete_{i}_{selected_measure_idx}_{self.project_id}"):
-                                        del st.session_state[delete_confirm_key]
-                                        st.rerun()
-
+                                # ========== BOTÃO EXCLUIR (FORA DAS COLUNAS) ==========
+                                st.markdown("---")
+                                
+                                # Criar chave única para o checkbox de confirmação
+                                confirm_delete_key = f"confirm_delete_checkbox_{i}_{selected_measure_idx}_{self.project_id}"
+                                
+                                # Checkbox de confirmação
+                                confirm_delete = st.checkbox(
+                                    f"⚠️ **Confirmo que desejo EXCLUIR a medição de {format_date_br(selected_measurement['date'])} ({selected_measurement['value']} {point.get('unit', '')})**",
+                                    key=confirm_delete_key,
+                                    value=False
+                                )
+                                
+                                # Botão de exclusão (só ativo se checkbox marcado)
+                                col_del1, col_del2, col_del3 = st.columns([1, 1, 1])
+                                
+                                with col_del2:
+                                    if st.button(
+                                        "🗑️ EXCLUIR MEDIÇÃO PERMANENTEMENTE",
+                                        key=f"delete_measurement_final_{i}_{selected_measure_idx}_{self.project_id}",
+                                        disabled=not confirm_delete,
+                                        type="primary" if confirm_delete else "secondary",
+                                        use_container_width=True
+                                    ):
+                                        # Excluir medição
+                                        deleted_date = format_date_br(selected_measurement['date'])
+                                        deleted_value = selected_measurement['value']
+                                        
+                                        control_data['control_points'][i]['measurements'].pop(selected_measure_idx)
+                                        
+                                        # Limpar checkbox de confirmação
+                                        if confirm_delete_key in st.session_state:
+                                            del st.session_state[confirm_delete_key]
+                                        
+                                        # Salvar
+                                        success = self.manager.save_tool_data(self.tool_name, control_data, completed=False)
+                                        
+                                        if success:
+                                            st.success(f"✅ Medição excluída: {deleted_date} - {deleted_value} {point.get('unit', '')}")
+                                            # Pequeno delay para mostrar mensagem
+                                            import time
+                                            time.sleep(1)
+                                            st.rerun()
+                                        else:
+                                            st.error("❌ Erro ao salvar exclusão")
+                                
+                                if not confirm_delete:
+                                    st.caption("💡 Marque a caixa acima para habilitar o botão de exclusão")
         
 #########################################################################################################################################################################################################################
     
