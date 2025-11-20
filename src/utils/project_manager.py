@@ -332,7 +332,7 @@ class ProjectManager:
             st.error(f"Erro ao atualizar projeto: {str(e)}")
             return False
     
-    def delete_project(self, project_id: str, user_uid: str) -> bool:
+    def delete_project(self, project_id: str, user_uid: str = None) -> bool:
         """Deleta um projeto"""
         try:
             if not self.db or not project_id:
