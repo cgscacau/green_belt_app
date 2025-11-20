@@ -456,7 +456,7 @@ def show_projects_grid(projects, project_manager):
 
 #######################################################################################################################################################################################
 def show_project_card(project, project_manager):
-    """Exibe um card individual do projeto com design moderno"""
+    """Exibe um card individual do projeto - Versão Streamlit Nativo"""
     project_id = project.get('id', 'unknown')
     
     try:
@@ -465,9 +465,9 @@ def show_project_card(project, project_manager):
         progress = 0
     
     status_info = {
-        'active': {'icon': '🟢', 'color': '#10b981', 'bg': '#d1fae5', 'text': 'Ativo'},
-        'completed': {'icon': '✅', 'color': '#3b82f6', 'bg': '#dbeafe', 'text': 'Concluído'},
-        'paused': {'icon': '⏸️', 'color': '#f59e0b', 'bg': '#fef3c7', 'text': 'Pausado'}
+        'active': {'icon': '🟢', 'text': 'Ativo', 'color': 'green'},
+        'completed': {'icon': '✅', 'text': 'Concluído', 'color': 'blue'},
+        'paused': {'icon': '⏸️', 'text': 'Pausado', 'color': 'orange'}
     }
     
     status = project.get('status', 'active')
@@ -480,152 +480,59 @@ def show_project_card(project, project_manager):
     expected_savings = project.get('expected_savings', 0)
     savings_formatted = format_currency(expected_savings)
     
-    # Container principal do card
+    # Container principal com borda
     with st.container():
-        # Card com sombra e bordas arredondadas
-        st.markdown(f"""
-        <div style='
-            background: white;
-            border-radius: 16px;
-            padding: 0;
-            margin: 0.5rem 0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            border: 1px solid #e5e7eb;
-            transition: transform 0.2s, box-shadow 0.2s;
-            overflow: hidden;
-        '>
-            <!-- Header com gradiente -->
-            <div style='
-                background: linear-gradient(135deg, {status_data["color"]} 0%, {status_data["color"]}dd 100%);
-                padding: 1.25rem 1.5rem;
-                border-bottom: 1px solid #e5e7eb;
-            '>
-                <div style='display: flex; justify-content: space-between; align-items: center;'>
-                    <h3 style='
-                        margin: 0;
-                        color: white;
-                        font-size: 1.1rem;
-                        font-weight: 600;
-                        max-width: 70%;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        white-space: nowrap;
-                    '>{status_data['icon']} {project.get('name', 'Sem nome')}</h3>
-                    <span style='
-                        background-color: {status_data["bg"]};
-                        color: {status_data["color"]};
-                        padding: 0.375rem 0.875rem;
-                        border-radius: 9999px;
-                        font-size: 0.75rem;
-                        font-weight: 600;
-                        letter-spacing: 0.025em;
-                        border: 2px solid {status_data["color"]}40;
-                    '>{status_data['text']}</span>
-                </div>
-            </div>
-            
-            <!-- Corpo do card -->
-            <div style='padding: 1.5rem;'>
-                <!-- Descrição -->
-                <p style='
-                    color: #6b7280;
-                    font-size: 0.875rem;
-                    line-height: 1.5;
-                    margin: 0 0 1.25rem 0;
-                    display: -webkit-box;
-                    -webkit-line-clamp: 2;
-                    -webkit-box-orient: vertical;
-                    overflow: hidden;
-                '>{project.get('description', 'Sem descrição')}</p>
-                
-                <!-- Métricas em grid -->
-                <div style='
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 1rem;
-                    margin-bottom: 1.25rem;
-                    padding: 1rem;
-                    background: #f9fafb;
-                    border-radius: 12px;
-                    border: 1px solid #e5e7eb;
-                '>
-                    <div style='text-align: center;'>
-                        <div style='
-                            color: #10b981;
-                            font-size: 0.7rem;
-                            font-weight: 600;
-                            text-transform: uppercase;
-                            letter-spacing: 0.05em;
-                            margin-bottom: 0.375rem;
-                        '>💰 Economia</div>
-                        <div style='
-                            color: #1f2937;
-                            font-size: 1rem;
-                            font-weight: 700;
-                        '>{savings_formatted}</div>
-                    </div>
-                    <div style='text-align: center;'>
-                        <div style='
-                            color: #3b82f6;
-                            font-size: 0.7rem;
-                            font-weight: 600;
-                            text-transform: uppercase;
-                            letter-spacing: 0.05em;
-                            margin-bottom: 0.375rem;
-                        '>📅 Criado em</div>
-                        <div style='
-                            color: #1f2937;
-                            font-size: 1rem;
-                            font-weight: 700;
-                        '>{created_date}</div>
-                    </div>
-                </div>
-                
-                <!-- Barra de progresso moderna -->
-                <div style='margin-bottom: 1.25rem;'>
-                    <div style='
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        margin-bottom: 0.5rem;
-                    '>
-                        <span style='
-                            color: #6b7280;
-                            font-size: 0.8rem;
-                            font-weight: 600;
-                        '>Progresso</span>
-                        <span style='
-                            color: {status_data["color"]};
-                            font-size: 0.875rem;
-                            font-weight: 700;
-                        '>{progress:.1f}%</span>
-                    </div>
-                    <div style='
-                        width: 100%;
-                        height: 8px;
-                        background: #e5e7eb;
-                        border-radius: 9999px;
-                        overflow: hidden;
-                    '>
-                        <div style='
-                            width: {progress}%;
-                            height: 100%;
-                            background: linear-gradient(90deg, {status_data["color"]} 0%, {status_data["color"]}dd 100%);
-                            border-radius: 9999px;
-                            transition: width 0.3s ease;
-                        '></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        # Header do card com status
+        col_header1, col_header2 = st.columns([3, 1])
         
-        # Botões de ação em estilo moderno
+        with col_header1:
+            st.markdown(f"### {status_data['icon']} {project.get('name', 'Sem nome')}")
+        
+        with col_header2:
+            if status_data['color'] == 'green':
+                st.success(status_data['text'])
+            elif status_data['color'] == 'blue':
+                st.info(status_data['text'])
+            else:
+                st.warning(status_data['text'])
+        
+        # Descrição do projeto
+        description = project.get('description', 'Sem descrição')
+        if len(description) > 150:
+            description = description[:150] + '...'
+        st.caption(description)
+        
+        st.divider()
+        
+        # Métricas em colunas
+        metric_col1, metric_col2 = st.columns(2)
+        
+        with metric_col1:
+            st.metric(
+                label="💰 Economia Esperada",
+                value=savings_formatted,
+                help="Economia financeira estimada"
+            )
+        
+        with metric_col2:
+            st.metric(
+                label="📅 Data de Criação",
+                value=created_date,
+                help="Data em que o projeto foi criado"
+            )
+        
+        # Barra de progresso
+        st.markdown(f"**Progresso do Projeto: {progress:.1f}%**")
+        st.progress(progress / 100)
+        
+        st.divider()
+        
+        # Botões de ação
         col1, col2, col3 = st.columns(3)
         
         with col1:
             button_key = f"dmaic_{project_id[:8]}"
-            if st.button("🎯 DMAIC", key=button_key, use_container_width=True, type="primary"):
+            if st.button("🎯 Abrir DMAIC", key=button_key, use_container_width=True, type="primary"):
                 st.session_state.current_project = project
                 st.session_state.current_page = "dmaic"
                 st.session_state.current_dmaic_phase = "define"
@@ -666,6 +573,9 @@ def show_project_card(project, project_manager):
                     st.session_state[confirm_key] = True
                     st.warning("⚠️ Clique em 'Confirmar' para excluir permanentemente")
                     st.rerun()
+        
+        # Espaçamento entre cards
+        st.markdown("<br>", unsafe_allow_html=True)
 
 
 
