@@ -131,6 +131,28 @@ def show_project_charter(project_data: Dict):
     if not is_valid and financial_benefit_input:
         st.error(error_msg)
 
+        # ========== ADICIONAR AQUI ==========
+    
+    # Campo de texto formatado para outras economias
+    current_savings = charter_data.get('other_savings', 0)
+    savings_display = format_currency(current_savings) if current_savings > 0 else ""
+    
+    other_savings_input = st.text_input(
+        "💵 Outras Economias Anuais (R$)",
+        value=savings_display,
+        key=f"other_savings_input_{project_id}",
+        placeholder="Ex: R$ 5.000,00 ou 5000,00",
+        help="Digite valores adicionais de economia em formato brasileiro"
+    )
+    
+    # Validar e converter
+    other_savings, is_valid_savings, error_msg_savings = validate_currency_input(other_savings_input)
+    if not is_valid_savings and other_savings_input:
+        st.error(error_msg_savings)
+    
+    # ========== FIM DA ADIÇÃO ==========
+
+
     
     # Seção 3: Cronograma
     st.markdown("### 📅 Cronograma")
@@ -241,7 +263,8 @@ def show_project_charter(project_data: Dict):
             'primary_metric': st.session_state.get(f"primary_metric_{project_id}", ''),
             'baseline_value': st.session_state.get(f"baseline_value_{project_id}", ''),
             'target_value': st.session_state.get(f"target_value_{project_id}", ''),
-            'financial_benefit': st.session_state.get(f"financial_benefit_{project_id}", 0),
+            'financial_benefit': financial_benefit,  # Usar valor convertido
+            'other_savings': other_savings,  # Adicionar campo de outras economias
             'project_duration': st.session_state.get(f"project_duration_{project_id}", '4 meses'),
             'custom_duration': st.session_state.get(f"custom_duration_{project_id}", ''),
             'project_leader': st.session_state.get(f"project_leader_{project_id}", ''),
