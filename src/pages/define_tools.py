@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import json
 from typing import Dict, List
 from src.utils.project_manager import ProjectManager
+from src.utils.formatters import format_currency, format_date_br
 
 def show_project_charter(project_data: Dict):
     """Project Charter - VERSÃO COMPLETAMENTE REESCRITA"""
@@ -299,7 +300,7 @@ def show_project_charter(project_data: Dict):
                         
                         with col_sum3:
                             benefit = current_data['financial_benefit']
-                            st.metric("Benefício Anual", f"R$ {benefit:,.2f}")
+                            st.metric("Benefício Anual", format_currency(benefit))
                         
                     else:
                         st.success("💾 Rascunho salvo com sucesso!")
