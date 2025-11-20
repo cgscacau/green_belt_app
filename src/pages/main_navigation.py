@@ -293,7 +293,7 @@ def _calculate_phases_progress(project_data: Dict) -> Dict:
         
         # CONTROL - Ferramentas da fase Control (ainda não implementadas)
         control_data = project_data.get('control', {})
-        control_tools = ['control_plan', 'monitoring_system', 'documentation', 'sustainability_plan']
+        control_tools = ['control_plan', 'documentation']
         control_completed = 0
         
         for tool in control_tools:
