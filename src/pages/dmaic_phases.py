@@ -73,7 +73,7 @@ def show_dmaic_phase():
             "name": "Control", 
             "icon": "🎮", 
             "description": "Controlar e sustentar melhorias",
-            "tools": ["control_plan", "monitoring_system", "documentation", "sustainability_plan"]
+            "tools": ["control_plan", "documentation"]
         }
     }
 
