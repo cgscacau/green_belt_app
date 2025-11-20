@@ -536,7 +536,7 @@ def show_project_card(project, project_manager):
             if st.session_state.get(confirm_key):
                 if st.button("⚠️ Confirmar", key=f"confirm_{project_id[:8]}", use_container_width=True):
                     with st.spinner("Excluindo..."):
-                        success = project_manager.delete_project(project_id, project['user_uid'])
+                        success = project_manager.delete_project(project_id)
                     if success:
                         st.success("✅ Excluído!")
                         if confirm_key in st.session_state:
