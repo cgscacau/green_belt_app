@@ -1,4 +1,5 @@
-#Control_tools.py
+# control_tools_improved.py - VERSÃO COMPLETA E MELHORADA
+# Todas as 4 ferramentas da fase Control implementadas com salvamento robusto
 
 import streamlit as st
 import pandas as pd
@@ -10,18 +11,14 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import warnings
 
-# Suprimir warnings
 warnings.filterwarnings('ignore')
 
-# Import do ProjectManager com tratamento de erro
+# Import do ProjectManager
 try:
     from src.utils.project_manager import ProjectManager
 except ImportError:
-    try:
-        from src.core.project_manager import ProjectManager
-    except ImportError:
-        st.error("❌ Não foi possível importar ProjectManager")
-        st.stop()
+    st.error("❌ Não foi possível importar ProjectManager")
+    st.stop()
 
 
 class ControlPhaseManager:
@@ -35,6 +32,9 @@ class ControlPhaseManager:
     def save_tool_data(self, tool_name: str, data: Dict, completed: bool = False) -> bool:
         """Salva dados de uma ferramenta com atualização de estado"""
         try:
+            # Converter numpy types
+            data = self._clean_numpy_types(data)
+            
             update_data = {
                 f'control.{tool_name}.data': data,
                 f'control.{tool_name}.completed': completed,
@@ -62,6 +62,25 @@ class ControlPhaseManager:
         except Exception as e:
             st.error(f"❌ Erro ao salvar dados: {str(e)}")
             return False
+    
+    def _clean_numpy_types(self, obj):
+        """Remove tipos numpy para compatibilidade com Firebase"""
+        if isinstance(obj, dict):
+            return {k: self._clean_numpy_types(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._clean_numpy_types(item) for item in obj]
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, (np.bool_, bool)):
+            return bool(obj)
+        elif pd.isna(obj):
+            return None
+        else:
+            return obj
     
     def is_tool_completed(self, tool_name: str) -> bool:
         """Verifica se uma ferramenta foi concluída"""
@@ -107,7 +126,7 @@ class ControlPhaseManager:
 
 
 class ControlPlanTool:
-    """Ferramenta para Plano de Controle"""
+    """Ferramenta para Plano de Controle - VERSÃO MELHORADA"""
     
     def __init__(self, manager: ControlPhaseManager):
         self.manager = manager
@@ -202,12 +221,100 @@ class ControlPlanTool:
         
         with tab4:
             self._show_documentation(control_data)
-    ######################################################################################################################################################    
+    
     def _show_control_points(self, control_data: Dict):
-        """Gerenciamento de pontos de controle"""
+        """Gerenciamento de pontos de controle - VERSÃO MELHORADA"""
         st.markdown("#### 🎯 Pontos de Controle")
         
-        # [... código anterior permanece igual até "Mostrar pontos existentes" ...]
+        # Adicionar novo ponto de controle
+        with st.expander("➕ Adicionar Novo Ponto de Controle"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                point_name = st.text_input(
+                    "Nome do Ponto de Controle *",
+                    key=f"new_point_name_{self.project_id}"
+                )
+                
+                metric_name = st.text_input(
+                    "Métrica/Variável *",
+                    key=f"new_point_metric_{self.project_id}"
+                )
+                
+                unit = st.text_input(
+                    "Unidade de Medida",
+                    key=f"new_point_unit_{self.project_id}"
+                )
+                
+                frequency = st.selectbox(
+                    "Frequência de Medição",
+                    ["Diária", "Semanal", "Quinzenal", "Mensal"],
+                    key=f"new_point_frequency_{self.project_id}"
+                )
+            
+            with col2:
+                target = st.number_input(
+                    "Meta (Valor Alvo) *",
+                    key=f"new_point_target_{self.project_id}",
+                    step=0.01,
+                    format="%.2f"
+                )
+                
+                lower_limit = st.number_input(
+                    "Limite Inferior de Controle (LSL) *",
+                    key=f"new_point_lsl_{self.project_id}",
+                    step=0.01,
+                    format="%.2f"
+                )
+                
+                upper_limit = st.number_input(
+                    "Limite Superior de Controle (USL) *",
+                    key=f"new_point_usl_{self.project_id}",
+                    step=0.01,
+                    format="%.2f"
+                )
+                
+                responsible = st.text_input(
+                    "Responsável *",
+                    key=f"new_point_responsible_{self.project_id}"
+                )
+            
+            description = st.text_area(
+                "Descrição/Como Medir",
+                key=f"new_point_description_{self.project_id}",
+                placeholder="Descreva como este ponto de controle deve ser medido e monitorado..."
+            )
+            
+            method = st.text_input(
+                "Método de Medição",
+                key=f"new_point_method_{self.project_id}",
+                placeholder="Ex: Sistema ERP, Medição manual, Inspeção visual"
+            )
+            
+            if st.button("➕ Adicionar Ponto de Controle", key=f"add_control_point_{self.project_id}"):
+                if (point_name.strip() and metric_name.strip() and responsible.strip() and 
+                    target is not None and lower_limit is not None and upper_limit is not None):
+                    
+                    control_data['control_points'].append({
+                        'name': point_name.strip(),
+                        'metric': metric_name.strip(),
+                        'unit': unit,
+                        'target': float(target),
+                        'lower_limit': float(lower_limit),
+                        'upper_limit': float(upper_limit),
+                        'frequency': frequency,
+                        'responsible': responsible.strip(),
+                        'description': description,
+                        'measurement_method': method,
+                        'status': 'Ativo',
+                        'measurements': [],
+                        'created_at': datetime.now().isoformat()
+                    })
+                    
+                    st.success(f"✅ Ponto de controle '{point_name}' adicionado!")
+                    st.rerun()
+                else:
+                    st.error("❌ Preencha todos os campos obrigatórios (marcados com *)")
         
         # Mostrar pontos existentes
         if control_data.get('control_points'):
@@ -229,20 +336,22 @@ class ControlPlanTool:
                         if point.get('measurement_method'):
                             st.write(f"**Método:** {point['measurement_method']}")
                         
-                        # Adicionar medição rápida
+                        # Adicionar medição rápida - CHAVES ÚNICAS
+                        unique_measure_key = f"new_meas_point{i}_{self.project_id}_{hash(point['name'])}"
+                        
                         new_value = st.number_input(
                             "Nova medição:",
-                            key=f"new_measurement_{i}_{self.project_id}",
+                            key=unique_measure_key,
                             step=0.01
                         )
                         
-                        if st.button("➕ Adicionar", key=f"add_measurement_{i}_{self.project_id}"):
+                        if st.button("➕ Adicionar", key=f"add_meas_btn_point{i}_{self.project_id}"):
                             if 'measurements' not in control_data['control_points'][i]:
                                 control_data['control_points'][i]['measurements'] = []
                             
                             control_data['control_points'][i]['measurements'].append({
                                 'date': datetime.now().date().isoformat(),
-                                'value': new_value,
+                                'value': float(new_value),
                                 'status': self._check_control_status(new_value, point),
                                 'added_at': datetime.now().isoformat()
                             })
@@ -286,7 +395,7 @@ class ControlPlanTool:
                             else:
                                 st.error("🚨 Fora de controle")
                     
-                    # ✅ NOVA SEÇÃO: GERENCIAR MEDIÇÕES EXISTENTES
+                    # GERENCIAR MEDIÇÕES EXISTENTES - CHAVES ÚNICAS OTIMIZADAS
                     measurements = point.get('measurements', [])
                     if measurements:
                         st.markdown("---")
@@ -296,28 +405,23 @@ class ControlPlanTool:
                         if st.button("🔄 Atualizar Medições", key=f"refresh_point_{i}_{self.project_id}"):
                             st.rerun()
                         
-                        # Processar cada medição
-                        for measure_idx in range(len(measurements)):
-                            # Verificar se o índice ainda existe
-                            if measure_idx >= len(control_data['control_points'][i]['measurements']):
-                                continue
-                                
-                            measurement = control_data['control_points'][i]['measurements'][measure_idx]
+                        # Processar cada medição com ID único
+                        for measure_idx, measurement in enumerate(measurements):
+                            # ID único usando hash do ponto + índice + timestamp
+                            measurement_id = hash(f"{point['name']}_{measure_idx}_{measurement.get('added_at')}")
+                            unique_id = f"pt{i}_ms{measure_idx}_{self.project_id}_{measurement_id}"
                             
-                            # Chave única para esta medição
-                            unique_id = f"point{i}_measure{measure_idx}_{len(measurements)}_{self.project_id}"
-                            edit_key = f"editing_{unique_id}"
-                            delete_confirm_key = f"delete_confirm_{unique_id}"
+                            edit_key = f"edit_{unique_id}"
+                            delete_key = f"del_{unique_id}"
                             
                             measurement_date_str = datetime.fromisoformat(measurement['date']).strftime('%d/%m/%Y')
                             
                             # Container para cada medição
                             with st.container():
-                                # Verificar se está em modo de edição
                                 is_editing = st.session_state.get(edit_key, False)
                                 
                                 if is_editing:
-                                    # ✅ MODO EDIÇÃO
+                                    # MODO EDIÇÃO
                                     st.markdown(f"**✏️ Editando medição de {measurement_date_str}:**")
                                     
                                     col_edit1, col_edit2, col_edit3 = st.columns([2, 2, 2])
@@ -326,14 +430,14 @@ class ControlPlanTool:
                                         edited_date = st.date_input(
                                             "Nova Data:",
                                             value=datetime.fromisoformat(measurement['date']).date(),
-                                            key=f"edit_point_date_{unique_id}"
+                                            key=f"ed_date_{unique_id}"
                                         )
                                     
                                     with col_edit2:
                                         edited_value = st.number_input(
                                             f"Novo Valor ({point.get('unit', '')}):",
                                             value=float(measurement['value']),
-                                            key=f"edit_point_value_{unique_id}",
+                                            key=f"ed_val_{unique_id}",
                                             step=0.01,
                                             format="%.2f"
                                         )
@@ -342,35 +446,33 @@ class ControlPlanTool:
                                         col_save, col_cancel = st.columns(2)
                                         
                                         with col_save:
-                                            if st.button("💾", key=f"save_point_{unique_id}", help="Salvar"):
-                                                # Verificar se índice ainda é válido
-                                                if measure_idx < len(control_data['control_points'][i]['measurements']):
-                                                    # Recalcular status com novo valor
-                                                    new_status = self._check_control_status(edited_value, point)
-                                                    
-                                                    control_data['control_points'][i]['measurements'][measure_idx] = {
-                                                        'date': edited_date.isoformat(),
-                                                        'value': float(edited_value),
-                                                        'status': new_status,
-                                                        'added_at': measurement.get('added_at', datetime.now().isoformat()),
-                                                        'updated_at': datetime.now().isoformat()
-                                                    }
-                                                    
-                                                    # Limpar estado de edição
-                                                    if edit_key in st.session_state:
-                                                        del st.session_state[edit_key]
-                                                    
-                                                    st.success("✅ Medição atualizada!")
-                                                    st.rerun()
+                                            if st.button("💾", key=f"save_{unique_id}", help="Salvar"):
+                                                # Recalcular status com novo valor
+                                                new_status = self._check_control_status(edited_value, point)
+                                                
+                                                control_data['control_points'][i]['measurements'][measure_idx] = {
+                                                    'date': edited_date.isoformat(),
+                                                    'value': float(edited_value),
+                                                    'status': new_status,
+                                                    'added_at': measurement.get('added_at', datetime.now().isoformat()),
+                                                    'updated_at': datetime.now().isoformat()
+                                                }
+                                                
+                                                # Limpar estado de edição
+                                                if edit_key in st.session_state:
+                                                    del st.session_state[edit_key]
+                                                
+                                                st.success("✅ Medição atualizada!")
+                                                st.rerun()
                                         
                                         with col_cancel:
-                                            if st.button("❌", key=f"cancel_point_{unique_id}", help="Cancelar"):
+                                            if st.button("❌", key=f"cancel_{unique_id}", help="Cancelar"):
                                                 if edit_key in st.session_state:
                                                     del st.session_state[edit_key]
                                                 st.rerun()
                                 
                                 else:
-                                    # ✅ MODO VISUALIZAÇÃO
+                                    # MODO VISUALIZAÇÃO
                                     col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
                                     
                                     with col1:
@@ -380,7 +482,6 @@ class ControlPlanTool:
                                         st.write(f"**{measurement['value']} {point.get('unit', '')}**")
                                     
                                     with col3:
-                                        # Status da medição
                                         status = measurement.get('status', 'OK')
                                         if status == 'OK':
                                             st.success("✅")
@@ -390,62 +491,43 @@ class ControlPlanTool:
                                             st.error("🚨")
                                     
                                     with col4:
-                                        if st.button("✏️", key=f"edit_point_{unique_id}", help="Editar"):
+                                        if st.button("✏️", key=f"edit_btn_{unique_id}", help="Editar"):
                                             st.session_state[edit_key] = True
                                             st.rerun()
                                     
                                     with col5:
-                                        # ✅ DELETE PARA MEDIÇÕES DO PONTO DE CONTROLE
-                                        if st.button("🗑️", key=f"delete_point_{unique_id}", help="Excluir medição"):
-                                            if st.session_state.get(delete_confirm_key, False):
+                                        # DELETE COM CONFIRMAÇÃO
+                                        if st.button("🗑️", key=f"del_btn_{unique_id}", help="Excluir"):
+                                            if st.session_state.get(delete_key, False):
                                                 try:
-                                                    # Verificar se ainda existe
-                                                    if measure_idx < len(control_data['control_points'][i]['measurements']):
-                                                        # Remover diretamente pelo índice
-                                                        control_data['control_points'][i]['measurements'].pop(measure_idx)
-                                                        
-                                                        # Limpar estados relacionados
-                                                        keys_to_remove = []
-                                                        for key in st.session_state.keys():
-                                                            if (f"point{i}_measure" in key or 
-                                                                f"delete_confirm_point{i}" in key or
-                                                                f"editing_point{i}" in key):
-                                                                keys_to_remove.append(key)
-                                                        
-                                                        for key in keys_to_remove:
-                                                            try:
-                                                                del st.session_state[key]
-                                                            except:
-                                                                pass
-                                                        
-                                                        st.success(f"✅ Medição de {measurement_date_str} removida!")
-                                                        st.rerun()
-                                                    else:
-                                                        st.error("❌ Medição não encontrada")
+                                                    # Remover diretamente
+                                                    control_data['control_points'][i]['measurements'].pop(measure_idx)
+                                                    
+                                                    # Limpar estados relacionados
+                                                    for key in list(st.session_state.keys()):
+                                                        if unique_id in key:
+                                                            del st.session_state[key]
+                                                    
+                                                    st.success(f"✅ Medição removida!")
+                                                    st.rerun()
                                                 except Exception as e:
-                                                    st.error(f"❌ Erro ao remover: {str(e)}")
+                                                    st.error(f"❌ Erro: {str(e)}")
                                             else:
-                                                # Primeira vez - pedir confirmação
-                                                st.session_state[delete_confirm_key] = True
-                                                st.warning("⚠️ Clique novamente para confirmar exclusão")
+                                                st.session_state[delete_key] = True
+                                                st.warning("⚠️ Clique novamente para confirmar")
                                 
                                 # Separador
                                 if measure_idx < len(measurements) - 1:
                                     st.divider()
                         
-                        # ✅ BOTÃO DE LIMPEZA DE EMERGÊNCIA
+                        # Botão de limpeza de emergência
                         if st.button("🧹 Limpar Estados", key=f"emergency_clear_point_{i}_{self.project_id}"):
-                            keys_to_remove = []
-                            for key in st.session_state.keys():
-                                if f"point{i}_" in key:
-                                    keys_to_remove.append(key)
-                            
+                            keys_to_remove = [k for k in st.session_state.keys() if f"pt{i}_" in k]
                             for key in keys_to_remove:
                                 try:
                                     del st.session_state[key]
                                 except:
                                     pass
-                            
                             st.success("🧹 Estados limpos!")
                             st.rerun()
                     
@@ -453,7 +535,6 @@ class ControlPlanTool:
                         st.info("📝 Nenhuma medição registrada ainda.")
         else:
             st.info("🎯 Nenhum ponto de controle definido ainda.")
-
     
     def _check_control_status(self, value: float, point: Dict) -> str:
         """Verifica status de uma medição baseada nos limites"""
@@ -463,7 +544,7 @@ class ControlPlanTool:
         
         if lower_limit <= value <= upper_limit:
             # Dentro dos limites, mas verificar proximidade da meta
-            if abs(value - target) / target <= 0.05:  # 5% da meta
+            if target != 0 and abs(value - target) / abs(target) <= 0.05:  # 5% da meta
                 return 'OK'
             else:
                 return 'WARNING'
@@ -490,16 +571,16 @@ class ControlPlanTool:
                     # Calcular próximas datas baseadas na frequência
                     if frequency == 'Diária':
                         days_interval = 1
-                        num_events = 30  # 30 dias
+                        num_events = 30
                     elif frequency == 'Semanal':
                         days_interval = 7
-                        num_events = 12  # 12 semanas
+                        num_events = 12
                     elif frequency == 'Quinzenal':
                         days_interval = 14
-                        num_events = 8   # 16 semanas
+                        num_events = 8
                     else:  # Mensal
                         days_interval = 30
-                        num_events = 6   # 6 meses
+                        num_events = 6
                     
                     for j in range(num_events):
                         event_date = start_date + timedelta(days=j * days_interval)
@@ -558,7 +639,7 @@ class ControlPlanTool:
                         filtered_schedule.append(event)
             
             # Mostrar eventos
-            for i, event in enumerate(filtered_schedule[:20]):  # Limitar a 20 eventos
+            for i, event in enumerate(filtered_schedule[:20]):
                 original_index = schedule.index(event)
                 event_date = datetime.fromisoformat(event['date'])
                 
@@ -926,27 +1007,27 @@ class ControlPlanTool:
         
         # Detalhes do relatório
         report_content = f"""
-        # Plano de Controle - Relatório
-        
-        **Data:** {datetime.now().strftime('%d/%m/%Y %H:%M')}
-        
-        ## Resumo Executivo
-        - **Pontos de Controle Definidos:** {len(points)}
-        - **Eventos de Monitoramento:** {len(schedule)}
-        - **Planos de Resposta:** {len(plans)}
-        
-        ## Pontos de Controle
-        """
+# Plano de Controle - Relatório
+
+**Data:** {datetime.now().strftime('%d/%m/%Y %H:%M')}
+
+## Resumo Executivo
+- **Pontos de Controle Definidos:** {len(points)}
+- **Eventos de Monitoramento:** {len(schedule)}
+- **Planos de Resposta:** {len(plans)}
+
+## Pontos de Controle
+"""
         
         for point in points:
             report_content += f"""
-        ### {point['name']}
-        - **Métrica:** {point['metric']} ({point.get('unit', '')})
-        - **Meta:** {point.get('target', 0)}
-        - **Limites:** {point.get('lower_limit', 0)} - {point.get('upper_limit', 0)}
-        - **Responsável:** {point.get('responsible', 'Não definido')}
-        - **Frequência:** {point.get('frequency', 'N/A')}
-        """
+### {point['name']}
+- **Métrica:** {point['metric']} ({point.get('unit', '')})
+- **Meta:** {point.get('target', 0)}
+- **Limites:** {point.get('lower_limit', 0)} - {point.get('upper_limit', 0)}
+- **Responsável:** {point.get('responsible', 'Não definido')}
+- **Frequência:** {point.get('frequency', 'N/A')}
+"""
         
         st.download_button(
             "📥 Baixar Relatório",
@@ -983,8 +1064,857 @@ class ControlPlanTool:
         return True
 
 
+# ==============================================
+# NOVAS FERRAMENTAS DA FASE CONTROL
+# ==============================================
+
+class StatisticalProcessControlTool:
+    """Ferramenta de Controle Estatístico de Processo (CEP)"""
+    
+    def __init__(self, manager: ControlPhaseManager):
+        self.manager = manager
+        self.project_id = manager.project_id
+        self.tool_name = "statistical_monitoring"
+    
+    def show(self):
+        st.markdown("## 📈 Controle Estatístico de Processo (CEP)")
+        st.markdown("Monitore o processo usando gráficos de controle estatístico (Shewhart, CUSUM, EWMA).")
+        
+        # Status da ferramenta
+        is_completed = self.manager.is_tool_completed(self.tool_name)
+        if is_completed:
+            st.success("✅ **CEP configurado**")
+        else:
+            st.info("⏳ **CEP em configuração**")
+        
+        # Inicializar dados
+        session_key = f"{self.tool_name}_{self.project_id}"
+        if session_key not in st.session_state:
+            existing_data = self.manager.get_tool_data(self.tool_name)
+            st.session_state[session_key] = existing_data if existing_data else {
+                'control_charts': [],
+                'rules_violations': []
+            }
+        
+        cep_data = st.session_state[session_key]
+        
+        # Obter pontos de controle disponíveis
+        control_plan_data = self.manager.get_tool_data('control_plan')
+        control_points = control_plan_data.get('control_points', [])
+        
+        if not control_points:
+            st.warning("⚠️ Defina pontos de controle primeiro no Plano de Controle")
+            return
+        
+        # Seleção de ponto de controle para CEP
+        st.markdown("### 📊 Configurar Gráfico de Controle")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            point_names = [p['name'] for p in control_points]
+            selected_point_name = st.selectbox(
+                "Ponto de Controle:",
+                point_names,
+                key=f"cep_point_{self.project_id}"
+            )
+            
+            selected_point = next((p for p in control_points if p['name'] == selected_point_name), None)
+        
+        with col2:
+            chart_type = st.selectbox(
+                "Tipo de Gráfico:",
+                ["X-barra e R", "Individuals (I-MR)", "P (Proporção)", "C (Contagem)", "CUSUM", "EWMA"],
+                key=f"cep_chart_type_{self.project_id}"
+            )
+        
+        if selected_point and selected_point.get('measurements'):
+            measurements = selected_point['measurements']
+            
+            if len(measurements) < 5:
+                st.warning("⚠️ Necessário pelo menos 5 medições para criar gráfico de controle")
+                return
+            
+            # Extrair dados
+            dates = [datetime.fromisoformat(m['date']) for m in measurements]
+            values = [float(m['value']) for m in measurements]
+            
+            # Calcular limites de controle
+            mean = np.mean(values)
+            std = np.std(values)
+            ucl = mean + 3 * std
+            lcl = mean - 3 * std
+            
+            # Criar gráfico de controle
+            fig = go.Figure()
+            
+            # Dados
+            fig.add_trace(go.Scatter(
+                x=dates,
+                y=values,
+                mode='lines+markers',
+                name='Medições',
+                line=dict(color='blue'),
+                marker=dict(size=8)
+            ))
+            
+            # Linha central
+            fig.add_hline(y=mean, line_dash="solid", line_color="green", 
+                         annotation_text="Média", annotation_position="right")
+            
+            # Limites de controle
+            fig.add_hline(y=ucl, line_dash="dash", line_color="red", 
+                         annotation_text="LSC", annotation_position="right")
+            fig.add_hline(y=lcl, line_dash="dash", line_color="red", 
+                         annotation_text="LIC", annotation_position="right")
+            
+            # Limites de especificação (se existirem)
+            if selected_point.get('upper_limit'):
+                fig.add_hline(y=selected_point['upper_limit'], line_dash="dot", line_color="orange", 
+                             annotation_text="USL", annotation_position="right")
+            
+            if selected_point.get('lower_limit'):
+                fig.add_hline(y=selected_point['lower_limit'], line_dash="dot", line_color="orange", 
+                             annotation_text="LSL", annotation_position="right")
+            
+            fig.update_layout(
+                title=f"Gráfico de Controle - {selected_point_name} ({chart_type})",
+                xaxis_title="Data",
+                yaxis_title=f"{selected_point['metric']} ({selected_point.get('unit', '')})",
+                height=500,
+                showlegend=True
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Análise de regras de controle
+            st.markdown("### 🔍 Análise de Regras de Controle")
+            
+            violations = self._check_control_rules(values, mean, std, ucl, lcl)
+            
+            if violations:
+                st.warning(f"⚠️ **{len(violations)} violação(ões) detectada(s):**")
+                for violation in violations:
+                    st.write(f"• {violation}")
+                
+                cep_data['rules_violations'] = violations
+            else:
+                st.success("✅ Nenhuma violação das regras de controle detectada")
+            
+            # Estatísticas do processo
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Média", f"{mean:.2f}")
+            
+            with col2:
+                st.metric("Desvio Padrão", f"{std:.2f}")
+            
+            with col3:
+                st.metric("LSC", f"{ucl:.2f}")
+            
+            with col4:
+                st.metric("LIC", f"{lcl:.2f}")
+            
+            # Salvar configuração do gráfico
+            if st.button("💾 Salvar Configuração CEP", key=f"save_cep_{self.project_id}"):
+                chart_config = {
+                    'point_name': selected_point_name,
+                    'chart_type': chart_type,
+                    'mean': float(mean),
+                    'std': float(std),
+                    'ucl': float(ucl),
+                    'lcl': float(lcl),
+                    'created_at': datetime.now().isoformat()
+                }
+                
+                cep_data['control_charts'].append(chart_config)
+                
+                success = self.manager.save_tool_data(self.tool_name, cep_data, completed=True)
+                if success:
+                    st.success("✅ Configuração CEP salva!")
+                    st.rerun()
+        else:
+            st.info("📝 Adicione medições ao ponto de controle para criar o gráfico CEP")
+    
+    def _check_control_rules(self, values: List[float], mean: float, std: float, ucl: float, lcl: float) -> List[str]:
+        """Verifica regras de controle (Western Electric Rules)"""
+        violations = []
+        n = len(values)
+        
+        # Regra 1: Ponto fora dos limites de controle
+        for i, val in enumerate(values):
+            if val > ucl or val < lcl:
+                violations.append(f"Regra 1: Ponto {i+1} fora dos limites de controle")
+        
+        # Regra 2: 2 de 3 pontos consecutivos além de 2σ
+        sigma_2_upper = mean + 2 * std
+        sigma_2_lower = mean - 2 * std
+        
+        for i in range(n - 2):
+            points_beyond = sum(1 for j in range(i, i + 3) 
+                               if values[j] > sigma_2_upper or values[j] < sigma_2_lower)
+            if points_beyond >= 2:
+                violations.append(f"Regra 2: Pontos {i+1}-{i+3} têm 2/3 além de 2σ")
+        
+        # Regra 3: 4 de 5 pontos consecutivos além de 1σ
+        sigma_1_upper = mean + std
+        sigma_1_lower = mean - std
+        
+        for i in range(n - 4):
+            points_beyond = sum(1 for j in range(i, i + 5) 
+                               if values[j] > sigma_1_upper or values[j] < sigma_1_lower)
+            if points_beyond >= 4:
+                violations.append(f"Regra 3: Pontos {i+1}-{i+5} têm 4/5 além de 1σ")
+        
+        # Regra 4: 8 pontos consecutivos de um lado da média
+        for i in range(n - 7):
+            if all(v > mean for v in values[i:i+8]) or all(v < mean for v in values[i:i+8]):
+                violations.append(f"Regra 4: 8 pontos consecutivos de um lado da média (pontos {i+1}-{i+8})")
+        
+        return violations
+
+
+class StandardDocumentationTool:
+    """Ferramenta de Documentação de Procedimentos Padrão"""
+    
+    def __init__(self, manager: ControlPhaseManager):
+        self.manager = manager
+        self.project_id = manager.project_id
+        self.tool_name = "standard_documentation"
+    
+    def show(self):
+        st.markdown("## 📋 Procedimentos Operacionais Padrão (POP)")
+        st.markdown("Documente os procedimentos padronizados para manter as melhorias implementadas.")
+        
+        # Status
+        is_completed = self.manager.is_tool_completed(self.tool_name)
+        if is_completed:
+            st.success("✅ **Documentação finalizada**")
+        else:
+            st.info("⏳ **Documentação em desenvolvimento**")
+        
+        # Inicializar dados
+        session_key = f"{self.tool_name}_{self.project_id}"
+        if session_key not in st.session_state:
+            existing_data = self.manager.get_tool_data(self.tool_name)
+            st.session_state[session_key] = existing_data if existing_data else {
+                'procedures': [],
+                'work_instructions': [],
+                'training_materials': []
+            }
+        
+        doc_data = st.session_state[session_key]
+        
+        # Tabs para diferentes tipos de documentação
+        tab1, tab2, tab3 = st.tabs([
+            "📄 POPs",
+            "📝 Instruções de Trabalho",
+            "🎓 Material de Treinamento"
+        ])
+        
+        with tab1:
+            self._show_procedures(doc_data)
+        
+        with tab2:
+            self._show_work_instructions(doc_data)
+        
+        with tab3:
+            self._show_training_materials(doc_data)
+        
+        # Botões de ação
+        st.divider()
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("💾 Salvar Documentação", key=f"save_doc_{self.project_id}"):
+                success = self.manager.save_tool_data(self.tool_name, doc_data, completed=False)
+                if success:
+                    st.success("💾 Documentação salva!")
+        
+        with col2:
+            if st.button("✅ Finalizar Documentação", key=f"complete_doc_{self.project_id}"):
+                if doc_data.get('procedures'):
+                    success = self.manager.save_tool_data(self.tool_name, doc_data, completed=True)
+                    if success:
+                        st.success("✅ Documentação finalizada!")
+                        st.balloons()
+                        st.rerun()
+                else:
+                    st.error("❌ Adicione pelo menos um POP")
+    
+    def _show_procedures(self, doc_data: Dict):
+        """Gerenciar POPs"""
+        st.markdown("### 📄 Procedimentos Operacionais Padrão")
+        
+        # Adicionar novo POP
+        with st.expander("➕ Adicionar Novo POP"):
+            pop_title = st.text_input(
+                "Título do POP *",
+                key=f"pop_title_{self.project_id}"
+            )
+            
+            pop_code = st.text_input(
+                "Código do Documento",
+                key=f"pop_code_{self.project_id}",
+                placeholder="Ex: POP-001"
+            )
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                pop_version = st.text_input(
+                    "Versão",
+                    value="1.0",
+                    key=f"pop_version_{self.project_id}"
+                )
+            
+            with col2:
+                pop_author = st.text_input(
+                    "Autor",
+                    key=f"pop_author_{self.project_id}"
+                )
+            
+            pop_objective = st.text_area(
+                "Objetivo",
+                key=f"pop_objective_{self.project_id}",
+                placeholder="Objetivo deste procedimento...",
+                height=80
+            )
+            
+            pop_scope = st.text_area(
+                "Escopo",
+                key=f"pop_scope_{self.project_id}",
+                placeholder="Onde este procedimento se aplica...",
+                height=80
+            )
+            
+            pop_steps = st.text_area(
+                "Passos do Procedimento *",
+                key=f"pop_steps_{self.project_id}",
+                placeholder="1. Passo 1\n2. Passo 2\n3. Passo 3...",
+                height=150
+            )
+            
+            pop_references = st.text_area(
+                "Referências/Documentos Relacionados",
+                key=f"pop_references_{self.project_id}",
+                height=60
+            )
+            
+            if st.button("📄 Adicionar POP", key=f"add_pop_{self.project_id}"):
+                if pop_title.strip() and pop_steps.strip():
+                    doc_data['procedures'].append({
+                        'title': pop_title,
+                        'code': pop_code,
+                        'version': pop_version,
+                        'author': pop_author,
+                        'objective': pop_objective,
+                        'scope': pop_scope,
+                        'steps': pop_steps,
+                        'references': pop_references,
+                        'status': 'Ativo',
+                        'created_at': datetime.now().isoformat()
+                    })
+                    
+                    st.success(f"✅ POP '{pop_title}' adicionado!")
+                    st.rerun()
+                else:
+                    st.error("❌ Título e passos são obrigatórios")
+        
+        # Mostrar POPs existentes
+        if doc_data.get('procedures'):
+            st.markdown("#### 📋 POPs Criados")
+            
+            for i, pop in enumerate(doc_data['procedures']):
+                with st.expander(f"📄 **{pop['title']}** - Versão {pop['version']}"):
+                    st.write(f"**Código:** {pop.get('code', 'N/A')}")
+                    st.write(f"**Autor:** {pop.get('author', 'N/A')}")
+                    st.write(f"**Status:** {pop.get('status', 'Ativo')}")
+                    
+                    st.markdown("**Objetivo:**")
+                    st.write(pop.get('objective', 'N/A'))
+                    
+                    st.markdown("**Escopo:**")
+                    st.write(pop.get('scope', 'N/A'))
+                    
+                    st.markdown("**Procedimento:**")
+                    st.text(pop.get('steps', ''))
+                    
+                    if pop.get('references'):
+                        st.markdown("**Referências:**")
+                        st.write(pop['references'])
+                    
+                    if st.button("🗑️ Remover", key=f"remove_pop_{i}_{self.project_id}"):
+                        doc_data['procedures'].pop(i)
+                        st.rerun()
+        else:
+            st.info("📄 Nenhum POP criado ainda")
+    
+    def _show_work_instructions(self, doc_data: Dict):
+        """Instruções de trabalho detalhadas"""
+        st.markdown("### 📝 Instruções de Trabalho")
+        
+        # Similar ao POP, mas mais simples
+        with st.expander("➕ Adicionar Instrução de Trabalho"):
+            wi_title = st.text_input(
+                "Título da Instrução *",
+                key=f"wi_title_{self.project_id}"
+            )
+            
+            wi_task = st.text_input(
+                "Tarefa/Atividade",
+                key=f"wi_task_{self.project_id}"
+            )
+            
+            wi_instructions = st.text_area(
+                "Instruções Detalhadas *",
+                key=f"wi_instructions_{self.project_id}",
+                placeholder="Descreva passo a passo como executar a tarefa...",
+                height=150
+            )
+            
+            wi_safety = st.text_area(
+                "Precauções de Segurança",
+                key=f"wi_safety_{self.project_id}",
+                placeholder="EPIs necessários, cuidados especiais...",
+                height=80
+            )
+            
+            if st.button("📝 Adicionar Instrução", key=f"add_wi_{self.project_id}"):
+                if wi_title.strip() and wi_instructions.strip():
+                    doc_data['work_instructions'].append({
+                        'title': wi_title,
+                        'task': wi_task,
+                        'instructions': wi_instructions,
+                        'safety': wi_safety,
+                        'created_at': datetime.now().isoformat()
+                    })
+                    
+                    st.success(f"✅ Instrução '{wi_title}' adicionada!")
+                    st.rerun()
+                else:
+                    st.error("❌ Título e instruções são obrigatórios")
+        
+        # Mostrar instruções
+        if doc_data.get('work_instructions'):
+            st.markdown("#### 📋 Instruções Criadas")
+            
+            for i, wi in enumerate(doc_data['work_instructions']):
+                with st.expander(f"📝 **{wi['title']}**"):
+                    if wi.get('task'):
+                        st.write(f"**Tarefa:** {wi['task']}")
+                    
+                    st.markdown("**Instruções:**")
+                    st.text(wi['instructions'])
+                    
+                    if wi.get('safety'):
+                        st.markdown("**⚠️ Segurança:**")
+                        st.write(wi['safety'])
+                    
+                    if st.button("🗑️ Remover", key=f"remove_wi_{i}_{self.project_id}"):
+                        doc_data['work_instructions'].pop(i)
+                        st.rerun()
+        else:
+            st.info("📝 Nenhuma instrução criada ainda")
+    
+    def _show_training_materials(self, doc_data: Dict):
+        """Material de treinamento"""
+        st.markdown("### 🎓 Material de Treinamento")
+        
+        with st.expander("➕ Adicionar Material de Treinamento"):
+            tm_title = st.text_input(
+                "Título do Material *",
+                key=f"tm_title_{self.project_id}"
+            )
+            
+            tm_type = st.selectbox(
+                "Tipo de Material",
+                ["Apresentação", "Vídeo", "Manual", "Quiz", "Checklist", "Outro"],
+                key=f"tm_type_{self.project_id}"
+            )
+            
+            tm_description = st.text_area(
+                "Descrição/Conteúdo *",
+                key=f"tm_description_{self.project_id}",
+                height=120
+            )
+            
+            tm_duration = st.number_input(
+                "Duração Estimada (minutos)",
+                min_value=5,
+                max_value=480,
+                value=30,
+                key=f"tm_duration_{self.project_id}"
+            )
+            
+            if st.button("🎓 Adicionar Material", key=f"add_tm_{self.project_id}"):
+                if tm_title.strip() and tm_description.strip():
+                    doc_data['training_materials'].append({
+                        'title': tm_title,
+                        'type': tm_type,
+                        'description': tm_description,
+                        'duration': tm_duration,
+                        'created_at': datetime.now().isoformat()
+                    })
+                    
+                    st.success(f"✅ Material '{tm_title}' adicionado!")
+                    st.rerun()
+                else:
+                    st.error("❌ Título e descrição são obrigatórios")
+        
+        if doc_data.get('training_materials'):
+            st.markdown("#### 📋 Materiais Criados")
+            
+            for i, tm in enumerate(doc_data['training_materials']):
+                with st.expander(f"🎓 **{tm['title']}** ({tm['type']})"):
+                    st.write(f"**Tipo:** {tm['type']}")
+                    st.write(f"**Duração:** {tm['duration']} minutos")
+                    
+                    st.markdown("**Descrição:**")
+                    st.write(tm['description'])
+                    
+                    if st.button("🗑️ Remover", key=f"remove_tm_{i}_{self.project_id}"):
+                        doc_data['training_materials'].pop(i)
+                        st.rerun()
+        else:
+            st.info("🎓 Nenhum material criado ainda")
+
+
+class SustainabilityAuditTool:
+    """Ferramenta de Auditoria de Sustentabilidade"""
+    
+    def __init__(self, manager: ControlPhaseManager):
+        self.manager = manager
+        self.project_id = manager.project_id
+        self.tool_name = "sustainability_audit"
+    
+    def show(self):
+        st.markdown("## 🔄 Auditoria de Sustentabilidade")
+        st.markdown("Realize auditorias periódicas para garantir a sustentação das melhorias ao longo do tempo.")
+        
+        # Status
+        is_completed = self.manager.is_tool_completed(self.tool_name)
+        if is_completed:
+            st.success("✅ **Sistema de auditoria configurado**")
+        else:
+            st.info("⏳ **Sistema em configuração**")
+        
+        # Inicializar dados
+        session_key = f"{self.tool_name}_{self.project_id}"
+        if session_key not in st.session_state:
+            existing_data = self.manager.get_tool_data(self.tool_name)
+            st.session_state[session_key] = existing_data if existing_data else {
+                'audit_schedule': [],
+                'audits_completed': [],
+                'findings': []
+            }
+        
+        audit_data = st.session_state[session_key]
+        
+        # Tabs para diferentes aspectos da auditoria
+        tab1, tab2, tab3 = st.tabs([
+            "📅 Cronograma de Auditorias",
+            "📋 Realizar Auditoria",
+            "📊 Resultados e Tendências"
+        ])
+        
+        with tab1:
+            self._show_audit_schedule(audit_data)
+        
+        with tab2:
+            self._show_conduct_audit(audit_data)
+        
+        with tab3:
+            self._show_audit_results(audit_data)
+        
+        # Botões de ação
+        st.divider()
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("💾 Salvar Configuração", key=f"save_audit_{self.project_id}"):
+                success = self.manager.save_tool_data(self.tool_name, audit_data, completed=False)
+                if success:
+                    st.success("💾 Configuração salva!")
+        
+        with col2:
+            if st.button("✅ Finalizar Configuração", key=f"complete_audit_{self.project_id}"):
+                if audit_data.get('audit_schedule'):
+                    success = self.manager.save_tool_data(self.tool_name, audit_data, completed=True)
+                    if success:
+                        st.success("✅ Sistema de auditoria configurado!")
+                        st.balloons()
+                        st.rerun()
+                else:
+                    st.error("❌ Configure o cronograma de auditorias")
+    
+    def _show_audit_schedule(self, audit_data: Dict):
+        """Cronograma de auditorias"""
+        st.markdown("### 📅 Cronograma de Auditorias")
+        
+        # Configurar frequência de auditorias
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            audit_frequency = st.selectbox(
+                "Frequência de Auditorias:",
+                ["Mensal", "Trimestral", "Semestral", "Anual"],
+                key=f"audit_frequency_{self.project_id}"
+            )
+        
+        with col2:
+            auditor = st.text_input(
+                "Auditor Responsável:",
+                key=f"auditor_{self.project_id}"
+            )
+        
+        if st.button("📅 Gerar Cronograma", key=f"gen_audit_schedule_{self.project_id}"):
+            # Gerar próximas auditorias baseado na frequência
+            start_date = datetime.now().date()
+            
+            if audit_frequency == "Mensal":
+                intervals = [30 * i for i in range(1, 13)]
+            elif audit_frequency == "Trimestral":
+                intervals = [90 * i for i in range(1, 5)]
+            elif audit_frequency == "Semestral":
+                intervals = [180 * i for i in range(1, 3)]
+            else:  # Anual
+                intervals = [365]
+            
+            schedule = []
+            for interval in intervals:
+                audit_date = start_date + timedelta(days=interval)
+                schedule.append({
+                    'date': audit_date.isoformat(),
+                    'auditor': auditor,
+                    'status': 'Agendada',
+                    'created_at': datetime.now().isoformat()
+                })
+            
+            audit_data['audit_schedule'] = schedule
+            st.success(f"✅ Cronograma gerado com {len(schedule)} auditorias!")
+            st.rerun()
+        
+        # Mostrar cronograma
+        if audit_data.get('audit_schedule'):
+            st.markdown("#### 📋 Auditorias Agendadas")
+            
+            for i, audit in enumerate(audit_data['audit_schedule']):
+                audit_date = datetime.fromisoformat(audit['date'])
+                status_icon = "🟢" if audit['status'] == 'Concluída' else "🟡"
+                
+                col1, col2, col3 = st.columns([2, 2, 1])
+                
+                with col1:
+                    st.write(f"{status_icon} **{audit_date.strftime('%d/%m/%Y')}**")
+                
+                with col2:
+                    st.write(f"Auditor: {audit.get('auditor', 'N/A')}")
+                
+                with col3:
+                    st.write(f"Status: {audit['status']}")
+        else:
+            st.info("📅 Nenhuma auditoria agendada")
+    
+    def _show_conduct_audit(self, audit_data: Dict):
+        """Realizar auditoria"""
+        st.markdown("### 📋 Realizar Auditoria")
+        
+        # Checklist de auditoria
+        st.markdown("#### ✅ Checklist de Verificação")
+        
+        audit_date = st.date_input(
+            "Data da Auditoria:",
+            value=datetime.now().date(),
+            key=f"current_audit_date_{self.project_id}"
+        )
+        
+        auditor_name = st.text_input(
+            "Nome do Auditor:",
+            key=f"current_auditor_{self.project_id}"
+        )
+        
+        # Categorias de verificação
+        st.markdown("**Pontos de Verificação:**")
+        
+        checks = {}
+        
+        check_categories = [
+            ("Documentação", [
+                "POPs estão atualizados e disponíveis",
+                "Registros de controle estão sendo mantidos",
+                "Treinamentos foram realizados"
+            ]),
+            ("Processo", [
+                "Processo está sendo seguido conforme definido",
+                "Medições estão sendo feitas na frequência correta",
+                "Limites de controle estão sendo respeitados"
+            ]),
+            ("Resultados", [
+                "Metas estão sendo atingidas",
+                "Melhorias estão sendo sustentadas",
+                "Não houve regressão do processo"
+            ]),
+            ("Pessoas", [
+                "Equipe está treinada e capacitada",
+                "Responsabilidades estão claras",
+                "Engajamento da equipe é adequado"
+            ])
+        ]
+        
+        for category, items in check_categories:
+            st.markdown(f"**{category}:**")
+            
+            for item in items:
+                check_key = f"{category}_{item}"
+                checks[check_key] = st.checkbox(
+                    item,
+                    key=f"check_{hash(check_key)}_{self.project_id}"
+                )
+        
+        # Observações e achados
+        findings = st.text_area(
+            "Achados e Observações:",
+            key=f"audit_findings_{self.project_id}",
+            placeholder="Descreva não-conformidades, oportunidades de melhoria, observações...",
+            height=150
+        )
+        
+        # Ações corretivas
+        corrective_actions = st.text_area(
+            "Ações Corretivas Recomendadas:",
+            key=f"corrective_actions_{self.project_id}",
+            placeholder="Liste as ações necessárias para corrigir não-conformidades...",
+            height=100
+        )
+        
+        # Conclusão da auditoria
+        audit_conclusion = st.selectbox(
+            "Conclusão:",
+            ["Conforme", "Conforme com observações", "Não conforme"],
+            key=f"audit_conclusion_{self.project_id}"
+        )
+        
+        if st.button("📝 Registrar Auditoria", key=f"register_audit_{self.project_id}"):
+            # Calcular score
+            total_checks = len(checks)
+            passed_checks = sum(1 for v in checks.values() if v)
+            score = (passed_checks / total_checks * 100) if total_checks > 0 else 0
+            
+            audit_record = {
+                'date': audit_date.isoformat(),
+                'auditor': auditor_name,
+                'checks': checks,
+                'score': float(score),
+                'findings': findings,
+                'corrective_actions': corrective_actions,
+                'conclusion': audit_conclusion,
+                'created_at': datetime.now().isoformat()
+            }
+            
+            audit_data['audits_completed'].append(audit_record)
+            
+            # Atualizar cronograma
+            for scheduled in audit_data.get('audit_schedule', []):
+                if scheduled['date'] == audit_date.isoformat():
+                    scheduled['status'] = 'Concluída'
+            
+            st.success(f"✅ Auditoria registrada! Score: {score:.1f}%")
+            st.rerun()
+    
+    def _show_audit_results(self, audit_data: Dict):
+        """Resultados e tendências"""
+        st.markdown("### 📊 Resultados e Tendências")
+        
+        audits = audit_data.get('audits_completed', [])
+        
+        if not audits:
+            st.info("📊 Nenhuma auditoria realizada ainda")
+            return
+        
+        # Gráfico de tendência de scores
+        dates = [datetime.fromisoformat(a['date']) for a in audits]
+        scores = [a['score'] for a in audits]
+        
+        fig = go.Figure()
+        
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=scores,
+            mode='lines+markers',
+            name='Score da Auditoria',
+            line=dict(color='blue', width=3),
+            marker=dict(size=10)
+        ))
+        
+        # Linha de referência 80%
+        fig.add_hline(y=80, line_dash="dash", line_color="green", 
+                     annotation_text="Meta: 80%", annotation_position="right")
+        
+        fig.update_layout(
+            title="Tendência dos Scores de Auditoria",
+            xaxis_title="Data",
+            yaxis_title="Score (%)",
+            yaxis_range=[0, 100],
+            height=400
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Estatísticas
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Auditorias Realizadas", len(audits))
+        
+        with col2:
+            avg_score = np.mean(scores)
+            st.metric("Score Médio", f"{avg_score:.1f}%")
+        
+        with col3:
+            last_score = scores[-1]
+            st.metric("Última Auditoria", f"{last_score:.1f}%")
+        
+        with col4:
+            conformes = sum(1 for a in audits if a.get('conclusion') == 'Conforme')
+            st.metric("Conformes", f"{conformes}/{len(audits)}")
+        
+        # Detalhes das auditorias
+        st.markdown("#### 📋 Histórico de Auditorias")
+        
+        for i, audit in enumerate(reversed(audits)):
+            audit_date = datetime.fromisoformat(audit['date'])
+            
+            conclusion_colors = {
+                'Conforme': '🟢',
+                'Conforme com observações': '🟡',
+                'Não conforme': '🔴'
+            }
+            
+            color_icon = conclusion_colors.get(audit['conclusion'], '⚪')
+            
+            with st.expander(f"{color_icon} **{audit_date.strftime('%d/%m/%Y')}** - Score: {audit['score']:.1f}%"):
+                st.write(f"**Auditor:** {audit.get('auditor', 'N/A')}")
+                st.write(f"**Conclusão:** {audit['conclusion']}")
+                
+                if audit.get('findings'):
+                    st.markdown("**Achados:**")
+                    st.write(audit['findings'])
+                
+                if audit.get('corrective_actions'):
+                    st.markdown("**Ações Corretivas:**")
+                    st.write(audit['corrective_actions'])
+
+
+# ==============================================
+# FUNÇÃO PRINCIPAL DA FASE CONTROL
+# ==============================================
+
 def show_control_phase():
-    """Interface principal da fase Control"""
+    """Interface principal da fase Control - VERSÃO COMPLETA"""
     st.title("🎮 Fase CONTROL")
     st.markdown("Controle e sustente as melhorias implementadas no processo.")
     
@@ -1012,9 +1942,9 @@ def show_control_phase():
     
     tools = [
         ("📊 Plano de Controle", "control_plan", ControlPlanTool),
-        ("📈 Monitoramento Estatístico", "statistical_monitoring", None),  # Futuro
-        ("📋 Documentação Padrão", "standard_documentation", None),        # Futuro
-        ("🔄 Auditoria de Sustentabilidade", "sustainability_audit", None) # Futuro
+        ("📈 Controle Estatístico (CEP)", "statistical_monitoring", StatisticalProcessControlTool),
+        ("📋 Documentação Padrão (POP)", "standard_documentation", StandardDocumentationTool),
+        ("🔄 Auditoria de Sustentabilidade", "sustainability_audit", SustainabilityAuditTool)
     ]
     
     # Mostrar status das ferramentas
@@ -1023,35 +1953,27 @@ def show_control_phase():
     for i, (tool_name, tool_key, tool_class) in enumerate(tools):
         col = [col1, col2, col3, col4][i]
         with col:
-            if tool_class:
-                is_completed = control_manager.is_tool_completed(tool_key)
-                if is_completed:
-                    st.success(f"✅ {tool_name.split(' ', 1)[1]}")
-                else:
-                    st.info(f"⏳ {tool_name.split(' ', 1)[1]}")
+            is_completed = control_manager.is_tool_completed(tool_key)
+            if is_completed:
+                st.success(f"✅ {tool_name.split(' ', 1)[1]}")
             else:
-                st.info(f"🚧 {tool_name.split(' ', 1)[1]}")
+                st.info(f"⏳ {tool_name.split(' ', 1)[1]}")
     
     # Seleção de ferramenta
-    available_tools = [t for t in tools if t[2] is not None]
+    selected_tool = st.selectbox(
+        "Selecione uma ferramenta:",
+        tools,
+        format_func=lambda x: x[0]
+    )
     
-    if available_tools:
-        selected_tool = st.selectbox(
-            "Selecione uma ferramenta:",
-            available_tools,
-            format_func=lambda x: x[0]
-        )
+    if selected_tool:
+        tool_name, tool_key, tool_class = selected_tool
         
-        if selected_tool:
-            tool_name, tool_key, tool_class = selected_tool
-            
-            st.divider()
-            
-            # Instanciar e mostrar ferramenta
-            tool_instance = tool_class(control_manager)
-            tool_instance.show()
-    else:
-        st.info("🚧 Ferramentas da fase Control em desenvolvimento")
+        st.divider()
+        
+        # Instanciar e mostrar ferramenta
+        tool_instance = tool_class(control_manager)
+        tool_instance.show()
 
 
 if __name__ == "__main__":
