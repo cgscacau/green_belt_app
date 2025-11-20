@@ -84,7 +84,7 @@ def show_dashboard_metrics(projects):
         st.metric("Projetos Concluídos", completed_projects, help="Projetos finalizados")
     
     with col4:
-        st.metric("Economia Esperada", f"R$ {total_savings:,.2f}", help="Soma da economia esperada de todos os projetos")
+        st.metric("Economia Esperada", format_currency(total_savings), help="Soma da economia esperada de todos os projetos")
     
     with col5:
         st.metric("Progresso Médio", f"{avg_progress:.1f}%", help="Progresso médio de todos os projetos")
@@ -288,7 +288,7 @@ def show_create_project_section(project_manager, user_data, is_first_project=Fal
             
             **Descrição:** {description[:100]}{'...' if len(description) > 100 else ''}
             
-            **Economia Esperada:** R$ {expected_savings:,.2f}
+            **Economia Esperada:** {format_currency(expected_savings)}
             
             **Duração:** {duration if date_valid else 0} dias
             """)
@@ -473,7 +473,7 @@ def show_project_card(project, project_manager):
     status = project.get('status', 'active')
     status_data = status_info.get(status, status_info['active'])
     
-    created_date = project.get('created_at', '')[:10] if project.get('created_at') else 'N/A'
+    created_date = format_date_br(project.get('created_at', '')) if project.get('created_at') else 'N/A'
     
     with st.container():
         st.markdown(f"""
@@ -504,7 +504,7 @@ def show_project_card(project, project_manager):
             <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;'>
                 <div>
                     <small style='color: #28a745; font-weight: bold;'>💰 Economia Esperada</small><br>
-                    <strong style='color: #2c3e50;'>R$ {project.get('expected_savings', 0):,.2f}</strong>
+                    <strong style='color: #2c3e50;'>{format_currency(project.get('expected_savings', 0))}</strong>
                 </div>
                 <div>
                     <small style='color: #007bff; font-weight: bold;'>📅 Criado em</small><br>
@@ -617,7 +617,7 @@ def show_projects_analytics(projects):
             max_savings_project = max(projects, key=lambda x: x.get('expected_savings', 0))
             st.metric(
                 "Maior Economia Esperada",
-                f"R$ {max_savings_project.get('expected_savings', 0):,.2f}",
+                format_currency(max_savings_project.get('expected_savings', 0)),
                 delta=max_savings_project.get('name', 'N/A')[:20]
             )
         
