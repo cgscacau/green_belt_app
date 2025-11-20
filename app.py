@@ -254,13 +254,13 @@ def main():
                     st.info("Clique em 'Verificar Configuração' para mais detalhes")
             
             # Informações de debug (apenas em desenvolvimento)
-            if st.checkbox("🔍 Debug Info", key="debug_info"):
-                st.write("**Session State Keys:**")
-                st.write(f"Total: {len(st.session_state.keys())}")
+           # if st.checkbox("🔍 Debug Info", key="debug_info"):
+            #    st.write("**Session State Keys:**")
+             #   st.write(f"Total: {len(st.session_state.keys())}")
                 
-                if st.button("🧹 Limpar Debug", key="clear_debug"):
-                    cleanup_session_state()
-                    st.rerun()
+              #  if st.button("🧹 Limpar Debug", key="clear_debug"):
+               #     cleanup_session_state()
+                #    st.rerun()
         
         # Mostrar página de configuração se necessário
         if safe_get_session_state('show_config', False) or not config_ok:
