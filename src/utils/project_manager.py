@@ -335,6 +335,9 @@ class ProjectManager:
     def delete_project(self, project_id: str, user_uid: str = None) -> bool:
         """Deleta um projeto"""
         try:
+            if user_uid is None:
+                user_uid = self.user_uid
+                
             if not self.db or not project_id:
                 return False
             
