@@ -357,10 +357,8 @@ class NavigationManager:
             
             DMACPhase.CONTROL: [
                 "control_plan",
-                "monitoring_system",  # ✅ Corrigido: era "statistical_process_control"
-                "documentation",      # ✅ Corrigido: era "standard_work"
-                "sustainability_plan"
-            ]  # 4 ferramentas
+                "documentation",                 
+            ]  
         }
         
         return len(phase_tools.get(phase, []))
