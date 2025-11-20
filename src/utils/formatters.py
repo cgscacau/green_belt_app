@@ -117,3 +117,56 @@ def parse_currency_input(value_str: str) -> float:
         return float(cleaned)
     except (ValueError, AttributeError):
         return 0.0
+
+def validate_currency_input(value_str):
+    """
+    Valida e retorna feedback visual para input de moeda.
+    Retorna: (value_float, is_valid, error_message)
+    """
+    if not value_str or value_str.strip() == "":
+        return 0.0, True, ""
+    
+    try:
+        value = parse_currency_input(value_str)
+        return value, True, ""
+    except ValueError as e:
+        return 0.0, False, f"❌ Formato inválido. Use: 1.234,56 ou 1234,56"
+
+def format_date_input(date_obj):
+    """
+    Formata objeto date para string DD/MM/YYYY para exibição em text_input.
+    """
+    if date_obj is None:
+        return ""
+    if isinstance(date_obj, str):
+        # Se já é string, tentar converter
+        try:
+            date_obj = datetime.strptime(date_obj, "%Y-%m-%d").date()
+        except:
+            return date_obj
+    return date_obj.strftime("%d/%m/%Y")
+
+def parse_date_input(date_str):
+    """
+    Converte string DD/MM/YYYY para objeto date.
+    Retorna: (date_obj, is_valid, error_message)
+    """
+    if not date_str or date_str.strip() == "":
+        return None, True, ""
+    
+    try:
+        # Remove espaços
+        date_str = date_str.strip()
+        
+        # Tenta formato DD/MM/YYYY
+        date_obj = datetime.strptime(date_str, "%d/%m/%Y").date()
+        
+        # Validação básica de data
+        if date_obj.year < 2000 or date_obj.year > 2100:
+            return None, False, "❌ Ano deve estar entre 2000 e 2100"
+        
+        return date_obj, True, ""
+    
+    except ValueError:
+        return None, False, "❌ Formato inválido. Use: DD/MM/AAAA (ex: 20/11/2025)"
+
