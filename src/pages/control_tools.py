@@ -632,16 +632,23 @@ class ControlPlanTool:
                                                     st.error("❌ Erro ao salvar")
                                     
                                     with col_delete:
-                                        delete_key = f"confirm_delete_measurement_{i}_{selected_measure_idx}_{self.project_id}"
+                                        # ========== EXCLUSÃO CORRIGIDA ==========
+                                        delete_confirm_key = f"delete_confirm_{i}_{selected_measure_idx}_{self.project_id}"
                                         
-                                        if st.button("🗑️ Excluir", key=f"delete_measurement_{i}_{selected_measure_idx}_{self.project_id}", use_container_width=True):
-                                            if st.session_state.get(delete_key, False):
-                                                # Confirmar exclusão
+                                        # Verificar se já está em modo de confirmação
+                                        if delete_confirm_key in st.session_state and st.session_state[delete_confirm_key]:
+                                            # MODO CONFIRMAÇÃO - Mostrar botão de confirmação final
+                                            if st.button("✅ CONFIRMAR EXCLUSÃO", key=f"confirm_delete_{i}_{selected_measure_idx}_{self.project_id}", use_container_width=True, type="primary"):
+                                                # Excluir medição
                                                 control_data['control_points'][i]['measurements'].pop(selected_measure_idx)
                                                 
-                                                # Limpar estado
-                                                if delete_key in st.session_state:
-                                                    del st.session_state[delete_key]
+                                                # Limpar todos os estados relacionados a este ponto
+                                                keys_to_remove = [k for k in st.session_state.keys() if f"_{i}_" in k and "measurement" in k]
+                                                for key in keys_to_remove:
+                                                    try:
+                                                        del st.session_state[key]
+                                                    except:
+                                                        pass
                                                 
                                                 # Salvar
                                                 success = self.manager.save_tool_data(self.tool_name, control_data, completed=False)
@@ -651,14 +658,21 @@ class ControlPlanTool:
                                                     st.rerun()
                                                 else:
                                                     st.error("❌ Erro ao salvar")
-                                            else:
-                                                # Primeira vez - pedir confirmação
-                                                st.session_state[delete_key] = True
-                                                st.warning("⚠️ Clique novamente para confirmar exclusão")
-                    else:
-                        st.info("📝 Nenhuma medição registrada ainda. Adicione a primeira medição acima.")
-        else:
-            st.info("🎯 Nenhum ponto de controle definido ainda. Adicione o primeiro ponto usando o formulário acima.")
+                                        else:
+                                            # MODO NORMAL - Primeiro clique
+                                            if st.button("🗑️ Excluir", key=f"delete_measurement_{i}_{selected_measure_idx}_{self.project_id}", use_container_width=True):
+                                                st.session_state[delete_confirm_key] = True
+                                                st.rerun()
+                                
+                                # Mostrar aviso de confirmação se estiver em modo de confirmação
+                                delete_confirm_key = f"delete_confirm_{i}_{selected_measure_idx}_{self.project_id}"
+                                if delete_confirm_key in st.session_state and st.session_state[delete_confirm_key]:
+                                    st.warning("⚠️ **ATENÇÃO**: Clique em 'CONFIRMAR EXCLUSÃO' acima para excluir permanentemente esta medição!")
+                                    
+                                    # Botão de cancelar
+                                    if st.button("❌ Cancelar Exclusão", key=f"cancel_delete_{i}_{selected_measure_idx}_{self.project_id}"):
+                                        del st.session_state[delete_confirm_key]
+                                        st.rerun()
 
         
 #########################################################################################################################################################################################################################
