@@ -6,7 +6,14 @@ from datetime import datetime, timedelta
 import json
 from typing import Dict, List
 from src.utils.project_manager import ProjectManager
-from src.utils.formatters import format_currency, format_date_br
+from src.utils.formatters import (
+    format_currency, 
+    format_date_br, 
+    parse_currency_input,
+    validate_currency_input,
+    format_date_input,
+    parse_date_input
+)
 
 def show_project_charter(project_data: Dict):
     """Project Charter - VERSÃO COMPLETAMENTE REESCRITA"""
@@ -107,14 +114,23 @@ def show_project_charter(project_data: Dict):
             help="Onde queremos chegar"
         )
     
-    financial_benefit = st.number_input(
-        "Benefício Financeiro Anual (R$)",
-        value=float(charter_data.get('financial_benefit', 0)),
-        min_value=0.0,
-        step=1000.0,
-        key=f"financial_benefit_{project_id}",
-        help="Impacto financeiro esperado por ano"
+    # Campo de texto formatado para moeda brasileira
+    current_benefit = charter_data.get('financial_benefit', 0)
+    benefit_display = format_currency(current_benefit) if current_benefit > 0 else ""
+    
+    financial_benefit_input = st.text_input(
+        "💰 Benefício Financeiro Anual (R$)",
+        value=benefit_display,
+        key=f"financial_benefit_input_{project_id}",
+        placeholder="Ex: R$ 10.000,00 ou 10000,00",
+        help="Digite o valor em formato brasileiro: use vírgula para decimais e ponto para milhares"
     )
+    
+    # Validar e converter
+    financial_benefit, is_valid, error_msg = validate_currency_input(financial_benefit_input)
+    if not is_valid and financial_benefit_input:
+        st.error(error_msg)
+
     
     # Seção 3: Cronograma
     st.markdown("### 📅 Cronograma")
