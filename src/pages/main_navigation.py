@@ -105,11 +105,11 @@ def render_sidebar_navigation(current_project=None):
     """Renderiza a navegação na sidebar"""
     with st.sidebar:
         # Debug info (opcional)
-        if st.checkbox("🔍 Debug Info", key="debug_nav"):
-            st.write("**Session State:**")
-            st.write(f"Página atual: {st.session_state.get('current_page', 'N/A')}")
-            st.write(f"Projeto: {current_project.get('name') if current_project else 'Nenhum'}")
-            st.write(f"Fase: {st.session_state.get('current_phase', 'N/A')}")
+        #if st.checkbox("🔍 Debug Info", key="debug_nav"):
+         #   st.write("**Session State:**")
+          #  st.write(f"Página atual: {st.session_state.get('current_page', 'N/A')}")
+           # st.write(f"Projeto: {current_project.get('name') if current_project else 'Nenhum'}")
+            #st.write(f"Fase: {st.session_state.get('current_phase', 'N/A')}")
         
         # Usuário atual
         user_data = st.session_state.get('user_data', {})
