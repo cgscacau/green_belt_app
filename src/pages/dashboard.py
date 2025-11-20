@@ -454,10 +454,10 @@ def show_projects_grid(projects, project_manager):
                 with col:
                     show_project_card(project, project_manager)
 
+#######################################################################################################################################################################################
 def show_project_card(project, project_manager):
-    """Exibe um card individual do projeto"""
+    """Exibe um card individual do projeto com design moderno"""
     project_id = project.get('id', 'unknown')
-    card_id = f"card_{project_id[:8]}"
     
     try:
         progress = project_manager.calculate_project_progress(project)
@@ -465,63 +465,167 @@ def show_project_card(project, project_manager):
         progress = 0
     
     status_info = {
-        'active': {'icon': '🟢', 'color': '#28a745', 'text': 'Ativo'},
-        'completed': {'icon': '✅', 'color': '#007bff', 'text': 'Concluído'},
-        'paused': {'icon': '⏸️', 'color': '#ffc107', 'text': 'Pausado'}
+        'active': {'icon': '🟢', 'color': '#10b981', 'bg': '#d1fae5', 'text': 'Ativo'},
+        'completed': {'icon': '✅', 'color': '#3b82f6', 'bg': '#dbeafe', 'text': 'Concluído'},
+        'paused': {'icon': '⏸️', 'color': '#f59e0b', 'bg': '#fef3c7', 'text': 'Pausado'}
     }
     
     status = project.get('status', 'active')
     status_data = status_info.get(status, status_info['active'])
     
+    # Formatar data de criação
     created_date = format_date_br(project.get('created_at', '')) if project.get('created_at') else 'N/A'
     
+    # Formatar economia esperada
+    expected_savings = project.get('expected_savings', 0)
+    savings_formatted = format_currency(expected_savings)
+    
+    # Container principal do card
     with st.container():
+        # Card com sombra e bordas arredondadas
         st.markdown(f"""
         <div style='
-            border: 1px solid #e1e5e9; 
-            border-radius: 12px; 
-            padding: 1.5rem; 
-            margin: 1rem 0; 
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: white;
+            border-radius: 16px;
+            padding: 0;
+            margin: 0.5rem 0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e5e7eb;
+            transition: transform 0.2s, box-shadow 0.2s;
+            overflow: hidden;
         '>
-            <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
-                <h4 style='margin: 0; color: #2c3e50;'>{status_data['icon']} {project.get('name', 'Sem nome')}</h4>
-                <span style='
-                    background-color: {status_data['color']}; 
-                    color: white; 
-                    padding: 0.25rem 0.5rem; 
-                    border-radius: 12px; 
-                    font-size: 0.8em; 
-                    font-weight: bold;
-                '>{status_data['text']}</span>
+            <!-- Header com gradiente -->
+            <div style='
+                background: linear-gradient(135deg, {status_data["color"]} 0%, {status_data["color"]}dd 100%);
+                padding: 1.25rem 1.5rem;
+                border-bottom: 1px solid #e5e7eb;
+            '>
+                <div style='display: flex; justify-content: space-between; align-items: center;'>
+                    <h3 style='
+                        margin: 0;
+                        color: white;
+                        font-size: 1.1rem;
+                        font-weight: 600;
+                        max-width: 70%;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    '>{status_data['icon']} {project.get('name', 'Sem nome')}</h3>
+                    <span style='
+                        background-color: {status_data["bg"]};
+                        color: {status_data["color"]};
+                        padding: 0.375rem 0.875rem;
+                        border-radius: 9999px;
+                        font-size: 0.75rem;
+                        font-weight: 600;
+                        letter-spacing: 0.025em;
+                        border: 2px solid {status_data["color"]}40;
+                    '>{status_data['text']}</span>
+                </div>
             </div>
             
-            <p style='color: #6c757d; font-size: 0.9em; margin-bottom: 1rem; line-height: 1.4;'>
-                {project.get('description', 'Sem descrição')[:120]}{'...' if len(project.get('description', '')) > 120 else ''}
-            </p>
-            
-            <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;'>
-                <div>
-                    <small style='color: #28a745; font-weight: bold;'>💰 Economia Esperada</small><br>
-                    <strong style='color: #2c3e50;'>{format_currency(project.get('expected_savings', 0))}</strong>
+            <!-- Corpo do card -->
+            <div style='padding: 1.5rem;'>
+                <!-- Descrição -->
+                <p style='
+                    color: #6b7280;
+                    font-size: 0.875rem;
+                    line-height: 1.5;
+                    margin: 0 0 1.25rem 0;
+                    display: -webkit-box;
+                    -webkit-line-clamp: 2;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
+                '>{project.get('description', 'Sem descrição')}</p>
+                
+                <!-- Métricas em grid -->
+                <div style='
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 1rem;
+                    margin-bottom: 1.25rem;
+                    padding: 1rem;
+                    background: #f9fafb;
+                    border-radius: 12px;
+                    border: 1px solid #e5e7eb;
+                '>
+                    <div style='text-align: center;'>
+                        <div style='
+                            color: #10b981;
+                            font-size: 0.7rem;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                            letter-spacing: 0.05em;
+                            margin-bottom: 0.375rem;
+                        '>💰 Economia</div>
+                        <div style='
+                            color: #1f2937;
+                            font-size: 1rem;
+                            font-weight: 700;
+                        '>{savings_formatted}</div>
+                    </div>
+                    <div style='text-align: center;'>
+                        <div style='
+                            color: #3b82f6;
+                            font-size: 0.7rem;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                            letter-spacing: 0.05em;
+                            margin-bottom: 0.375rem;
+                        '>📅 Criado em</div>
+                        <div style='
+                            color: #1f2937;
+                            font-size: 1rem;
+                            font-weight: 700;
+                        '>{created_date}</div>
+                    </div>
                 </div>
-                <div>
-                    <small style='color: #007bff; font-weight: bold;'>📅 Criado em</small><br>
-                    <strong style='color: #2c3e50;'>{created_date}</strong>
+                
+                <!-- Barra de progresso moderna -->
+                <div style='margin-bottom: 1.25rem;'>
+                    <div style='
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 0.5rem;
+                    '>
+                        <span style='
+                            color: #6b7280;
+                            font-size: 0.8rem;
+                            font-weight: 600;
+                        '>Progresso</span>
+                        <span style='
+                            color: {status_data["color"]};
+                            font-size: 0.875rem;
+                            font-weight: 700;
+                        '>{progress:.1f}%</span>
+                    </div>
+                    <div style='
+                        width: 100%;
+                        height: 8px;
+                        background: #e5e7eb;
+                        border-radius: 9999px;
+                        overflow: hidden;
+                    '>
+                        <div style='
+                            width: {progress}%;
+                            height: 100%;
+                            background: linear-gradient(90deg, {status_data["color"]} 0%, {status_data["color"]}dd 100%);
+                            border-radius: 9999px;
+                            transition: width 0.3s ease;
+                        '></div>
+                    </div>
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
         
-        st.markdown(f"**Progresso: {progress:.1f}%**")
-        st.progress(progress / 100)
-        
+        # Botões de ação em estilo moderno
         col1, col2, col3 = st.columns(3)
         
         with col1:
             button_key = f"dmaic_{project_id[:8]}"
-            if st.button("🎯 Abrir DMAIC", key=button_key, use_container_width=True, type="primary"):
+            if st.button("🎯 DMAIC", key=button_key, use_container_width=True, type="primary"):
                 st.session_state.current_project = project
                 st.session_state.current_page = "dmaic"
                 st.session_state.current_dmaic_phase = "define"
@@ -538,6 +642,7 @@ def show_project_card(project, project_manager):
                 st.rerun()
         
         with col3:
+            # Gerenciamento de exclusão com confirmação
             confirm_key = f"confirm_delete_{project_id}"
             if st.session_state.get(confirm_key):
                 delete_confirm_key = f"confirm_delete_{project_id[:8]}"
@@ -561,6 +666,10 @@ def show_project_card(project, project_manager):
                     st.session_state[confirm_key] = True
                     st.warning("⚠️ Clique em 'Confirmar' para excluir permanentemente")
                     st.rerun()
+
+
+
+#############################################################################################################################################################################################################
 
 def show_projects_analytics(projects):
     """Exibe gráficos analíticos dos projetos"""
