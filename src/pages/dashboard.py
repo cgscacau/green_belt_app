@@ -456,7 +456,7 @@ def show_projects_grid(projects, project_manager):
 
 #######################################################################################################################################################################################
 def show_project_card(project, project_manager):
-    """Exibe um card individual do projeto - Versão Streamlit Nativo"""
+    """Exibe um card individual do projeto - Versão com container leve"""
     project_id = project.get('id', 'unknown')
     
     try:
@@ -465,9 +465,9 @@ def show_project_card(project, project_manager):
         progress = 0
     
     status_info = {
-        'active': {'icon': '🟢', 'text': 'Ativo', 'color': 'green'},
-        'completed': {'icon': '✅', 'text': 'Concluído', 'color': 'blue'},
-        'paused': {'icon': '⏸️', 'text': 'Pausado', 'color': 'orange'}
+        'active': {'icon': '🟢', 'text': 'Ativo', 'emoji': '🟢'},
+        'completed': {'icon': '✅', 'text': 'Concluído', 'emoji': '✅'},
+        'paused': {'icon': '⏸️', 'text': 'Pausado', 'emoji': '⏸️'}
     }
     
     status = project.get('status', 'active')
@@ -480,102 +480,75 @@ def show_project_card(project, project_manager):
     expected_savings = project.get('expected_savings', 0)
     savings_formatted = format_currency(expected_savings)
     
-    # Container principal com borda
-    with st.container():
-        # Header do card com status
-        col_header1, col_header2 = st.columns([3, 1])
+    # Container com borda simples
+    with st.container(border=True):
+        # Header
+        col_h1, col_h2 = st.columns([4, 1])
         
-        with col_header1:
-            st.markdown(f"### {status_data['icon']} {project.get('name', 'Sem nome')}")
+        with col_h1:
+            st.markdown(f"### {status_data['emoji']} {project.get('name', 'Sem nome')}")
         
-        with col_header2:
-            if status_data['color'] == 'green':
-                st.success(status_data['text'])
-            elif status_data['color'] == 'blue':
-                st.info(status_data['text'])
-            else:
-                st.warning(status_data['text'])
+        with col_h2:
+            st.markdown(f"**{status_data['text']}**")
         
-        # Descrição do projeto
+        # Descrição
         description = project.get('description', 'Sem descrição')
-        if len(description) > 150:
-            description = description[:150] + '...'
-        st.caption(description)
+        st.caption(description[:120] + ('...' if len(description) > 120 else ''))
         
-        st.divider()
+        st.markdown("")  # Espaçamento
         
-        # Métricas em colunas
-        metric_col1, metric_col2 = st.columns(2)
+        # Métricas
+        col_m1, col_m2 = st.columns(2)
         
-        with metric_col1:
-            st.metric(
-                label="💰 Economia Esperada",
-                value=savings_formatted,
-                help="Economia financeira estimada"
-            )
+        with col_m1:
+            st.metric("💰 Economia", savings_formatted)
         
-        with metric_col2:
-            st.metric(
-                label="📅 Data de Criação",
-                value=created_date,
-                help="Data em que o projeto foi criado"
-            )
+        with col_m2:
+            st.metric("📅 Criado em", created_date)
         
-        # Barra de progresso
-        st.markdown(f"**Progresso do Projeto: {progress:.1f}%**")
+        # Progresso
+        st.markdown(f"**Progresso: {progress:.1f}%**")
         st.progress(progress / 100)
         
-        st.divider()
+        st.markdown("")  # Espaçamento
         
-        # Botões de ação
+        # Botões
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            button_key = f"dmaic_{project_id[:8]}"
-            if st.button("🎯 Abrir DMAIC", key=button_key, use_container_width=True, type="primary"):
+            if st.button("🎯 DMAIC", key=f"dmaic_{project_id[:8]}", use_container_width=True, type="primary"):
                 st.session_state.current_project = project
                 st.session_state.current_page = "dmaic"
                 st.session_state.current_dmaic_phase = "define"
-                st.success(f"✅ Abrindo projeto: {project.get('name')}")
+                st.success(f"✅ Abrindo: {project.get('name')}")
                 time.sleep(1)
                 st.rerun()
         
         with col2:
-            select_key = f"select_{project_id[:8]}"
-            if st.button("📊 Selecionar", key=select_key, use_container_width=True):
+            if st.button("📊 Selecionar", key=f"select_{project_id[:8]}", use_container_width=True):
                 st.session_state.current_project = project
-                st.success(f"📊 Projeto selecionado: {project.get('name')}")
+                st.success(f"📊 Selecionado: {project.get('name')}")
                 time.sleep(1)
                 st.rerun()
         
         with col3:
-            # Gerenciamento de exclusão com confirmação
             confirm_key = f"confirm_delete_{project_id}"
             if st.session_state.get(confirm_key):
-                delete_confirm_key = f"confirm_delete_{project_id[:8]}"
-                if st.button("⚠️ Confirmar", key=delete_confirm_key, use_container_width=True, type="primary"):
-                    with st.spinner("Excluindo projeto..."):
+                if st.button("⚠️ Confirmar", key=f"confirm_{project_id[:8]}", use_container_width=True):
+                    with st.spinner("Excluindo..."):
                         success = project_manager.delete_project(project_id, project['user_uid'])
-                    
                     if success:
-                        st.success("✅ Projeto excluído com sucesso!")
+                        st.success("✅ Excluído!")
                         if confirm_key in st.session_state:
                             del st.session_state[confirm_key]
                         if st.session_state.get('current_project', {}).get('id') == project_id:
                             del st.session_state.current_project
                         time.sleep(1)
                         st.rerun()
-                    else:
-                        st.error("❌ Erro ao excluir projeto")
             else:
-                delete_key = f"delete_{project_id[:8]}"
-                if st.button("🗑️ Excluir", key=delete_key, use_container_width=True):
+                if st.button("🗑️ Excluir", key=f"delete_{project_id[:8]}", use_container_width=True):
                     st.session_state[confirm_key] = True
-                    st.warning("⚠️ Clique em 'Confirmar' para excluir permanentemente")
                     st.rerun()
-        
-        # Espaçamento entre cards
-        st.markdown("<br>", unsafe_allow_html=True)
 
 
 
