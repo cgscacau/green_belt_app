@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from src.auth.firebase_auth import FirebaseAuth
 from src.utils.navigation import NavigationManager
 from src.utils.project_manager import ProjectManager
+from src.utils.formatters import format_currency, format_date_br, format_number_br
 
 def show_dashboard():
     """Dashboard principal do sistema"""
