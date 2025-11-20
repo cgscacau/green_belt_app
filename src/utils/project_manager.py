@@ -191,9 +191,9 @@ class ProjectManager:
                 },
                 'control': {
                     'control_plan': {'completed': False, 'data': {}},
-                    'spc_charts': {'completed': False, 'data': {}},
-                    'documentation': {'completed': False, 'data': {}},
-                    'handover': {'completed': False, 'data': {}}
+                    #'spc_charts': {'completed': False, 'data': {}},
+                    'documentation': {'completed': False, 'data': {}}
+                    #'handover': {'completed': False, 'data': {}}
                 }
             }
             
